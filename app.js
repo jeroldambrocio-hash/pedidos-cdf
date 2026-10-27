@@ -57,7 +57,15 @@ $("loginForm").addEventListener("submit", async (e) => {
   $("lBtn").disabled = false;
   if (error) $("lErr").textContent = /invalid/i.test(error.message) ? t("badLogin") : error.message;
 });
-$("logout").onclick = async () => { await sb.auth.signOut(); };
+// Local sign-out needs no network round trip, so it works even when the server call would fail
+// (Safari kept the session when the global sign-out request errored).
+$("logout").onclick = async () => {
+  $("logout").disabled = true;
+  try { await sb.auth.signOut({ scope: "local" }); } catch { /* clear it below anyway */ }
+  try { for (const k of Object.keys(localStorage)) if (k.startsWith("sb-")) localStorage.removeItem(k); } catch {}
+  $("logout").disabled = false;
+  booted = null; stop();
+};
 
 let booted;
 sb.auth.onAuthStateChange((_ev, session) => {
