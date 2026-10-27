@@ -208,13 +208,36 @@ $("purgeYes").onclick = async () => {
 };
 
 // ---------- photo helpers ----------
-function compress(file) {
+const IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif|tiff?|jfif)$/i;
+const isImage = (f) => f && (f.type.startsWith("image/") || IMAGE_EXT.test(f.name || ""));
+const isHeic = (f) => /image\/hei[cf]/i.test(f.type) || /\.hei[cf]$/i.test(f.name || "");
+let heicLib = null;
+function loadHeic() {
+  // iPhone photos (HEIC) only decode natively in Safari; elsewhere convert them in the browser.
+  heicLib ||= new Promise((res, rej) => {
+    const sc = document.createElement("script");
+    sc.src = "https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js";
+    sc.onload = () => res(window.heic2any); sc.onerror = () => { heicLib = null; rej(new Error("heic2any")); };
+    document.head.append(sc);
+  });
+  return heicLib;
+}
+async function compress(file) {
+  try { return await toJpeg(file); } catch (e) {
+    if (!isHeic(file)) throw e;
+    const heic2any = await loadHeic();
+    const out = await heic2any({ blob: file, toType: "image/jpeg", quality: 0.9 });
+    return toJpeg(Array.isArray(out) ? out[0] : out);
+  }
+}
+function toJpeg(file) {
   return new Promise((res, rej) => {
     const img = new Image(), u = URL.createObjectURL(file);
     img.onload = () => {
       let w = img.width, h = img.height; const max = 1200;
       if (Math.max(w, h) > max) { const r = max / Math.max(w, h); w = Math.round(w * r); h = Math.round(h * r); }
-      const c = document.createElement("canvas"); c.width = w; c.height = h; c.getContext("2d").drawImage(img, 0, 0, w, h);
+      const c = document.createElement("canvas"); c.width = w; c.height = h; const ctx = c.getContext("2d");
+      ctx.fillStyle = "#fff"; ctx.fillRect(0, 0, w, h); ctx.drawImage(img, 0, 0, w, h); // white behind transparent PNGs
       URL.revokeObjectURL(u); c.toBlob((b) => (b ? res(b) : rej(new Error("blob"))), "image/jpeg", 0.8);
     };
     img.onerror = () => rej(new Error("img")); img.src = u;
@@ -262,7 +285,7 @@ function openSheet(o) {
   const iNotes = el("textarea", { id: "f-notes", placeholder: "Dirección, mensaje de la tarjeta, instrucciones…" }, f.notes);
   const iVend = sel("f-vendor", [["", "Sin asignar"], ...S.members.map((m) => [m.email, m.name + (m.role === "admin" ? " (admin)" : "")])], f.vendor_email || "");
   const iStatus = sel("f-status", STEPS.map((s) => [s.label, s.label]), STEPS[stepOf(f)].label);
-  const fileIn = el("input", { type: "file", accept: "image/*", id: "f-file", hidden: true });
+  const fileIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-file", hidden: true });
   const drop = el("div", { class: "drop" });
   const err = el("div", { class: "err", role: "alert" });
   let preview = null;
@@ -276,8 +299,10 @@ function openSheet(o) {
         src ? el("button", { class: "btn", type: "button", onclick: () => { photoBlob = null; photoRemoved = true; drawDrop(); } }, "Quitar") : null));
   };
   const take = async (file) => {
-    if (!file || !file.type.startsWith("image/")) return;
-    try { photoBlob = await compress(file); photoRemoved = false; drawDrop(); } catch { err.textContent = "No se pudo leer esa imagen. Prueba con un PNG o JPG."; }
+    if (!file) return;
+    if (!isImage(file)) { err.textContent = "Ese archivo no es una imagen. Usa una foto o una captura de pantalla."; return; }
+    err.textContent = ""; if (isHeic(file)) toast("Convirtiendo foto de iPhone…");
+    try { photoBlob = await compress(file); photoRemoved = false; drawDrop(); } catch { err.textContent = "No se pudo leer esa imagen. Prueba a hacerle una captura de pantalla y pegarla."; }
   };
   fileIn.addEventListener("change", () => take(fileIn.files[0]));
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
