@@ -31,7 +31,7 @@ const el = (t, a = {}, ...kids) => {
 const trackUrl = (o) => location.origin + "/p/" + o.code;
 
 const today = iso(new Date());
-const S = { me: null, tab: "orders", sel: today, month: new Date(), orders: [], members: [], photoUrls: {}, channel: null };
+const S = { me: null, filter: null, tab: "orders", sel: today, month: new Date(), orders: [], members: [], photoUrls: {}, channel: null };
 S.month = new Date(S.month.getFullYear(), S.month.getMonth(), 1);
 const isAdmin = () => S.me?.role === "admin";
 
@@ -43,7 +43,7 @@ $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("lErr").textContent = ""; $("lBtn").disabled = true;
   const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPass").value });
   $("lBtn").disabled = false;
-  if (error) $("lErr").textContent = /invalid/i.test(error.message) ? "Email o contraseña incorrectos." : error.message;
+  if (error) $("lErr").textContent = /invalid/i.test(error.message) ? t("badLogin") : error.message;
 });
 $("logout").onclick = async () => { await sb.auth.signOut(); };
 
@@ -58,7 +58,7 @@ sb.auth.onAuthStateChange((_ev, session) => {
 function stop() {
   S.me = null; S.orders = []; S.photoUrls = {};
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
-  $("hright").hidden = true; $("sub").textContent = "Inicia sesión";
+  $("hright").hidden = true; $("sub").textContent = t("signIn");
   closeSheet(); show("login");
 }
 
@@ -67,11 +67,11 @@ async function start(user) {
   const { data, error } = await sb.from("cdf_members").select("email,name,role").eq("email", email).maybeSingle();
   $("hright").hidden = false;
   if (error || !data) {
-    $("noaccessTxt").textContent = "La cuenta " + email + " no está en el equipo de Casa de Flores. Pide a un admin que te añada.";
+    $("noaccessTxt").textContent = t("noAccessTxt", { email });
     $("tabs").hidden = true; show("noaccess"); return;
   }
   S.me = data;
-  $("sub").textContent = isAdmin() ? "Admin · " + data.name : data.name + " · tus pedidos";
+  renderSub();
   $("tabs").hidden = !isAdmin();
   $("newBtn").hidden = !isAdmin();
   $("adminTools").hidden = !isAdmin();
@@ -85,7 +85,7 @@ async function start(user) {
 
 async function loadOrders() {
   const { data, error } = await sb.from("cdf_orders").select("*").order("date").order("num");
-  if (error) { toast("No se pudieron cargar los pedidos"); return; }
+  if (error) { toast(t("loadFail")); return; }
   S.orders = data;
   renderOrders();
 }
@@ -93,7 +93,18 @@ async function loadMembers() {
   const { data } = await sb.from("cdf_members").select("email,name,role").order("name");
   S.members = data || [];
 }
-const memberName = (email) => S.members.find((m) => m.email === email)?.name || email || "Sin asignar";
+const memberName = (email) => S.members.find((m) => m.email === email)?.name || email || t("unassigned");
+
+function renderSub() {
+  if (!S.me) { $("sub").textContent = t("signIn"); return; }
+  $("sub").textContent = t(isAdmin() ? "subAdmin" : "subVendor", { name: S.me.name });
+}
+document.addEventListener("langchange", () => {
+  renderSub();
+  if (S.me && $("noaccess").hidden === false) $("noaccessTxt").textContent = t("noAccessTxt", { email: S.me.email });
+  if (S.tab === "team") renderTeam(); else renderOrders();
+  if (S.openOrder !== undefined) openSheet(S.openOrder);
+});
 
 // ---------- tabs ----------
 function setTab(t) {
@@ -112,10 +123,10 @@ function renderOrders() {
 }
 function renderCal() {
   const m = S.month, y = m.getFullYear(), mo = m.getMonth();
-  $("mLabel").textContent = cap(m.toLocaleDateString("es-ES", { month: "long", year: "numeric" }));
+  $("mLabel").textContent = cap(m.toLocaleDateString(locale(), { month: "long", year: "numeric" }));
   const counts = {}; for (const o of S.orders) counts[o.date] = (counts[o.date] || 0) + 1;
   const cal = $("cal"); cal.replaceChildren();
-  ["L", "M", "X", "J", "V", "S", "D"].forEach((d, i) => cal.append(el("div", { class: "dow" + (i === 6 ? " sun" : "") }, d)));
+  t("dow").forEach((d, i) => cal.append(el("div", { class: "dow" + (i === 6 ? " sun" : "") }, d)));
   const first = new Date(y, mo, 1), start = new Date(y, mo, 1 - ((first.getDay() + 6) % 7));
   for (let i = 0; i < 42; i++) {
     const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i), k = iso(d), n = counts[k] || 0;
@@ -123,8 +134,8 @@ function renderCal() {
     const dots = el("span", { class: "dots" }); for (let j = 0; j < Math.min(n, 3); j++) dots.append(el("i"));
     cal.append(el("button", {
       class: "day" + (d.getMonth() !== mo ? " out" : "") + (k === today ? " today" : "") + (k === S.sel ? " sel" : ""),
-      "aria-label": d.toLocaleDateString("es-ES", { day: "numeric", month: "long" }) + (n ? ", " + n + " pedidos" : ""),
-      onclick: () => { S.sel = k; S.month = new Date(d.getFullYear(), d.getMonth(), 1); renderOrders(); },
+      "aria-label": d.toLocaleDateString(locale(), { day: "numeric", month: "long" }) + (n ? ", " + t("nOrders", { n }) : ""),
+      onclick: () => { S.sel = k; S.filter = null; S.month = new Date(d.getFullYear(), d.getMonth(), 1); renderOrders(); },
     }, String(d.getDate()), dots));
   }
 }
@@ -138,7 +149,7 @@ function stepper(o, editable) {
       const prev = { status: o.status, delivery: o.delivery };
       Object.assign(o, { status: s.status, delivery: s.delivery }); renderOrders();
       const { error } = await sb.from("cdf_orders").update({ status: s.status, delivery: s.delivery }).eq("id", o.id);
-      if (error) { Object.assign(o, prev); renderOrders(); toast("No se pudo cambiar el estado"); }
+      if (error) { Object.assign(o, prev); renderOrders(); toast(t("statusFail")); }
     },
   }, s.label)));
   return w;
@@ -151,28 +162,36 @@ async function photoUrl(path) {
   return S.photoUrls[path] || null;
 }
 function renderDay() {
-  $("dLabel").textContent = cap(fromIso(S.sel).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" }));
-  const list = S.orders.filter((o) => o.date === S.sel).sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || a.num.localeCompare(b.num));
-  $("dSub").textContent = list.length ? list.length + (list.length === 1 ? " pedido" : " pedidos") : "";
-  const t = $("tally"); t.replaceChildren();
-  if (list.length) STEPS.forEach((s, i) => { const n = list.filter((o) => stepOf(o) === i).length; t.append(el("span", { style: "background:var(--st-" + s.k + "-bg);color:var(--st-" + s.k + ")" }, n + " " + s.label)); });
+  $("dLabel").textContent = cap(fromIso(S.sel).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }));
+  const all = S.orders.filter((o) => o.date === S.sel).sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || a.num.localeCompare(b.num));
+  $("dSub").textContent = all.length ? (all.length === 1 ? t("oneOrder") : t("nOrders", { n: all.length })) : "";
+  // Tally chips double as filters: a step, or "pending" (everything not delivered yet).
+  const match = (o) => S.filter == null ? true : S.filter === "pending" ? stepOf(o) < 3 : stepOf(o) === S.filter;
+  const tally = $("tally"); tally.replaceChildren();
+  const chip = (key, label, n, style) => tally.append(el("button", { class: "chip" + (S.filter === key ? " on" : ""), type: "button", style,
+    "aria-pressed": String(S.filter === key), disabled: !n && S.filter !== key, onclick: () => { S.filter = S.filter === key ? null : key; renderDay(); } }, n + " " + label));
+  if (all.length) {
+    chip("pending", t("pending"), all.filter((o) => stepOf(o) < 3).length, "background:var(--petal-soft);color:var(--petal)");
+    STEPS.forEach((s, i) => chip(i, s.label, all.filter((o) => stepOf(o) === i).length, "background:var(--st-" + s.k + "-bg);color:var(--st-" + s.k + ")"));
+  }
+  const list = all.filter(match);
   const box = $("list"); box.replaceChildren();
-  if (!list.length) {
-    box.append(el("div", { class: "empty" }, el("b", {}, "Sin pedidos este día"),
-      isAdmin() ? "Pulsa «+ Nuevo pedido» para añadir uno desde la captura del cliente." : "Cuando te asignen un pedido para este día aparecerá aquí."));
+  if (!all.length) {
+    box.append(el("div", { class: "empty" }, el("b", {}, t("noOrdersDay")), isAdmin() ? t("emptyAdmin") : t("emptyVendor")));
     return;
   }
+  if (!list.length) { box.append(el("div", { class: "empty" }, el("b", {}, t("noneFiltered")), el("button", { class: "btn", type: "button", onclick: () => { S.filter = null; renderDay(); } }, t("showAll")))); return; }
   for (const slot of SLOTS) {
     const os = list.filter((o) => o.slot === slot); if (!os.length) continue;
     const g = el("div", { class: "orders" });
     for (const o of os) {
-      const th = el("div", { class: "thumb" }, o.photo_path ? "" : "sin foto");
+      const th = el("div", { class: "thumb" }, o.photo_path ? "" : t("noPhotoShort"));
       if (o.photo_path) photoUrl(o.photo_path).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "" })); });
       g.append(el("div", { class: "order", role: "button", tabindex: "0", onclick: () => openSheet(o), onkeydown: (e) => { if (e.key === "Enter") openSheet(o); } },
         th,
         el("div", { class: "o-main" },
           el("div", { class: "o-top" }, el("span", { class: "num" }, "#" + o.num), chanChip(o.channel)),
-          el("div", { class: "o-sub" }, [o.customer_name, isAdmin() ? memberName(o.vendor_email) : null, o.address || o.notes || "Sin dirección"].filter(Boolean).join(" · "))),
+          el("div", { class: "o-sub" }, [o.customer_name, isAdmin() ? memberName(o.vendor_email) : null, o.address || o.notes || t("noAddress")].filter(Boolean).join(" · "))),
         stepper(o, isAdmin())));
     }
     box.append(el("section", { class: "slot" }, el("h3", {}, slot), g));
@@ -180,19 +199,19 @@ function renderDay() {
 }
 $("prevM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); renderCal(); };
 $("nextM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderCal(); };
-$("todayBtn").onclick = () => { S.sel = today; S.month = new Date(); S.month.setDate(1); renderOrders(); };
+$("todayBtn").onclick = () => { S.sel = today; S.filter = null; S.month = new Date(); S.month.setDate(1); renderOrders(); };
 $("newBtn").onclick = () => openSheet(null);
 
 // ---------- purge delivered ----------
 function renderPurge() {
   if (!isAdmin()) return;
   const n = S.orders.filter((o) => o.delivery === "Delivered").length;
-  $("purgeBtn").textContent = "Borrar entregados (" + n + ")";
+  $("purgeBtn").textContent = t("purge", { n });
   $("purgeBtn").disabled = n === 0;
 }
 $("purgeBtn").onclick = () => {
   const n = S.orders.filter((o) => o.delivery === "Delivered").length;
-  $("purgeTxt").textContent = "¿Borrar " + n + (n === 1 ? " pedido entregado" : " pedidos entregados") + " y sus fotos? Sus enlaces de seguimiento dejarán de funcionar.";
+  $("purgeTxt").textContent = t("purgeAsk", { n });
   $("purgeConfirm").hidden = false;
 };
 $("purgeNo").onclick = () => ($("purgeConfirm").hidden = true);
@@ -202,7 +221,7 @@ $("purgeYes").onclick = async () => {
   if (paths.length) await sb.storage.from(bucket).remove(paths);
   const { error } = await sb.from("cdf_orders").delete().in("id", done.map((o) => o.id));
   $("purgeConfirm").hidden = true;
-  if (error) toast("No se pudieron borrar"); else { toast(done.length + " pedidos borrados"); loadOrders(); }
+  if (error) toast(t("purgeFail")); else { toast(t("purged", { n: done.length })); loadOrders(); }
 };
 
 // ---------- photo helpers ----------
@@ -245,7 +264,7 @@ function toJpeg(file) {
 const mapsUrl = (a) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(a);
 const mapLink = (a) => el("a", { href: mapsUrl(a), target: "_blank", rel: "noopener", style: "color:inherit" }, a + " ↗");
 function mapHint(input) {
-  const a = el("a", { target: "_blank", rel: "noopener", style: "color:inherit" }, "Abrir en Google Maps ↗");
+  const a = el("a", { target: "_blank", rel: "noopener", style: "color:inherit" }, t("openMaps"));
   const sync = () => { a.href = mapsUrl(input.value); a.hidden = !input.value.trim(); };
   input.addEventListener("input", sync); sync();
   return a;
@@ -255,30 +274,32 @@ function mapHint(input) {
 let onPaste = null, onKey = null;
 function closeSheet() {
   $("sheetRoot").replaceChildren();
+  delete S.openOrder;
   if (onPaste) document.removeEventListener("paste", onPaste);
   if (onKey) document.removeEventListener("keydown", onKey);
   onPaste = onKey = null;
 }
 function openSheet(o) {
   closeSheet();
+  S.openOrder = o;
   const scrim = el("div", { class: "scrim", onclick: (e) => { if (e.target === scrim) closeSheet(); } });
   const sheet = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" });
   scrim.append(sheet); $("sheetRoot").append(scrim);
   onKey = (e) => { if (e.key === "Escape") closeSheet(); }; document.addEventListener("keydown", onKey);
-  const closeBtn = () => el("button", { class: "iconbtn", type: "button", "aria-label": "Cerrar", onclick: closeSheet }, "✕");
+  const closeBtn = () => el("button", { class: "iconbtn", type: "button", "aria-label": t("close"), onclick: closeSheet }, "✕");
 
   if (!isAdmin()) {
-    const ph = el("div", { class: "drop" }, o.photo_path ? "Cargando foto…" : "Sin foto");
-    if (o.photo_path) photoUrl(o.photo_path).then((u) => ph.replaceChildren(u ? el("img", { src: u, alt: "Foto del pedido " + o.num }) : "No se pudo cargar la foto"));
-    sheet.append(el("div", { class: "sheet-head" }, el("h2", {}, "Pedido #" + o.num), closeBtn()),
+    const ph = el("div", { class: "drop" }, o.photo_path ? t("loadingPhoto") : t("noPhoto"));
+    if (o.photo_path) photoUrl(o.photo_path).then((u) => ph.replaceChildren(u ? el("img", { src: u, alt: t("photoAlt") + " " + o.num }) : t("photoFail")));
+    sheet.append(el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), closeBtn()),
       el("dl", { class: "ro" },
-        el("dt", {}, "Fecha y franja"), el("dd", {}, cap(fromIso(o.date).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot),
-        el("dt", {}, "Cliente"), el("dd", {}, o.customer_name || "Sin nombre"),
-        el("dt", {}, "Dirección"), el("dd", {}, o.address ? mapLink(o.address) : "Sin dirección"),
-        el("dt", {}, "Canal"), el("dd", {}, chanChip(o.channel) || "Sin canal"),
-        el("dt", {}, "Nota / instrucción"), el("dd", { class: "note" }, o.notes || "Sin notas"),
-        el("dt", {}, "Foto"), el("dd", {}, ph),
-        el("dt", {}, "Estado"), el("dd", {}, stepper(o, false))));
+        el("dt", {}, t("dateSlot")), el("dd", {}, cap(fromIso(o.date).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot),
+        el("dt", {}, t("customer")), el("dd", {}, o.customer_name || t("noName")),
+        el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
+        el("dt", {}, t("channel")), el("dd", {}, chanChip(o.channel) || t("noChannel")),
+        el("dt", {}, t("note")), el("dd", { class: "note" }, o.notes || t("noNotes")),
+        el("dt", {}, t("photo")), el("dd", {}, ph),
+        el("dt", {}, t("status")), el("dd", {}, stepper(o, false))));
     return;
   }
 
@@ -290,11 +311,11 @@ function openSheet(o) {
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
   const iSlot = sel("f-slot", SLOTS.map((s) => [s, s]), f.slot);
   const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", style: "font-family:var(--f-mono)", required: true });
-  const iChan = sel("f-chan", [["", "Sin canal"], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
-  const iName = el("input", { id: "f-name", value: f.customer_name || "", placeholder: "Quién recibe las flores", autocomplete: "off" });
-  const iAddr = el("input", { id: "f-addr", value: f.address || "", placeholder: "Calle, número, piso, ciudad", autocomplete: "off" });
-  const iNotes = el("textarea", { id: "f-notes", placeholder: "Mensaje de la tarjeta, teléfono, instrucciones…" }, f.notes);
-  const iVend = sel("f-vendor", [["", "Sin asignar"], ...S.members.map((m) => [m.email, m.name + (m.role === "admin" ? " (admin)" : "")])], f.vendor_email || "");
+  const iChan = sel("f-chan", [["", t("noChannel")], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
+  const iName = el("input", { id: "f-name", value: f.customer_name || "", placeholder: t("namePh"), autocomplete: "off" });
+  const iAddr = el("input", { id: "f-addr", value: f.address || "", placeholder: t("addrPh"), autocomplete: "off" });
+  const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh") }, f.notes);
+  const iVend = sel("f-vendor", [["", t("unassigned")], ...S.members.map((m) => [m.email, m.name + (m.role === "admin" ? " (admin)" : "")])], f.vendor_email || "");
   const iStatus = sel("f-status", STEPS.map((s) => [s.label, s.label]), STEPS[stepOf(f)].label);
   const fileIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-file", hidden: true });
   const drop = el("div", { class: "drop" });
@@ -304,16 +325,16 @@ function openSheet(o) {
     if (photoBlob) { if (preview) URL.revokeObjectURL(preview); preview = URL.createObjectURL(photoBlob); }
     const src = photoBlob ? preview : (!photoRemoved && f.photo_path ? await photoUrl(f.photo_path) : null);
     drop.replaceChildren(
-      src ? el("img", { src, alt: "Foto del pedido" }) : el("div", {}, "Pega la captura con Ctrl+V / ⌘V, arrástrala aquí o"),
+      src ? el("img", { src, alt: t("photoAlt") }) : el("div", {}, t("pasteHint")),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;justify-content:center" },
-        el("button", { class: "btn", type: "button", onclick: () => fileIn.click() }, src ? "Cambiar foto" : "Subir foto"),
-        src ? el("button", { class: "btn", type: "button", onclick: () => { photoBlob = null; photoRemoved = true; drawDrop(); } }, "Quitar") : null));
+        el("button", { class: "btn", type: "button", onclick: () => fileIn.click() }, src ? t("changePhoto") : t("uploadPhoto")),
+        src ? el("button", { class: "btn", type: "button", onclick: () => { photoBlob = null; photoRemoved = true; drawDrop(); } }, t("remove")) : null));
   };
   const take = async (file) => {
     if (!file) return;
-    if (!isImage(file)) { err.textContent = "Ese archivo no es una imagen. Usa una foto o una captura de pantalla."; return; }
-    err.textContent = ""; if (isHeic(file)) toast("Convirtiendo foto de iPhone…");
-    try { photoBlob = await compress(file); photoRemoved = false; drawDrop(); } catch { err.textContent = "No se pudo leer esa imagen. Prueba a hacerle una captura de pantalla y pegarla."; }
+    if (!isImage(file)) { err.textContent = t("notImage"); return; }
+    err.textContent = ""; if (isHeic(file)) toast(t("converting"));
+    try { photoBlob = await compress(file); photoRemoved = false; drawDrop(); } catch { err.textContent = t("readFail"); }
   };
   fileIn.addEventListener("change", () => take(fileIn.files[0]));
   drop.addEventListener("dragover", (e) => { e.preventDefault(); drop.classList.add("over"); });
@@ -323,25 +344,25 @@ function openSheet(o) {
   document.addEventListener("paste", onPaste);
   drawDrop();
 
-  const linkBlock = isNew ? el("div", { class: "hint" }, "El enlace para el cliente aparece al guardar el pedido.") : (() => {
+  const linkBlock = isNew ? el("div", { class: "hint" }, t("linkAfterSave")) : (() => {
     const li = el("input", { id: "f-link", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select() });
     return el("div", { class: "link-row" }, li,
       el("button", { class: "btn", type: "button", onclick: () => {
-        navigator.clipboard?.writeText(li.value).then(() => toast("Enlace copiado"), () => { li.focus(); li.select(); toast("Selecciónalo y cópialo"); });
-      } }, "Copiar"),
-      el("a", { class: "btn", href: trackUrl(o), target: "_blank", rel: "noopener", style: "text-decoration:none;color:inherit" }, "Ver"));
+        navigator.clipboard?.writeText(li.value).then(() => toast(t("copied")), () => { li.focus(); li.select(); toast(t("selectCopy")); });
+      } }, t("copy")),
+      el("a", { class: "btn", href: trackUrl(o), target: "_blank", rel: "noopener", style: "text-decoration:none;color:inherit" }, t("view")));
   })();
 
-  const saveBtn = el("button", { class: "btn primary", type: "submit" }, "Guardar");
-  const confirmBox = el("div", { class: "confirm", hidden: true }, "¿Borrar el pedido #" + f.num + "? No se puede deshacer.",
+  const saveBtn = el("button", { class: "btn primary", type: "submit" }, t("save"));
+  const confirmBox = el("div", { class: "confirm", hidden: true }, t("askDelete", { num: f.num }),
     el("div", {},
       el("button", { class: "btn danger", type: "button", onclick: async () => {
         if (o.photo_path) await sb.storage.from(bucket).remove([o.photo_path]);
         const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
-        if (error) { toast("No se pudo borrar"); return; }
-        closeSheet(); toast("Pedido borrado"); loadOrders();
-      } }, "Sí, borrar"),
-      el("button", { class: "btn", type: "button", onclick: () => (confirmBox.hidden = true) }, "Cancelar")));
+        if (error) { toast(t("deleteFail")); return; }
+        closeSheet(); toast(t("deleted")); loadOrders();
+      } }, t("yesDelete")),
+      el("button", { class: "btn", type: "button", onclick: () => (confirmBox.hidden = true) }, t("cancel"))));
 
   const form = el("form", { style: "display:contents", onsubmit: async (e) => {
     e.preventDefault(); err.textContent = "";
@@ -353,31 +374,31 @@ function openSheet(o) {
     let saved, error;
     if (isNew) ({ data: saved, error } = await sb.from("cdf_orders").insert(row).select().single());
     else ({ data: saved, error } = await sb.from("cdf_orders").update(row).eq("id", o.id).select().single());
-    if (error) { saveBtn.disabled = false; err.textContent = error.code === "23505" ? "Ya existe un pedido #" + row.num + ". Usa otro número." : "No se pudo guardar: " + error.message; return; }
+    if (error) { saveBtn.disabled = false; err.textContent = error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message }); return; }
     if (photoBlob) {
       const path = saved.id + ".jpg";
       const up = await sb.storage.from(bucket).upload(path, photoBlob, { upsert: true, contentType: "image/jpeg" });
-      if (up.error) toast("Pedido guardado, pero la foto no se pudo subir");
+      if (up.error) toast(t("photoUploadFail"));
       else { delete S.photoUrls[path]; await sb.from("cdf_orders").update({ photo_path: path }).eq("id", saved.id); }
     } else if (photoRemoved && f.photo_path) {
       await sb.storage.from(bucket).remove([f.photo_path]);
       await sb.from("cdf_orders").update({ photo_path: null }).eq("id", saved.id);
     }
     S.sel = row.date; S.month = fromIso(row.date); S.month.setDate(1);
-    closeSheet(); toast(isNew ? "Pedido creado" : "Pedido guardado"); loadOrders();
-    if (isNew) setTimeout(() => { const n = S.orders.find((x) => x.id === saved.id); if (n) openSheet(n); }, 600);
+    S.filter = null;
+    closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
   } },
-    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? "Nuevo pedido" : "Editar pedido #" + f.num), closeBtn()),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, "Fecha"), iDate), el("label", { class: "field" }, el("span", {}, "Franja horaria"), iSlot)),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, "Nº pedido"), iNum), el("label", { class: "field" }, el("span", {}, "Canal"), iChan)),
-    el("label", { class: "field" }, el("span", {}, "Nombre del cliente (opcional)"), iName),
-    el("div", { class: "field" }, el("span", {}, "Dirección de entrega (opcional)"), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
-    el("label", { class: "field" }, el("span", {}, "Nota / instrucción"), iNotes),
-    el("div", { class: "field" }, el("span", {}, "Foto"), drop, fileIn),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, "Vendedor"), iVend), el("label", { class: "field" }, el("span", {}, "Estado"), iStatus)),
-    el("div", { class: "field" }, el("span", {}, "Enlace para el cliente"), linkBlock),
+    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t("newOrderTitle") : t("editOrder", { num: f.num })), closeBtn()),
+    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("label", { class: "field" }, el("span", {}, t("slot")), iSlot)),
+    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("channel")), iChan)),
+    el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
+    el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
+    el("label", { class: "field" }, el("span", {}, t("note")), iNotes),
+    el("div", { class: "field" }, el("span", {}, t("photo")), drop, fileIn),
+    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("vendor")), iVend), el("label", { class: "field" }, el("span", {}, t("status")), iStatus)),
+    el("div", { class: "field" }, el("span", {}, t("customerLink")), linkBlock),
     err, confirmBox,
-    el("div", { class: "sheet-foot" }, isNew ? el("span") : el("button", { class: "btn danger", type: "button", onclick: () => (confirmBox.hidden = false) }, "Borrar"), saveBtn));
+    el("div", { class: "sheet-foot" }, isNew ? el("span") : el("button", { class: "btn danger", type: "button", onclick: () => (confirmBox.hidden = false) }, t("delete")), saveBtn));
   sheet.append(form);
 }
 
@@ -387,15 +408,15 @@ function renderTeam() {
   for (const m of S.members) {
     const self = m.email === S.me.email;
     box.append(el("div", { class: "member" },
-      el("div", {}, el("b", {}, m.name, el("span", { class: "role-tag" }, m.role === "admin" ? "Admin" : "Vendedor")), el("small", {}, m.email)),
-      self ? el("span", { class: "hint" }, "Tú") : el("button", { class: "btn ghost", onclick: async (e) => {
+      el("div", {}, el("b", {}, m.name, el("span", { class: "role-tag" }, m.role === "admin" ? "Admin" : t("roleVendor"))), el("small", {}, m.email)),
+      self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn ghost", onclick: async (e) => {
         const b = e.currentTarget;
-        if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = "¿Quitar? Confirmar"; b.classList.add("danger"); return; }
+        if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = t("confirmRemove"); b.classList.add("danger"); return; }
         b.disabled = true;
         const { data, error } = await sb.functions.invoke("cdf-users", { body: { action: "remove", email: m.email } });
-        if (error || data?.error) { b.disabled = false; toast(data?.error || "No se pudo quitar"); return; }
-        toast(m.name + " ya no tiene acceso"); await loadMembers(); renderTeam();
-      } }, "Quitar")));
+        if (error || data?.error) { b.disabled = false; toast(data?.error || t("removeFail")); return; }
+        toast(t("removed", { name: m.name })); await loadMembers(); renderTeam();
+      } }, t("remove"))));
   }
 }
 $("addForm").addEventListener("submit", async (e) => {
@@ -404,8 +425,8 @@ $("addForm").addEventListener("submit", async (e) => {
   const { data, error } = await sb.functions.invoke("cdf-users", { body });
   $("aBtn").disabled = false;
   let msg = data?.error;
-  if (error && !msg) { try { msg = (await error.context.json()).error; } catch { msg = "No se pudo añadir"; } }
+  if (error && !msg) { try { msg = (await error.context.json()).error; } catch { msg = t("addFail"); } }
   if (msg) { $("aErr").textContent = msg; return; }
-  toast(data.existed ? body.name + " añadido (ya tenía cuenta, usa su contraseña)" : body.name + " añadido");
+  toast(t(data.existed ? "addedExisting" : "added", { name: body.name }));
   e.target.reset(); await loadMembers(); renderTeam();
 });

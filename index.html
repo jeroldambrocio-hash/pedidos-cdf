@@ -17,51 +17,58 @@
   <header>
     <div class="brand">
       <img src="/img/emblem.png" alt="" width="34" height="34" class="emblem">
-      <div><h1>Casa de Flores</h1><small id="sub">Inicia sesión</small></div>
+      <div><h1>Casa de Flores</h1><small id="sub" data-i18n="signIn">Inicia sesión</small></div>
     </div>
-    <div class="hright" id="hright" hidden>
-      <div class="seg" id="tabs" hidden>
-        <button id="tabOrders" aria-pressed="true">Pedidos</button>
-        <button id="tabTeam" aria-pressed="false">Equipo</button>
+    <div class="hright">
+      <div class="prefs">
+        <div class="seg lang" role="group" aria-label="Idioma / Language"><button data-lang="es">ES</button><button data-lang="en">EN</button></div>
+        <button class="iconbtn" type="button" data-pref="size">A+</button>
+        <button class="iconbtn" type="button" data-pref="theme">☾</button>
       </div>
-      <button class="btn ghost" id="logout">Salir</button>
+      <div class="hright" id="hright" hidden>
+      <div class="seg" id="tabs" hidden>
+        <button id="tabOrders" aria-pressed="true" data-i18n="tabOrders">Pedidos</button>
+        <button id="tabTeam" aria-pressed="false" data-i18n="tabTeam">Equipo</button>
+      </div>
+      <button class="btn ghost" id="logout" data-i18n="logout">Salir</button>
+      </div>
     </div>
   </header>
 
   <section id="login" class="center" hidden>
     <form class="card" id="loginForm">
-      <picture class="logo"><source srcset="/img/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="/img/logo.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"></picture>
-      <h2>Entrar en Pedidos</h2>
-      <label class="field"><span>Email</span><input id="lEmail" type="email" autocomplete="email" required></label>
-      <label class="field"><span>Contraseña</span><input id="lPass" type="password" autocomplete="current-password" required></label>
+      <div class="logo"><img class="on-light" src="/img/logo.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
+      <h2 data-i18n="signInTitle">Entrar en Pedidos</h2>
+      <label class="field"><span data-i18n="email">Email</span><input id="lEmail" type="email" autocomplete="email" required></label>
+      <label class="field"><span data-i18n="password">Contraseña</span><input id="lPass" type="password" autocomplete="current-password" required></label>
       <div class="err" id="lErr" role="alert"></div>
-      <button class="btn primary" type="submit" id="lBtn">Entrar</button>
+      <button class="btn primary" type="submit" id="lBtn" data-i18n="enter">Entrar</button>
     </form>
   </section>
 
   <section id="noaccess" class="center" hidden>
-    <div class="card"><h2>Sin acceso</h2><p class="meta" id="noaccessTxt"></p></div>
+    <div class="card"><h2 data-i18n="noAccess">Sin acceso</h2><p class="meta" id="noaccessTxt"></p></div>
   </section>
 
   <section id="ordersView" hidden>
     <div class="grid">
       <aside class="panel">
         <div class="cal-head">
-          <button class="iconbtn" id="prevM" aria-label="Mes anterior">‹</button>
+          <button class="iconbtn" id="prevM" aria-label="Mes anterior" data-i18n-aria="prevMonth">‹</button>
           <h2 id="mLabel"></h2>
-          <button class="iconbtn" id="nextM" aria-label="Mes siguiente">›</button>
+          <button class="iconbtn" id="nextM" aria-label="Mes siguiente" data-i18n-aria="nextMonth">›</button>
         </div>
         <div class="cal" id="cal"></div>
         <div class="cal-foot">
-          <button class="btn" id="todayBtn">Hoy</button>
-          <button class="btn primary" id="newBtn" hidden>+ Nuevo pedido</button>
+          <button class="btn" id="todayBtn" data-i18n="today">Hoy</button>
+          <button class="btn primary" id="newBtn" hidden data-i18n="newOrder">+ Nuevo pedido</button>
         </div>
         <div class="legend" id="adminTools" hidden>
-          <div>Preparing → Ready → In transit → Delivered. Un toque en el paso lo marca.</div>
+          <div data-i18n="flowHint">Preparing → Ready → In transit → Delivered. Un toque en el paso lo marca.</div>
           <button class="btn" id="purgeBtn">Borrar entregados</button>
           <div class="confirm" id="purgeConfirm" hidden>
             <span id="purgeTxt"></span>
-            <div><button class="btn danger" id="purgeYes">Sí, borrar</button><button class="btn" id="purgeNo">Cancelar</button></div>
+            <div><button class="btn danger" id="purgeYes" data-i18n="yesDelete">Sí, borrar</button><button class="btn" id="purgeNo" data-i18n="cancel">Cancelar</button></div>
           </div>
         </div>
       </aside>
@@ -76,17 +83,17 @@
   <section id="teamView" hidden>
     <div class="grid">
       <form class="panel" id="addForm" style="display:grid;gap:10px">
-        <h2 style="margin:0;font-size:.95rem;font-weight:600">Añadir persona</h2>
-        <label class="field"><span>Nombre</span><input id="aName" required placeholder="Usuario 1"></label>
-        <label class="field"><span>Email</span><input id="aEmail" type="email" required></label>
-        <label class="field"><span>Rol</span><select id="aRole"><option value="vendor">Vendedor</option><option value="admin">Admin</option></select></label>
-        <label class="field"><span>Contraseña inicial</span><input id="aPass" minlength="8" required placeholder="Mínimo 8 caracteres"></label>
-        <div class="hint">Pásale el email y esta contraseña. Si ya tenía cuenta en este proyecto, conserva la suya.</div>
+        <h2 style="margin:0;font-size:.95rem;font-weight:600" data-i18n="addPerson">Añadir persona</h2>
+        <label class="field"><span data-i18n="name">Nombre</span><input id="aName" required placeholder="Usuario 1"></label>
+        <label class="field"><span data-i18n="email">Email</span><input id="aEmail" type="email" required></label>
+        <label class="field"><span data-i18n="role">Rol</span><select id="aRole"><option value="vendor" data-i18n="roleVendor">Vendedor</option><option value="admin">Admin</option></select></label>
+        <label class="field"><span data-i18n="initialPass">Contraseña inicial</span><input id="aPass" minlength="8" required placeholder="Mínimo 8 caracteres" data-i18n-ph="passPh"></label>
+        <div class="hint" data-i18n="addHint">Pásale el email y esta contraseña. Si ya tenía cuenta en este proyecto, conserva la suya.</div>
         <div class="err" id="aErr" role="alert"></div>
-        <button class="btn primary" type="submit" id="aBtn">Añadir</button>
+        <button class="btn primary" type="submit" id="aBtn" data-i18n="add">Añadir</button>
       </form>
       <main>
-        <div class="day-head"><div><h2>Equipo</h2><p>Los vendedores solo ven los pedidos que tienen asignados.</p></div></div>
+        <div class="day-head"><div><h2 data-i18n="team">Equipo</h2><p data-i18n="teamSub">Los vendedores solo ven los pedidos que tienen asignados.</p></div></div>
         <div class="team" id="team"></div>
       </main>
     </div>
@@ -96,6 +103,7 @@
 <div class="toast" id="toast" hidden></div>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
+<script src="/i18n.js"></script>
 <script src="/app.js"></script>
 </body>
 </html>

@@ -10,7 +10,7 @@
   --f-mono:"Geist Mono", ui-monospace, Menlo, monospace;
   color-scheme:light;
 }
-@media (prefers-color-scheme: dark){:root{
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
   --bg:#18191b; --surface:#212326; --sunk:#1c1d20; --line:#33363a; --fg:#eef4f0; --muted:#a0a6a3;
   --accent:#eef4f0; --accent-fg:#18191b; --petal:#ec6a4e; --petal-soft:#3a2420;
   --st-prep:#f0a463; --st-prep-bg:#3a2715; --st-ready:#7fc0de; --st-ready-bg:#16323d;
@@ -18,10 +18,20 @@
   --danger:#ff8a70; --danger-bg:#3b2119;
   --ch-shopify:#95bf47; --ch-tiktok:#e6e6e6; --ch-instagram:#f07fc0; --ch-web:#6cc3df;
   color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#18191b; --surface:#212326; --sunk:#1c1d20; --line:#33363a; --fg:#eef4f0; --muted:#a0a6a3;
+  --accent:#eef4f0; --accent-fg:#18191b; --petal:#ec6a4e; --petal-soft:#3a2420;
+  --st-prep:#f0a463; --st-prep-bg:#3a2715; --st-ready:#7fc0de; --st-ready-bg:#16323d;
+  --st-transit:#bba3ee; --st-transit-bg:#2a2340; --st-done:#79d3a6; --st-done-bg:#143627;
+  --danger:#ff8a70; --danger-bg:#3b2119;
+  --ch-shopify:#95bf47; --ch-tiktok:#e6e6e6; --ch-instagram:#f07fc0; --ch-web:#6cc3df;
+  color-scheme:dark}
 *{box-sizing:border-box}
 [hidden]{display:none!important}
 html,body{margin:0}
-body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:14px;line-height:1.4;
+html{font-size:16px}
+html[data-size="lg"]{font-size:19px}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:.875rem;line-height:1.4;
   padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:0 40px}
 img{max-width:100%}
 .wrap{max-width:1180px;margin:0 auto}
@@ -67,7 +77,10 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .day-head h2{font-size:1.2rem;font-weight:600;margin:0;letter-spacing:-.01em}
 .day-head p{margin:2px 0 0;color:var(--muted);font-size:.84rem}
 .tally{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
-.tally span{font-size:.74rem;padding:2px 8px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums}
+.tally .chip{border:1px solid transparent;font-size:.74rem;padding:2px 9px;border-radius:999px;font-weight:600;font-variant-numeric:tabular-nums}
+.tally .chip:hover:not(:disabled){border-color:currentColor}
+.tally .chip.on{border-color:currentColor;box-shadow:inset 0 0 0 1px currentColor}
+.tally .chip:disabled{opacity:.45}
 .slot{margin-bottom:14px}
 .slot h3{font-size:.7rem;text-transform:uppercase;letter-spacing:.09em;color:var(--muted);margin:0 0 6px;font-weight:500;font-family:var(--f-mono)}
 .orders{display:grid;gap:6px}
@@ -142,3 +155,11 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .emblem{width:34px;height:34px;object-fit:contain}
 .logo{display:block}
 .logo img{display:block;width:100%;max-width:300px;height:auto;margin:0 auto}
+.logo .on-dark{display:none}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]) .logo .on-light{display:none}:root:not([data-theme="light"]) .logo .on-dark{display:block}}
+:root[data-theme="dark"] .logo .on-light{display:none}
+:root[data-theme="dark"] .logo .on-dark{display:block}
+.prefs{display:flex;align-items:center;gap:6px}
+.prefs .seg button{padding:3px 9px;font-size:.75rem}
+.prefs .iconbtn{width:auto;min-width:30px;padding:0 8px;font-size:.8rem;font-weight:600;height:28px}
+.prefs .iconbtn[aria-pressed="true"]{background:var(--sunk)}
