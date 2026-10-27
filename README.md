@@ -15,6 +15,19 @@ Todo lleva el prefijo `cdf_`:
 - Bucket privado `cdf-fotos`: las fotos se guardan como `<id del pedido>.jpg`.
 - Edge function `cdf-users`: los admins añaden o quitan personas del equipo.
 
+## Probar en local
+
+Necesitas un servidor local, porque abrir `index.html` con doble clic no funciona (las rutas empiezan por `/`):
+
+```bash
+git clone https://github.com/jeroldambrocio-hash/pedidos-cdf
+cd pedidos-cdf
+npx serve .            # o: python -m http.server 8000
+```
+
+Abre la dirección que te indique (por ejemplo http://localhost:3000). En local, el enlace del cliente usa `/seguimiento.html?c=<código>`.
+Ojo: en local te conectas a la misma base de datos de Supabase que la web publicada.
+
 ## Publicar
 
 Es un sitio estático sin build. Netlify publica la raíz del repo (`netlify.toml`), y `_redirects` envía `/p/*` a `seguimiento.html`.

@@ -28,7 +28,9 @@ const el = (t, a = {}, ...kids) => {
   for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
   return e;
 };
-const trackUrl = (o) => location.origin + "/p/" + o.code;
+// Local servers don't apply Netlify's /p/* rewrite, so link the page directly there.
+const isLocal = /^(localhost|127\.0\.0\.1)$/.test(location.hostname);
+const trackUrl = (o) => location.origin + (isLocal ? "/seguimiento.html?c=" : "/p/") + o.code;
 
 const today = iso(new Date());
 const S = { me: null, tab: "orders", sel: today, month: new Date(), orders: [], members: [], photoUrls: {}, channel: null };
