@@ -130,7 +130,7 @@ function renderCal() {
     }, String(d.getDate()), dots));
   }
 }
-function chanChip(c) { const v = (CHANNELS.find((x) => x[0] === c) || [c, "--muted"])[1]; return el("span", { class: "chan", style: "color:var(" + v + ")" }, c); }
+function chanChip(c) { if (!c) return null; const v = (CHANNELS.find((x) => x[0] === c) || [c, "--muted"])[1]; return el("span", { class: "chan", style: "color:var(" + v + ")" }, c); }
 function stepper(o, editable) {
   const cur = stepOf(o), w = el("div", { class: "steps" });
   STEPS.forEach((s, i) => w.append(el("button", {
@@ -174,7 +174,7 @@ function renderDay() {
         th,
         el("div", { class: "o-main" },
           el("div", { class: "o-top" }, el("span", { class: "num" }, "#" + o.num), chanChip(o.channel)),
-          el("div", { class: "o-sub" }, (isAdmin() ? memberName(o.vendor_email) + " · " : "") + (o.notes || "Sin notas"))),
+          el("div", { class: "o-sub" }, [o.customer_name, isAdmin() ? memberName(o.vendor_email) : null, o.address || o.notes || "Sin dirección"].filter(Boolean).join(" · "))),
         stepper(o, isAdmin())));
     }
     box.append(el("section", { class: "slot" }, el("h3", {}, slot), g));
@@ -244,6 +244,15 @@ function toJpeg(file) {
   });
 }
 
+const mapsUrl = (a) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(a);
+const mapLink = (a) => el("a", { href: mapsUrl(a), target: "_blank", rel: "noopener", style: "color:inherit" }, a + " ↗");
+function mapHint(input) {
+  const a = el("a", { target: "_blank", rel: "noopener", style: "color:inherit" }, "Abrir en Google Maps ↗");
+  const sync = () => { a.href = mapsUrl(input.value); a.hidden = !input.value.trim(); };
+  input.addEventListener("input", sync); sync();
+  return a;
+}
+
 // ---------- sheet ----------
 let onPaste = null, onKey = null;
 function closeSheet() {
@@ -266,7 +275,9 @@ function openSheet(o) {
     sheet.append(el("div", { class: "sheet-head" }, el("h2", {}, "Pedido #" + o.num), closeBtn()),
       el("dl", { class: "ro" },
         el("dt", {}, "Fecha y franja"), el("dd", {}, cap(fromIso(o.date).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot),
-        el("dt", {}, "Canal"), el("dd", {}, chanChip(o.channel)),
+        el("dt", {}, "Cliente"), el("dd", {}, o.customer_name || "Sin nombre"),
+        el("dt", {}, "Dirección"), el("dd", {}, o.address ? mapLink(o.address) : "Sin dirección"),
+        el("dt", {}, "Canal"), el("dd", {}, chanChip(o.channel) || "Sin canal"),
         el("dt", {}, "Nota / instrucción"), el("dd", { class: "note" }, o.notes || "Sin notas"),
         el("dt", {}, "Foto"), el("dd", {}, ph),
         el("dt", {}, "Estado"), el("dd", {}, stepper(o, false))));
@@ -275,14 +286,16 @@ function openSheet(o) {
 
   const isNew = !o;
   const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
-  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: SLOTS[0], channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", notes: "", status: "Preparing", delivery: "-", photo_path: null };
+  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: SLOTS[0], channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", notes: "", status: "Preparing", delivery: "-", photo_path: null };
   let photoBlob = null, photoRemoved = false;
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
   const iSlot = sel("f-slot", SLOTS.map((s) => [s, s]), f.slot);
   const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", style: "font-family:var(--f-mono)", required: true });
-  const iChan = sel("f-chan", [["", "Elegir…"], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
-  const iNotes = el("textarea", { id: "f-notes", placeholder: "Dirección, mensaje de la tarjeta, instrucciones…" }, f.notes);
+  const iChan = sel("f-chan", [["", "Sin canal"], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
+  const iName = el("input", { id: "f-name", value: f.customer_name || "", placeholder: "Quién recibe las flores", autocomplete: "off" });
+  const iAddr = el("input", { id: "f-addr", value: f.address || "", placeholder: "Calle, número, piso, ciudad", autocomplete: "off" });
+  const iNotes = el("textarea", { id: "f-notes", placeholder: "Mensaje de la tarjeta, teléfono, instrucciones…" }, f.notes);
   const iVend = sel("f-vendor", [["", "Sin asignar"], ...S.members.map((m) => [m.email, m.name + (m.role === "admin" ? " (admin)" : "")])], f.vendor_email || "");
   const iStatus = sel("f-status", STEPS.map((s) => [s.label, s.label]), STEPS[stepOf(f)].label);
   const fileIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-file", hidden: true });
@@ -334,9 +347,9 @@ function openSheet(o) {
 
   const form = el("form", { style: "display:contents", onsubmit: async (e) => {
     e.preventDefault(); err.textContent = "";
-    if (!iChan.value) { err.textContent = "Elige el canal del pedido."; return; }
     const st = STEPS.find((s) => s.label === iStatus.value);
     const row = { num: iNum.value.trim(), date: iDate.value, slot: iSlot.value, channel: iChan.value, vendor_email: iVend.value || null,
+ customer_name: iName.value.trim(), address: iAddr.value.trim(),
       notes: iNotes.value.trim(), status: st.status, delivery: st.delivery };
     saveBtn.disabled = true;
     let saved, error;
@@ -359,6 +372,8 @@ function openSheet(o) {
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? "Nuevo pedido" : "Editar pedido #" + f.num), closeBtn()),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, "Fecha"), iDate), el("label", { class: "field" }, el("span", {}, "Franja horaria"), iSlot)),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, "Nº pedido"), iNum), el("label", { class: "field" }, el("span", {}, "Canal"), iChan)),
+    el("label", { class: "field" }, el("span", {}, "Nombre del cliente (opcional)"), iName),
+    el("div", { class: "field" }, el("span", {}, "Dirección de entrega (opcional)"), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
     el("label", { class: "field" }, el("span", {}, "Nota / instrucción"), iNotes),
     el("div", { class: "field" }, el("span", {}, "Foto"), drop, fileIn),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, "Vendedor"), iVend), el("label", { class: "field" }, el("span", {}, "Estado"), iStatus)),
