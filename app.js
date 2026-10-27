@@ -191,7 +191,7 @@ function renderDay() {
     for (const o of os) {
       const th = el("div", { class: "thumb" }, o.photo_path ? "" : t("noPhotoShort"));
       if (o.photo_path) photoUrl(o.photo_path).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "" })); });
-      g.append(el("div", { class: "order", role: "button", tabindex: "0", onclick: () => openSheet(o), onkeydown: (e) => { if (e.key === "Enter") openSheet(o); } },
+      g.append(el("div", { class: "order", role: "button", tabindex: "0", onclick: () => openFresh(o), onkeydown: (e) => { if (e.key === "Enter") openFresh(o); } },
         th,
         el("div", { class: "o-main" },
           el("div", { class: "o-top" }, el("span", { class: "num" }, "#" + o.num), chanChip(o.channel)),
@@ -204,7 +204,7 @@ function renderDay() {
 $("prevM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); renderCal(); };
 $("nextM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderCal(); };
 $("todayBtn").onclick = () => { S.sel = today; S.filter = null; S.month = fromIso(today); S.month.setDate(1); renderOrders(); };
-$("newBtn").onclick = () => openSheet(null);
+$("newBtn").onclick = () => openFresh(null);
 
 // ---------- purge delivered ----------
 function renderPurge() {
@@ -321,6 +321,11 @@ function closeSheet() {
   if (onPaste) document.removeEventListener("paste", onPaste);
   if (onKey) document.removeEventListener("keydown", onKey);
   onPaste = onKey = null;
+}
+// Re-read the team first so the vendor list never holds an email that was changed in the meantime
+async function openFresh(o) {
+  if (isAdmin()) await loadMembers();
+  openSheet(o);
 }
 function openSheet(o) {
   closeSheet();
