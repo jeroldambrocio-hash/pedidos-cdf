@@ -39,7 +39,12 @@ const TZ = "Asia/Manila";
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const S = { me: null, filter: null, tab: "orders", sel: today, month: fromIso(today), orders: [], members: [], photoUrls: {}, channel: null };
 S.month.setDate(1);
+// admin: everything · moderator: all orders, no team · vendor: own orders · carrier: Ready orders, delivery steps
 const isAdmin = () => S.me?.role === "admin";
+const isStaff = () => S.me?.role === "admin" || S.me?.role === "moderator";
+const isCarrier = () => S.me?.role === "carrier";
+// Steps this user may set on an order (indexes into STEPS)
+const allowedSteps = () => (isCarrier() ? [2, 3, 4] : [0, 1, 2, 3, 4]);
 
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => (t.hidden = true), 2600); }
 function show(view) { for (const v of ["login", "noaccess", "ordersView", "teamView"]) $(v).hidden = v !== view; }
@@ -79,9 +84,9 @@ async function start(user) {
   S.me = data;
   renderSub();
   $("tabs").hidden = !isAdmin();
-  $("newBtn").hidden = !isAdmin();
+  $("newBtn").hidden = !isStaff();
   $("adminTools").hidden = !isAdmin();
-  if (isAdmin()) await loadMembers();
+  if (isStaff()) await loadMembers();
   await loadOrders();
   S.channel = sb.channel("cdf-orders")
     .on("postgres_changes", { event: "*", schema: "public", table: "cdf_orders" }, () => { clearTimeout(S.reload); S.reload = setTimeout(loadOrders, 300); })
@@ -103,7 +108,7 @@ const memberName = (email) => S.members.find((m) => m.email === email)?.name || 
 
 function renderSub() {
   if (!S.me) { $("sub").textContent = t("signIn"); return; }
-  $("sub").textContent = t(isAdmin() ? "subAdmin" : "subVendor", { name: S.me.name });
+  $("sub").textContent = t({ admin: "subAdmin", moderator: "subModerator", carrier: "subCarrier" }[S.me.role] || "subVendor", { name: S.me.name });
 }
 document.addEventListener("langchange", () => {
   renderSub();
@@ -147,18 +152,25 @@ function renderCal() {
 }
 function chanChip(c) { if (!c) return null; const v = (CHANNELS.find((x) => x[0] === c) || [c, "--muted"])[1]; return el("span", { class: "chan", style: "color:var(" + v + ")" }, c); }
 function stepper(o, editable) {
-  const cur = stepOf(o), w = el("div", { class: "steps" });
+  const cur = stepOf(o), w = el("div", { class: "steps" }), ok = allowedSteps();
   STEPS.forEach((s, i) => w.append(el("button", {
-    class: "step s-" + s.k + (i === cur ? " on" : i < cur ? " past" : ""), disabled: !editable, "aria-pressed": String(i === cur),
+    class: "step s-" + s.k + (i === cur ? " on" : i < cur ? " past" : ""), disabled: !editable || !ok.includes(i), "aria-pressed": String(i === cur),
     onclick: async (e) => {
-      e.stopPropagation(); if (!editable || i === cur) return;
+      e.stopPropagation(); if (!editable || i === cur || !ok.includes(i)) return;
       const prev = { status: o.status, delivery: o.delivery };
       Object.assign(o, { status: s.status, delivery: s.delivery }); renderOrders();
-      const { error } = await sb.from("cdf_orders").update({ status: s.status, delivery: s.delivery }).eq("id", o.id);
+      const { error } = await setStep(o.id, s.k);
       if (error) { Object.assign(o, prev); renderOrders(); toast(t("statusFail")); }
     },
   }, s.label)));
   return w;
+}
+// Staff write the row; vendors and carriers go through cdf_progress(), which checks what they may do.
+function setStep(id, k, extra = {}) {
+  const s = STEPS.find((x) => x.k === k);
+  if (isStaff()) return sb.from("cdf_orders").update({ status: s.status, delivery: s.delivery, ...extra }).eq("id", id);
+  return sb.rpc("cdf_progress", { p_id: id, p_step: k, p_note: extra.delivery_note ?? null,
+    p_proof: extra.proof_path ?? null, p_set_proof: "proof_path" in extra });
 }
 async function photoUrl(path) {
   if (!path) return null;
@@ -183,7 +195,7 @@ function renderDay() {
   const list = all.filter(match);
   const box = $("list"); box.replaceChildren();
   if (!all.length) {
-    box.append(el("div", { class: "empty" }, el("b", {}, t("noOrdersDay")), isAdmin() ? t("emptyAdmin") : t("emptyVendor")));
+    box.append(el("div", { class: "empty" }, el("b", {}, t("noOrdersDay")), isStaff() ? t("emptyAdmin") : isCarrier() ? t("emptyCarrier") : t("emptyVendor")));
     return;
   }
   if (!list.length) { box.append(el("div", { class: "empty" }, el("b", {}, t("noneFiltered")), el("button", { class: "btn", type: "button", onclick: () => { S.filter = null; renderDay(); } }, t("showAll")))); return; }
@@ -197,8 +209,8 @@ function renderDay() {
         th,
         el("div", { class: "o-main" },
           el("div", { class: "o-top" }, el("span", { class: "num" }, "#" + o.num), chanChip(o.channel)),
-          el("div", { class: "o-sub" }, [o.customer_name, isAdmin() ? memberName(o.vendor_email) : null, o.address || o.notes || t("noAddress")].filter(Boolean).join(" · "))),
-        stepper(o, isAdmin())));
+          el("div", { class: "o-sub" }, [o.customer_name, isStaff() ? memberName(o.vendor_email) : null, o.address || o.notes || t("noAddress")].filter(Boolean).join(" · "))),
+        stepper(o, true)));
     }
     box.append(el("section", { class: "slot" }, el("h3", {}, slot), g));
   }
@@ -318,17 +330,11 @@ function historyBlock(o) {
   return box;
 }
 function notifyRow(o, iName, iPhone, iEmail, iStatus, hist) {
-  // Message language: Spanish for +34 numbers, English otherwise, unless picked by hand
-  let picked = null;
-  const lang = () => picked || (intlPhone(iPhone.value).startsWith("34") ? "es" : "en");
+  const lang = () => "en"; // customers always get English
   const msg = () => notifyMsg(o, iName.value.trim(), iStatus.value, lang());
   const open = (href) => window.open(href, "_blank", "noopener");
   const b = (label, fn) => el("button", { class: "btn", type: "button", onclick: fn }, label);
   const via = (channel, recipient, go) => () => { go(); logOpened(o, channel, recipient, iStatus.value).then(() => hist.reload()); };
-  const seg = el("div", { class: "seg", title: t("msgLang") });
-  const syncSeg = () => { for (const x of seg.children) x.setAttribute("aria-pressed", String(x.dataset.l === lang())); };
-  for (const l of ["en", "es"]) seg.append(el("button", { type: "button", "data-l": l, onclick: () => { picked = l; syncSeg(); } }, l.toUpperCase()));
-  iPhone.addEventListener("input", syncSeg); syncSeg();
   const mailBtn = b("Email", async () => {
     const to = iEmail.value.trim();
     if (!to) { toast(t("needEmail")); return; }
@@ -344,12 +350,47 @@ function notifyRow(o, iName, iPhone, iEmail, iStatus, hist) {
     hist.reload();
   });
   return el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center" },
-    seg,
     b("WhatsApp", via("whatsapp", iPhone.value.trim(), () => open("https://wa.me/" + intlPhone(iPhone.value) + "?text=" + encodeURIComponent(msg())))),
     b("Telegram", via("telegram", "", () => open("https://t.me/share/url?url=" + encodeURIComponent(trackUrl(o)) + "&text=" + encodeURIComponent(msg().replace(trackUrl(o), "").trim())))),
     b("Viber", via("viber", iPhone.value.trim(), () => (location.href = "viber://forward?text=" + encodeURIComponent(msg())))),
     mailBtn,
     b(t("copyMsg"), via("copy", "", () => navigator.clipboard?.writeText(msg()).then(() => toast(t("msgCopied")), () => toast(t("selectCopy"))))));
+}
+
+// Proof-of-delivery photo: pick/replace/remove, then commit(orderId) uploads it.
+// commit returns the new proof_path (or null when removed), or undefined when nothing changed.
+function proofPicker(current, onErr) {
+  let blob = null, removed = false;
+  const input = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-proof", hidden: true });
+  const box = el("div", { class: "drop" });
+  const draw = () => {
+    const src = blob ? URL.createObjectURL(blob) : (!removed && current ? proofUrl(current) : null);
+    box.replaceChildren(
+      src ? el("img", { src, alt: t("proofPhoto") }) : el("div", {}, t("proofHint")),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;justify-content:center" },
+        el("button", { class: "btn", type: "button", onclick: () => input.click() }, src ? t("changePhoto") : t("uploadPhoto")),
+        src ? el("button", { class: "btn", type: "button", onclick: () => { blob = null; removed = true; draw(); } }, t("remove")) : null));
+  };
+  input.addEventListener("change", async () => {
+    const file = input.files[0]; if (!file) return;
+    if (!isImage(file)) { onErr(t("notImage")); return; }
+    try { blob = await compress(file); removed = false; draw(); } catch { onErr(t("readFail")); }
+  });
+  draw();
+  return {
+    node: el("div", { style: "display:contents" }, box, input),
+    async commit(orderId) {
+      if (blob) {
+        const path = orderId + "/" + crypto.randomUUID() + ".jpg";
+        const up = await sb.storage.from("cdf-entregas").upload(path, blob, { contentType: "image/jpeg" });
+        if (up.error) { toast(t("photoUploadFail")); return undefined; }
+        if (current) await sb.storage.from("cdf-entregas").remove([current]);
+        return path;
+      }
+      if (removed && current) { await sb.storage.from("cdf-entregas").remove([current]); return null; }
+      return undefined;
+    },
+  };
 }
 
 // Fixed slots plus "custom": two time inputs, stored as "H:MM - H:MM"
@@ -385,7 +426,7 @@ function closeSheet() {
 }
 // Re-read the team first so the vendor list never holds an email that was changed in the meantime
 async function openFresh(o) {
-  if (isAdmin()) await loadMembers();
+  if (isStaff()) await loadMembers();
   openSheet(o);
 }
 function openSheet(o) {
@@ -397,20 +438,49 @@ function openSheet(o) {
   onKey = (e) => { if (e.key === "Escape") closeSheet(); }; document.addEventListener("keydown", onKey);
   const closeBtn = () => el("button", { class: "iconbtn", type: "button", "aria-label": t("close"), onclick: closeSheet }, "✕");
 
-  if (!isAdmin()) {
+  if (!isStaff()) {
+    // Vendors and carriers: order details read-only; they work the status, delivery note, proof photo and customer notices.
     const ph = el("div", { class: "drop" }, o.photo_path ? t("loadingPhoto") : t("noPhoto"));
     if (o.photo_path) photoUrl(o.photo_path).then((u) => ph.replaceChildren(u ? el("img", { src: u, alt: t("photoAlt") + " " + o.num }) : t("photoFail")));
-    sheet.append(el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), closeBtn()),
+    const err = el("div", { class: "err", role: "alert" });
+    const cur = stepOf(o), ok = allowedSteps();
+    const iStatus = el("select", { id: "f-status" }, ...STEPS.map((st, i) =>
+      el("option", { value: st.label, selected: i === cur, disabled: i !== cur && !ok.includes(i) }, st.label)));
+    const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, o.delivery_note || "");
+    const proof = proofPicker(o.proof_path, (m) => (err.textContent = m));
+    const hist = historyBlock(o);
+    const val = (v) => ({ value: v || "" });
+    const saveBtn = el("button", { class: "btn primary", type: "submit" }, t("save"));
+    const form = el("form", { style: "display:contents", onsubmit: async (e) => {
+      e.preventDefault(); err.textContent = ""; saveBtn.disabled = true;
+      const st = STEPS.find((x) => x.label === iStatus.value);
+      const extra = { delivery_note: iDNote.value.trim() };
+      const pp = await proof.commit(o.id);
+      if (pp !== undefined) extra.proof_path = pp;
+      const { error } = await setStep(o.id, st.k, extra);
+      saveBtn.disabled = false;
+      if (error) { err.textContent = t("saveFail", { msg: error.message }); return; }
+      closeSheet(); toast(t("saved")); loadOrders();
+    } },
+      el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), closeBtn()),
       el("dl", { class: "ro" },
         el("dt", {}, t("dateSlot")), el("dd", {}, cap(fromIso(o.date).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot),
         el("dt", {}, t("customer")), el("dd", {}, o.customer_name || t("noName")),
         el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
+        o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), style: "color:inherit" }, o.customer_phone))] : null,
         el("dt", {}, t("channel")), el("dd", {}, chanChip(o.channel) || t("noChannel")),
         el("dt", {}, t("note")), el("dd", { class: "note" }, o.notes || t("noNotes")),
-        el("dt", {}, t("photo")), el("dd", {}, ph),
-        el("dt", {}, t("status")), el("dd", {}, stepper(o, false)),
-        o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", { class: "note" }, o.delivery_note)] : null,
-        o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("img", { src: proofUrl(o.proof_path), alt: t("proofPhoto"), style: "border-radius:8px;max-height:220px" }))] : null));
+        el("dt", {}, t("photo")), el("dd", {}, ph)),
+      el("label", { class: "field" }, el("span", {}, t("status")), iStatus),
+      el("div", { class: "field" }, el("span", {}, t("notify")), notifyRow(o, val(o.customer_name), val(o.customer_phone), val(o.customer_email), iStatus, hist)),
+      el("details", { class: "deliv", open: true },
+        el("summary", {}, t("deliverySection")),
+        el("label", { class: "field" }, el("span", {}, t("deliveryNote")), iDNote, el("div", { class: "hint" }, t("deliveryNoteHint"))),
+        el("div", { class: "field" }, el("span", {}, t("proofPhoto")), proof.node)),
+      el("details", { class: "deliv" }, el("summary", {}, t("history")), hist),
+      err,
+      el("div", { class: "sheet-foot" }, el("span"), saveBtn));
+    sheet.append(form);
     return;
   }
 
@@ -428,26 +498,10 @@ function openSheet(o) {
   const iPhone = el("input", { id: "f-phone", type: "tel", value: f.customer_phone || "", placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email || "", placeholder: "cliente@email.com", autocomplete: "off" });
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, f.delivery_note || "");
-  let proofBlob = null, proofRemoved = false;
+  const proof = proofPicker(f.proof_path, (m) => (err.textContent = m));
   const hist = isNew ? null : historyBlock(o);
-  const proofIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-proof", hidden: true });
-  const proofBox = el("div", { class: "drop" });
-  const drawProof = () => {
-    const src = proofBlob ? URL.createObjectURL(proofBlob) : (!proofRemoved && f.proof_path ? proofUrl(f.proof_path) : null);
-    proofBox.replaceChildren(
-      src ? el("img", { src, alt: t("proofPhoto") }) : el("div", {}, t("proofHint")),
-      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;justify-content:center" },
-        el("button", { class: "btn", type: "button", onclick: () => proofIn.click() }, src ? t("changePhoto") : t("uploadPhoto")),
-        src ? el("button", { class: "btn", type: "button", onclick: () => { proofBlob = null; proofRemoved = true; drawProof(); } }, t("remove")) : null));
-  };
-  proofIn.addEventListener("change", async () => {
-    const file = proofIn.files[0]; if (!file) return;
-    if (!isImage(file)) { err.textContent = t("notImage"); return; }
-    try { proofBlob = await compress(file); proofRemoved = false; drawProof(); } catch { err.textContent = t("readFail"); }
-  });
-  drawProof();
   const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh") }, f.notes);
-  const iVend = sel("f-vendor", [["", t("unassigned")], ...S.members.map((m) => [m.email, m.name + (m.role === "admin" ? " (admin)" : "")])], f.vendor_email || "");
+  const iVend = sel("f-vendor", [["", t("unassigned")], ...S.members.map((m) => [m.email, m.name + (m.role !== "vendor" ? " (" + t("role_" + m.role) + ")" : "")])], f.vendor_email || "");
   const iStatus = sel("f-status", STEPS.map((s) => [s.label, s.label]), STEPS[stepOf(f)].label);
   const fileIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-file", hidden: true });
   const drop = el("div", { class: "drop" });
@@ -518,15 +572,8 @@ function openSheet(o) {
       await sb.storage.from(bucket).remove([f.photo_path]);
       await sb.from("cdf_orders").update({ photo_path: null }).eq("id", saved.id);
     }
-    if (proofBlob) {
-      const ppath = saved.id + "/" + crypto.randomUUID() + ".jpg";
-      const up = await sb.storage.from("cdf-entregas").upload(ppath, proofBlob, { contentType: "image/jpeg" });
-      if (up.error) toast(t("photoUploadFail"));
-      else { if (f.proof_path) await sb.storage.from("cdf-entregas").remove([f.proof_path]); await sb.from("cdf_orders").update({ proof_path: ppath }).eq("id", saved.id); }
-    } else if (proofRemoved && f.proof_path) {
-      await sb.storage.from("cdf-entregas").remove([f.proof_path]);
-      await sb.from("cdf_orders").update({ proof_path: null }).eq("id", saved.id);
-    }
+    const pp = await proof.commit(saved.id);
+    if (pp !== undefined) await sb.from("cdf_orders").update({ proof_path: pp }).eq("id", saved.id);
     S.sel = row.date; S.month = fromIso(row.date); S.month.setDate(1);
     S.filter = null;
     closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
@@ -546,9 +593,9 @@ function openSheet(o) {
     el("details", { class: "deliv", open: !!(f.delivery_note || f.proof_path || f.delivery === "Failed") || null },
       el("summary", {}, t("deliverySection")),
       el("label", { class: "field" }, el("span", {}, t("deliveryNote")), iDNote, el("div", { class: "hint" }, t("deliveryNoteHint"))),
-      el("div", { class: "field" }, el("span", {}, t("proofPhoto")), proofBox, proofIn)),
+      el("div", { class: "field" }, el("span", {}, t("proofPhoto")), proof.node)),
     err, confirmBox,
-    el("div", { class: "sheet-foot" }, isNew ? el("span") : el("button", { class: "btn danger", type: "button", onclick: () => (confirmBox.hidden = false) }, t("delete")), saveBtn));
+    el("div", { class: "sheet-foot" }, isNew || !isAdmin() ? el("span") : el("button", { class: "btn danger", type: "button", onclick: () => (confirmBox.hidden = false) }, t("delete")), saveBtn));
   sheet.append(form);
 }
 
@@ -558,7 +605,7 @@ function renderTeam() {
   for (const m of S.members) {
     const self = m.email === S.me.email;
     box.append(el("div", { class: "member" },
-      el("div", {}, el("b", {}, m.name, el("span", { class: "role-tag" }, m.role === "admin" ? "Admin" : t("roleVendor"))), el("small", {}, m.email)),
+      el("div", {}, el("b", {}, m.name, el("span", { class: "role-tag" }, t("role_" + m.role))), el("small", {}, m.email)),
       self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn ghost", onclick: async (e) => {
         const b = e.currentTarget;
         if (b.dataset.armed !== "1") { b.dataset.armed = "1"; b.textContent = t("confirmRemove"); b.classList.add("danger"); return; }

@@ -1,6 +1,7 @@
 // Pedidos CDF email sender.
 // 1) Vendor alert: called by the database trigger cdf_orders_notify (migration 005) with a secret kept in Vault.
-// 2) Customer email: called from the admin panel (signed-in admin) with the message already written.
+// 2) Customer email: called from the panel (staff, the order's vendor, or a carrier) with the message already written.
+// 3) Automatic customer email when an order goes In transit: called by the trigger cdf_orders_transit (migration 007).
 // Every attempt is logged in cdf_notifications (migration 006).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import nodemailer from "npm:nodemailer@6.9.14";
@@ -68,15 +69,17 @@ Deno.serve(async (req) => {
   const orderId = String(payload.order_id || "");
   if (!orderId) return json({ error: "order_id" }, 400);
 
-  // ---------- customer email, sent by a signed-in admin from the panel ----------
+  // ---------- customer email, sent from the panel ----------
   if (payload.action === "customer") {
     const token = (req.headers.get("authorization") || "").replace(/^Bearer\s+/i, "");
     const { data: u } = await service.auth.getUser(token);
     const me = u?.user?.email?.toLowerCase();
     const { data: who } = me ? await service.from("cdf_members").select("role").eq("email", me).maybeSingle() : { data: null };
-    if (who?.role !== "admin") return json({ error: "unauthorized" }, 401);
+    const { data: o } = await service.from("cdf_orders").select("id,customer_email,vendor_email,status").eq("id", orderId).maybeSingle();
+    const allowed = who?.role === "admin" || who?.role === "moderator" ||
+      (who?.role === "vendor" && o?.vendor_email === me) || (who?.role === "carrier" && o?.status === "Ready");
+    if (!allowed) return json({ error: "unauthorized" }, 401);
 
-    const { data: o } = await service.from("cdf_orders").select("id,customer_email").eq("id", orderId).maybeSingle();
     const to = String(o?.customer_email || "").trim();
     if (!to) return json({ error: "no customer email" }, 400);
     const subject = String(payload.subject || "Casa de Flores").slice(0, 200);
@@ -87,12 +90,25 @@ Deno.serve(async (req) => {
     return json(sent, sent.ok ? 200 : 502);
   }
 
-  // ---------- vendor alert, from the database trigger ----------
+  // ---------- from the database triggers: automatic customer email, or vendor alert ----------
   const { data: ok } = await service.rpc("cdf_hook_ok", { p_secret: req.headers.get("x-cdf-hook") || "" });
   if (ok !== true) return json({ error: "unauthorized" }, 401);
 
   const { data: o } = await service.from("cdf_orders").select("*").eq("id", orderId).maybeSingle();
-  if (!o?.vendor_email) return json({ skipped: "no vendor" });
+  if (!o) return json({ skipped: "no order" });
+
+  if (payload.action === "auto_transit") {
+    const to = String(o.customer_email || "").trim();
+    if (!to) return json({ skipped: "no customer email" });
+    const link = `${APP_URL}/p/${o.code}`;
+    const text = `Hi${o.customer_name ? " " + o.customer_name : ""}, your Casa de Flores order #${o.num} is on its way. Track it here: ${link}`;
+    const sent = await sendMail(to, `Your order #${o.num} is on its way · Casa de Flores`, plainHtml(text), text);
+    await log({ order_id: o.id, audience: "customer", channel: "email", recipient: to, ok: sent.ok,
+      detail: sent.ok ? `${sent.via}: automatic, In transit` : `${sent.via}: ${sent.error}` });
+    return json(sent, sent.ok ? 200 : 502);
+  }
+
+  if (!o.vendor_email) return json({ skipped: "no vendor" });
   const { data: m } = await service.from("cdf_members").select("email,name").eq("email", o.vendor_email).maybeSingle();
   if (!m) return json({ skipped: "no member" });
 
