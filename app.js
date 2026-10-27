@@ -67,7 +67,7 @@ async function start(user) {
   const { data, error } = await sb.from("cdf_members").select("email,name,role").eq("email", email).maybeSingle();
   $("hright").hidden = false;
   if (error || !data) {
-    $("noaccessTxt").textContent = "La cuenta " + email + " no está en el equipo de Pedidos CDF. Pide a un admin que te añada.";
+    $("noaccessTxt").textContent = "La cuenta " + email + " no está en el equipo de Casa de Flores. Pide a un admin que te añada.";
     $("tabs").hidden = true; show("noaccess"); return;
   }
   S.me = data;

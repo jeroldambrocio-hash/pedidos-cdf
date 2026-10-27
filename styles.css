@@ -139,3 +139,6 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .tl b{display:block;font-weight:600;font-size:.92rem}
 .tl small{font-size:.8rem}
 @media (prefers-reduced-motion:no-preference){.sheet{animation:slide .18s ease-out}@keyframes slide{from{transform:translateX(24px);opacity:.6}}}
+.emblem{width:34px;height:34px;object-fit:contain}
+.logo{display:block}
+.logo img{display:block;width:100%;max-width:300px;height:auto;margin:0 auto}

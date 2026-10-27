@@ -3,20 +3,21 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Pedidos CDF</title>
+<title>Pedidos · Casa de Flores</title>
 <meta name="theme-color" content="#13302a" media="(prefers-color-scheme: light)">
 <meta name="theme-color" content="#18191b" media="(prefers-color-scheme: dark)">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/styles.css">
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Cg fill='%23d23d20'%3E%3Ccircle cx='17' cy='9' r='5'/%3E%3Ccircle cx='25' cy='15' r='5'/%3E%3Ccircle cx='22' cy='24' r='5'/%3E%3Ccircle cx='12' cy='24' r='5'/%3E%3Ccircle cx='9' cy='15' r='5'/%3E%3C/g%3E%3Ccircle cx='17' cy='17' r='4' fill='%2313302a'/%3E%3C/svg%3E">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/emblem.png">
 </head>
 <body>
 <div class="wrap">
   <header>
     <div class="brand">
-      <svg width="24" height="24" viewBox="0 0 34 34" aria-hidden="true"><g fill="var(--petal)"><circle cx="17" cy="9" r="5"/><circle cx="25" cy="15" r="5"/><circle cx="22" cy="24" r="5"/><circle cx="12" cy="24" r="5"/><circle cx="9" cy="15" r="5"/></g><circle cx="17" cy="17" r="4" fill="var(--accent)"/></svg>
-      <div><h1>Pedidos CDF</h1><small id="sub">Inicia sesión</small></div>
+      <img src="/img/emblem.png" alt="" width="34" height="34" class="emblem">
+      <div><h1>Casa de Flores</h1><small id="sub">Inicia sesión</small></div>
     </div>
     <div class="hright" id="hright" hidden>
       <div class="seg" id="tabs" hidden>
@@ -29,7 +30,8 @@
 
   <section id="login" class="center" hidden>
     <form class="card" id="loginForm">
-      <h2>Entrar</h2>
+      <picture class="logo"><source srcset="/img/logo-dark.png" media="(prefers-color-scheme: dark)"><img src="/img/logo.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"></picture>
+      <h2>Entrar en Pedidos</h2>
       <label class="field"><span>Email</span><input id="lEmail" type="email" autocomplete="email" required></label>
       <label class="field"><span>Contraseña</span><input id="lPass" type="password" autocomplete="current-password" required></label>
       <div class="err" id="lErr" role="alert"></div>
