@@ -115,7 +115,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .sheet-head h2{margin:0;font-size:1.1rem;font-weight:600}
 .f-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 @media (max-width:420px){.f-row{grid-template-columns:1fr}}
-.field{display:grid;gap:4px;min-width:0}
+.field{display:grid;gap:4px;min-width:0;grid-template-columns:minmax(0,1fr)}
 .field>span{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
 .field input,.field select,.field textarea{width:100%;border:1px solid var(--line);background:var(--sunk);border-radius:8px;padding:7px 9px}
 .field textarea{min-height:80px;resize:vertical}
@@ -172,3 +172,17 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .deliv{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
 .deliv[open]{display:grid;gap:10px}
 .deliv summary{cursor:pointer;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
+
+/* custom time slot */
+.slot-pick{display:grid;gap:6px;grid-template-columns:minmax(0,1fr);min-width:0}
+.slot-pick select{width:100%;min-width:0}
+.slot-custom{display:flex;align-items:center;gap:6px}
+.slot-custom input{flex:1 1 0;min-width:0;width:100%}
+.f-row{align-items:start}
+.f-row>*{min-width:0}
+/* notification history */
+.hist{display:grid;gap:4px;margin-top:8px}
+.hrow{display:grid;grid-template-columns:auto 1fr auto;gap:8px;font-size:.8rem;align-items:baseline}
+.hrow .hwhen{color:var(--muted);font-family:var(--f-mono);font-size:.75rem}
+.hrow .hstate{color:var(--muted)}
+.hrow.bad .hstate{color:var(--petal);font-weight:600}

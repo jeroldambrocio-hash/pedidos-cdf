@@ -2,6 +2,8 @@ const { url, anonKey, bucket } = window.CDF_CONFIG;
 const sb = supabase.createClient(url, anonKey);
 
 const SLOTS = ["8:00 - 12:00", "12:00 - 16:00", "16:00 - 20:00"];
+// Any "H:MM - H:MM" is allowed; orders are grouped and sorted by start time.
+const slotStart = (s) => { const m = /(\d{1,2}):(\d{2})/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : 9999; };
 const CHANNELS = [["Shopify", "--ch-shopify"], ["TikTok", "--ch-tiktok"], ["Instagram", "--ch-instagram"], ["Web", "--ch-web"]];
 // One pipeline drives both stored fields: status (Preparing/Ready) and delivery (-/In transit/Delivered).
 const STEPS = [
@@ -167,7 +169,7 @@ async function photoUrl(path) {
 }
 function renderDay() {
   $("dLabel").textContent = cap(fromIso(S.sel).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }));
-  const all = S.orders.filter((o) => o.date === S.sel).sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || a.num.localeCompare(b.num));
+  const all = S.orders.filter((o) => o.date === S.sel).sort((a, b) => slotStart(a.slot) - slotStart(b.slot) || a.slot.localeCompare(b.slot) || a.num.localeCompare(b.num));
   $("dSub").textContent = all.length ? (all.length === 1 ? t("oneOrder") : t("nOrders", { n: all.length })) : "";
   // Tally chips double as filters: a step, or "pending" (everything not delivered yet).
   const match = (o) => S.filter == null ? true : S.filter === "pending" ? stepOf(o) !== 3 : stepOf(o) === S.filter;
@@ -185,8 +187,8 @@ function renderDay() {
     return;
   }
   if (!list.length) { box.append(el("div", { class: "empty" }, el("b", {}, t("noneFiltered")), el("button", { class: "btn", type: "button", onclick: () => { S.filter = null; renderDay(); } }, t("showAll")))); return; }
-  for (const slot of SLOTS) {
-    const os = list.filter((o) => o.slot === slot); if (!os.length) continue;
+  for (const slot of [...new Set(list.map((o) => o.slot))]) {
+    const os = list.filter((o) => o.slot === slot);
     const g = el("div", { class: "orders" });
     for (const o of os) {
       const th = el("div", { class: "thumb" }, o.photo_path ? "" : t("noPhotoShort"));
@@ -276,7 +278,9 @@ function mapHint(input) {
   return a;
 }
 
-// ---------- notify the customer (opens the app with the message written; nothing is sent automatically) ----------
+// ---------- notify the customer ----------
+// Email is sent by the server (cdf-notify, from the shop's Gmail). WhatsApp/Telegram/Viber open the app with the
+// message written; we log that it was opened, since we can't know if it was actually sent.
 function notifyMsg(o, name, label, lang) {
   const st = { "Preparing": "msgPrep", "Ready": "msgReady", "In transit": "msgTransit", "Delivered": "msgDone", "Failed": "msgFail" }[label] || "msgTransit";
   return tIn(lang, st, { name: name ? " " + name : "", num: o.num, link: trackUrl(o) });
@@ -290,27 +294,84 @@ function intlPhone(raw) {
   if (/^[67]\d{8}$/.test(d)) return "34" + d;
   return d;
 }
-function notifyRow(o, iName, iPhone, iEmail, iStatus) {
+const CH_LABEL = { email: "Email", whatsapp: "WhatsApp", telegram: "Telegram", viber: "Viber", copy: "Copy" };
+async function logOpened(o, channel, recipient, label) {
+  await sb.from("cdf_notifications").insert({ order_id: o.id, audience: "customer", channel, recipient, detail: label, by_email: S.me.email });
+}
+function historyBlock(o) {
+  const box = el("div", { class: "hist" });
+  const load = async () => {
+    const { data } = await sb.from("cdf_notifications").select("*").eq("order_id", o.id).order("created_at", { ascending: false }).limit(30);
+    box.replaceChildren();
+    if (!data?.length) { box.append(el("div", { class: "hint" }, t("histEmpty"))); return; }
+    for (const n of data) {
+      const when = new Date(n.created_at).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+      const state = n.channel !== "email" ? t("histOpened") : n.ok ? t("histSent") : t("histFailed");
+      box.append(el("div", { class: "hrow" + (n.ok ? "" : " bad") },
+        el("span", { class: "hwhen" }, when),
+        el("span", {}, (n.audience === "vendor" ? t("histVendor") : t("histCustomer")) + " · " + CH_LABEL[n.channel] + (n.recipient ? " · " + n.recipient : "")),
+        el("span", { class: "hstate", title: n.detail || "" }, state)));
+    }
+  };
+  load();
+  box.reload = load;
+  return box;
+}
+function notifyRow(o, iName, iPhone, iEmail, iStatus, hist) {
   // Message language: Spanish for +34 numbers, English otherwise, unless picked by hand
   let picked = null;
   const lang = () => picked || (intlPhone(iPhone.value).startsWith("34") ? "es" : "en");
   const msg = () => notifyMsg(o, iName.value.trim(), iStatus.value, lang());
   const open = (href) => window.open(href, "_blank", "noopener");
   const b = (label, fn) => el("button", { class: "btn", type: "button", onclick: fn }, label);
+  const via = (channel, recipient, go) => () => { go(); logOpened(o, channel, recipient, iStatus.value).then(() => hist.reload()); };
   const seg = el("div", { class: "seg", title: t("msgLang") });
   const syncSeg = () => { for (const x of seg.children) x.setAttribute("aria-pressed", String(x.dataset.l === lang())); };
   for (const l of ["en", "es"]) seg.append(el("button", { type: "button", "data-l": l, onclick: () => { picked = l; syncSeg(); } }, l.toUpperCase()));
   iPhone.addEventListener("input", syncSeg); syncSeg();
+  const mailBtn = b("Email", async () => {
+    const to = iEmail.value.trim();
+    if (!to) { toast(t("needEmail")); return; }
+    if (to !== (o.customer_email || "")) { toast(t("saveFirst")); return; }
+    mailBtn.disabled = true; mailBtn.textContent = t("sending");
+    const { data, error } = await sb.functions.invoke("cdf-notify", { body: { action: "customer", order_id: o.id, subject: tIn(lang(), "mailSubject", { num: o.num }), text: msg(), label: iStatus.value } });
+    mailBtn.disabled = false; mailBtn.textContent = "Email";
+    if (error || !data?.ok) {
+      let m = data?.error || error?.message || "";
+      try { m = (await error?.context?.json())?.error || m; } catch { /* keep m */ }
+      toast(t("mailFail", { msg: m }));
+    } else toast(t("mailSent", { to }));
+    hist.reload();
+  });
   return el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center" },
     seg,
-    b("WhatsApp", () => open("https://wa.me/" + intlPhone(iPhone.value) + "?text=" + encodeURIComponent(msg()))),
-    b("Telegram", () => open("https://t.me/share/url?url=" + encodeURIComponent(trackUrl(o)) + "&text=" + encodeURIComponent(msg().replace(trackUrl(o), "").trim()))),
-    b("Viber", () => (location.href = "viber://forward?text=" + encodeURIComponent(msg()))),
-    b("Email", () => {
-      if (!iEmail.value.trim()) { toast(t("needEmail")); return; }
-      location.href = "mailto:" + iEmail.value.trim() + "?subject=" + encodeURIComponent(tIn(lang(), "mailSubject", { num: o.num })) + "&body=" + encodeURIComponent(msg());
-    }),
-    b(t("copyMsg"), () => navigator.clipboard?.writeText(msg()).then(() => toast(t("msgCopied")), () => toast(t("selectCopy")))));
+    b("WhatsApp", via("whatsapp", iPhone.value.trim(), () => open("https://wa.me/" + intlPhone(iPhone.value) + "?text=" + encodeURIComponent(msg())))),
+    b("Telegram", via("telegram", "", () => open("https://t.me/share/url?url=" + encodeURIComponent(trackUrl(o)) + "&text=" + encodeURIComponent(msg().replace(trackUrl(o), "").trim())))),
+    b("Viber", via("viber", iPhone.value.trim(), () => (location.href = "viber://forward?text=" + encodeURIComponent(msg())))),
+    mailBtn,
+    b(t("copyMsg"), via("copy", "", () => navigator.clipboard?.writeText(msg()).then(() => toast(t("msgCopied")), () => toast(t("selectCopy"))))));
+}
+
+// Fixed slots plus "custom": two time inputs, stored as "H:MM - H:MM"
+function slotPicker(val) {
+  const custom = !SLOTS.includes(val);
+  const m = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/.exec(val || "");
+  const hhmm = (x) => (x ? x.padStart(5, "0") : "");
+  const s = el("select", { id: "f-slot" }, ...SLOTS.map((x) => el("option", { value: x, selected: x === val }, x)),
+    el("option", { value: "custom", selected: custom }, t("slotCustom")));
+  const from = el("input", { type: "time", value: custom && m ? hhmm(m[1]) : "", "aria-label": t("slotFrom"), step: 300 });
+  const to = el("input", { type: "time", value: custom && m ? hhmm(m[2]) : "", "aria-label": t("slotTo"), step: 300 });
+  const times = el("div", { class: "slot-custom" }, from, el("span", {}, "–"), to);
+  const sync = () => { times.hidden = s.value !== "custom"; };
+  s.addEventListener("change", () => { sync(); if (s.value === "custom") from.focus(); }); sync();
+  const box = el("div", { class: "slot-pick" }, s, times);
+  const short = (x) => x.replace(/^0(\d)/, "$1");
+  box.value = () => {
+    if (s.value !== "custom") return s.value;
+    if (!from.value || !to.value || to.value <= from.value) return "";
+    return short(from.value) + " - " + short(to.value);
+  };
+  return box;
 }
 
 // ---------- sheet ----------
@@ -359,7 +420,7 @@ function openSheet(o) {
   let photoBlob = null, photoRemoved = false;
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
-  const iSlot = sel("f-slot", SLOTS.map((s) => [s, s]), f.slot);
+  const iSlot = slotPicker(f.slot);
   const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", style: "font-family:var(--f-mono)", required: true });
   const iChan = sel("f-chan", [["", t("noChannel")], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
   const iName = el("input", { id: "f-name", value: f.customer_name || "", placeholder: t("namePh"), autocomplete: "off" });
@@ -368,6 +429,7 @@ function openSheet(o) {
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email || "", placeholder: "cliente@email.com", autocomplete: "off" });
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, f.delivery_note || "");
   let proofBlob = null, proofRemoved = false;
+  const hist = isNew ? null : historyBlock(o);
   const proofIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-proof", hidden: true });
   const proofBox = el("div", { class: "drop" });
   const drawProof = () => {
@@ -436,8 +498,9 @@ function openSheet(o) {
 
   const form = el("form", { style: "display:contents", onsubmit: async (e) => {
     e.preventDefault(); err.textContent = "";
+    if (!iSlot.value()) { err.textContent = t("slotInvalid"); return; }
     const st = STEPS.find((s) => s.label === iStatus.value);
-    const row = { num: iNum.value.trim(), date: iDate.value, slot: iSlot.value, channel: iChan.value, vendor_email: iVend.value || null,
+    const row = { num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel: iChan.value, vendor_email: iVend.value || null,
  customer_name: iName.value.trim(), address: iAddr.value.trim(),
       customer_phone: iPhone.value.trim(), customer_email: iEmail.value.trim(), delivery_note: iDNote.value.trim(),
       notes: iNotes.value.trim(), status: st.status, delivery: st.delivery };
@@ -469,7 +532,7 @@ function openSheet(o) {
     closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
   } },
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t("newOrderTitle") : t("editOrder", { num: f.num })), closeBtn()),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("label", { class: "field" }, el("span", {}, t("slot")), iSlot)),
+    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("div", { class: "field" }, el("span", {}, t("slot")), iSlot)),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("channel")), iChan)),
     el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
     el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
@@ -478,7 +541,8 @@ function openSheet(o) {
     el("div", { class: "field" }, el("span", {}, t("photo")), drop, fileIn),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("vendor")), iVend), el("label", { class: "field" }, el("span", {}, t("status")), iStatus)),
     el("div", { class: "field" }, el("span", {}, t("customerLink")), linkBlock),
-    isNew ? null : el("div", { class: "field" }, el("span", {}, t("notify")), notifyRow(o, iName, iPhone, iEmail, iStatus)),
+    isNew ? null : el("div", { class: "field" }, el("span", {}, t("notify")), notifyRow(o, iName, iPhone, iEmail, iStatus, hist)),
+    isNew ? null : el("details", { class: "deliv" }, el("summary", {}, t("history")), hist),
     el("details", { class: "deliv", open: !!(f.delivery_note || f.proof_path || f.delivery === "Failed") || null },
       el("summary", {}, t("deliverySection")),
       el("label", { class: "field" }, el("span", {}, t("deliveryNote")), iDNote, el("div", { class: "hint" }, t("deliveryNoteHint"))),
