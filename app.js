@@ -9,8 +9,10 @@ const STEPS = [
   { k: "ready", label: "Ready", status: "Ready", delivery: "-" },
   { k: "transit", label: "In transit", status: "Ready", delivery: "In transit" },
   { k: "done", label: "Delivered", status: "Ready", delivery: "Delivered" },
+  { k: "fail", label: "Failed", status: "Ready", delivery: "Failed" }, // attempted, nobody home
 ];
-const stepOf = (o) => (o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0);
+const stepOf = (o) => (o.delivery === "Failed" ? 4 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0);
+const proofUrl = (path) => url + "/storage/v1/object/public/cdf-entregas/" + path;
 
 const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, "0");
@@ -166,12 +168,12 @@ function renderDay() {
   const all = S.orders.filter((o) => o.date === S.sel).sort((a, b) => SLOTS.indexOf(a.slot) - SLOTS.indexOf(b.slot) || a.num.localeCompare(b.num));
   $("dSub").textContent = all.length ? (all.length === 1 ? t("oneOrder") : t("nOrders", { n: all.length })) : "";
   // Tally chips double as filters: a step, or "pending" (everything not delivered yet).
-  const match = (o) => S.filter == null ? true : S.filter === "pending" ? stepOf(o) < 3 : stepOf(o) === S.filter;
+  const match = (o) => S.filter == null ? true : S.filter === "pending" ? stepOf(o) !== 3 : stepOf(o) === S.filter;
   const tally = $("tally"); tally.replaceChildren();
   const chip = (key, label, n, style) => tally.append(el("button", { class: "chip" + (S.filter === key ? " on" : ""), type: "button", style,
     "aria-pressed": String(S.filter === key), disabled: !n && S.filter !== key, onclick: () => { S.filter = S.filter === key ? null : key; renderDay(); } }, n + " " + label));
   if (all.length) {
-    chip("pending", t("pending"), all.filter((o) => stepOf(o) < 3).length, "background:var(--petal-soft);color:var(--petal)");
+    chip("pending", t("pending"), all.filter((o) => stepOf(o) !== 3).length, "background:var(--petal-soft);color:var(--petal)");
     STEPS.forEach((s, i) => chip(i, s.label, all.filter((o) => stepOf(o) === i).length, "background:var(--st-" + s.k + "-bg);color:var(--st-" + s.k + ")"));
   }
   const list = all.filter(match);
@@ -219,6 +221,8 @@ $("purgeYes").onclick = async () => {
   const done = S.orders.filter((o) => o.delivery === "Delivered");
   const paths = done.map((o) => o.photo_path).filter(Boolean);
   if (paths.length) await sb.storage.from(bucket).remove(paths);
+  const proofs = done.map((o) => o.proof_path).filter(Boolean);
+  if (proofs.length) await sb.storage.from("cdf-entregas").remove(proofs);
   const { error } = await sb.from("cdf_orders").delete().in("id", done.map((o) => o.id));
   $("purgeConfirm").hidden = true;
   if (error) toast(t("purgeFail")); else { toast(t("purged", { n: done.length })); loadOrders(); }
@@ -270,6 +274,27 @@ function mapHint(input) {
   return a;
 }
 
+// ---------- notify the customer (opens the app with the message written; nothing is sent automatically) ----------
+function notifyMsg(o, name, label) {
+  const st = { "Preparing": "msgPrep", "Ready": "msgReady", "In transit": "msgTransit", "Delivered": "msgDone", "Failed": "msgFail" }[label] || "msgTransit";
+  return t(st, { name: name ? " " + name : "", num: o.num, link: trackUrl(o) });
+}
+function notifyRow(o, iName, iPhone, iEmail, iStatus) {
+  const msg = () => notifyMsg(o, iName.value.trim(), iStatus.value);
+  const digits = () => iPhone.value.replace(/[^\d]/g, "");
+  const open = (href) => window.open(href, "_blank", "noopener");
+  const b = (label, fn) => el("button", { class: "btn", type: "button", onclick: fn }, label);
+  return el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" },
+    b("WhatsApp", () => open("https://wa.me/" + digits() + "?text=" + encodeURIComponent(msg()))),
+    b("Telegram", () => open("https://t.me/share/url?url=" + encodeURIComponent(trackUrl(o)) + "&text=" + encodeURIComponent(msg().replace(trackUrl(o), "").trim()))),
+    b("Viber", () => (location.href = "viber://forward?text=" + encodeURIComponent(msg()))),
+    b("Email", () => {
+      if (!iEmail.value.trim()) { toast(t("needEmail")); return; }
+      location.href = "mailto:" + iEmail.value.trim() + "?subject=" + encodeURIComponent(t("mailSubject", { num: o.num })) + "&body=" + encodeURIComponent(msg());
+    }),
+    b(t("copyMsg"), () => navigator.clipboard?.writeText(msg()).then(() => toast(t("msgCopied")), () => toast(t("selectCopy")))));
+}
+
 // ---------- sheet ----------
 let onPaste = null, onKey = null;
 function closeSheet() {
@@ -299,13 +324,15 @@ function openSheet(o) {
         el("dt", {}, t("channel")), el("dd", {}, chanChip(o.channel) || t("noChannel")),
         el("dt", {}, t("note")), el("dd", { class: "note" }, o.notes || t("noNotes")),
         el("dt", {}, t("photo")), el("dd", {}, ph),
-        el("dt", {}, t("status")), el("dd", {}, stepper(o, false))));
+        el("dt", {}, t("status")), el("dd", {}, stepper(o, false)),
+        o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", { class: "note" }, o.delivery_note)] : null,
+        o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("img", { src: proofUrl(o.proof_path), alt: t("proofPhoto"), style: "border-radius:8px;max-height:220px" }))] : null));
     return;
   }
 
   const isNew = !o;
   const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
-  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: SLOTS[0], channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", notes: "", status: "Preparing", delivery: "-", photo_path: null };
+  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: SLOTS[0], channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", customer_phone: "", customer_email: "", delivery_note: "", proof_path: null, notes: "", status: "Preparing", delivery: "-", photo_path: null };
   let photoBlob = null, photoRemoved = false;
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
@@ -314,6 +341,26 @@ function openSheet(o) {
   const iChan = sel("f-chan", [["", t("noChannel")], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
   const iName = el("input", { id: "f-name", value: f.customer_name || "", placeholder: t("namePh"), autocomplete: "off" });
   const iAddr = el("input", { id: "f-addr", value: f.address || "", placeholder: t("addrPh"), autocomplete: "off" });
+  const iPhone = el("input", { id: "f-phone", type: "tel", value: f.customer_phone || "", placeholder: "+34 600 000 000", autocomplete: "off" });
+  const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email || "", placeholder: "cliente@email.com", autocomplete: "off" });
+  const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, f.delivery_note || "");
+  let proofBlob = null, proofRemoved = false;
+  const proofIn = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-proof", hidden: true });
+  const proofBox = el("div", { class: "drop" });
+  const drawProof = () => {
+    const src = proofBlob ? URL.createObjectURL(proofBlob) : (!proofRemoved && f.proof_path ? proofUrl(f.proof_path) : null);
+    proofBox.replaceChildren(
+      src ? el("img", { src, alt: t("proofPhoto") }) : el("div", {}, t("proofHint")),
+      el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;justify-content:center" },
+        el("button", { class: "btn", type: "button", onclick: () => proofIn.click() }, src ? t("changePhoto") : t("uploadPhoto")),
+        src ? el("button", { class: "btn", type: "button", onclick: () => { proofBlob = null; proofRemoved = true; drawProof(); } }, t("remove")) : null));
+  };
+  proofIn.addEventListener("change", async () => {
+    const file = proofIn.files[0]; if (!file) return;
+    if (!isImage(file)) { err.textContent = t("notImage"); return; }
+    try { proofBlob = await compress(file); proofRemoved = false; drawProof(); } catch { err.textContent = t("readFail"); }
+  });
+  drawProof();
   const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh") }, f.notes);
   const iVend = sel("f-vendor", [["", t("unassigned")], ...S.members.map((m) => [m.email, m.name + (m.role === "admin" ? " (admin)" : "")])], f.vendor_email || "");
   const iStatus = sel("f-status", STEPS.map((s) => [s.label, s.label]), STEPS[stepOf(f)].label);
@@ -369,6 +416,7 @@ function openSheet(o) {
     const st = STEPS.find((s) => s.label === iStatus.value);
     const row = { num: iNum.value.trim(), date: iDate.value, slot: iSlot.value, channel: iChan.value, vendor_email: iVend.value || null,
  customer_name: iName.value.trim(), address: iAddr.value.trim(),
+      customer_phone: iPhone.value.trim(), customer_email: iEmail.value.trim(), delivery_note: iDNote.value.trim(),
       notes: iNotes.value.trim(), status: st.status, delivery: st.delivery };
     saveBtn.disabled = true;
     let saved, error;
@@ -384,6 +432,15 @@ function openSheet(o) {
       await sb.storage.from(bucket).remove([f.photo_path]);
       await sb.from("cdf_orders").update({ photo_path: null }).eq("id", saved.id);
     }
+    if (proofBlob) {
+      const ppath = saved.id + "/" + crypto.randomUUID() + ".jpg";
+      const up = await sb.storage.from("cdf-entregas").upload(ppath, proofBlob, { contentType: "image/jpeg" });
+      if (up.error) toast(t("photoUploadFail"));
+      else { if (f.proof_path) await sb.storage.from("cdf-entregas").remove([f.proof_path]); await sb.from("cdf_orders").update({ proof_path: ppath }).eq("id", saved.id); }
+    } else if (proofRemoved && f.proof_path) {
+      await sb.storage.from("cdf-entregas").remove([f.proof_path]);
+      await sb.from("cdf_orders").update({ proof_path: null }).eq("id", saved.id);
+    }
     S.sel = row.date; S.month = fromIso(row.date); S.month.setDate(1);
     S.filter = null;
     closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
@@ -393,10 +450,16 @@ function openSheet(o) {
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("channel")), iChan)),
     el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
     el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
+    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("phone")), iPhone), el("label", { class: "field" }, el("span", {}, t("emailOpt")), iEmail)),
     el("label", { class: "field" }, el("span", {}, t("note")), iNotes),
     el("div", { class: "field" }, el("span", {}, t("photo")), drop, fileIn),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("vendor")), iVend), el("label", { class: "field" }, el("span", {}, t("status")), iStatus)),
     el("div", { class: "field" }, el("span", {}, t("customerLink")), linkBlock),
+    isNew ? null : el("div", { class: "field" }, el("span", {}, t("notify")), notifyRow(o, iName, iPhone, iEmail, iStatus)),
+    el("details", { class: "deliv", open: !!(f.delivery_note || f.proof_path || f.delivery === "Failed") || null },
+      el("summary", {}, t("deliverySection")),
+      el("label", { class: "field" }, el("span", {}, t("deliveryNote")), iDNote, el("div", { class: "hint" }, t("deliveryNoteHint"))),
+      el("div", { class: "field" }, el("span", {}, t("proofPhoto")), proofBox, proofIn)),
     err, confirmBox,
     el("div", { class: "sheet-foot" }, isNew ? el("span") : el("button", { class: "btn danger", type: "button", onclick: () => (confirmBox.hidden = false) }, t("delete")), saveBtn));
   sheet.append(form);

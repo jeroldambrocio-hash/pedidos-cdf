@@ -16,10 +16,15 @@
 <body>
 <div class="center" style="max-width:440px;padding-top:32px">
   <div class="prefs" style="justify-content:flex-end">
-    <div class="seg lang" role="group" aria-label="Idioma / Language"><button data-lang="es">ES</button><button data-lang="en">EN</button></div>
-    <button class="iconbtn" type="button" data-pref="size">A+</button>
-    <button class="iconbtn" type="button" data-pref="theme">☾</button>
-  </div>
+      <div class="settings">
+        <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-label="Ajustes" data-i18n-aria="settings" title="Ajustes">⚙</button>
+        <div class="menu" hidden>
+          <div class="mrow"><span data-i18n="language">Idioma</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
+          <div class="mrow"><span data-i18n="textSize">Tamaño de letra</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Grande</button></div></div>
+          <div class="mrow"><span data-i18n="theme">Modo</span><div class="seg"><button type="button" data-theme-set="" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Claro</button><button type="button" data-theme-set="dark" data-i18n="dark">Oscuro</button></div></div>
+        </div>
+      </div>
+    </div>
   <div class="logo"><img class="on-light" src="/img/logo.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
   <p class="meta" style="margin:0;text-align:center" data-i18n="trackSub">Seguimiento de tu pedido</p>
   <div class="card" id="card"><h2 data-i18n="loadingOrder">Cargando tu pedido…</h2></div>
@@ -50,19 +55,29 @@ function render() {
     card.replaceChildren(h("h2", null, t("notFound")), h("div", "meta", t("notFoundTxt")));
     return;
   }
-  const cur = o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
+  const failed = o.delivery === "Failed";
+  const cur = failed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
   const [y, m, d] = o.date.split("-").map(Number);
   const head = h("div");
   head.append(h("h2", null, t("order", { num: o.num })), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot));
   const tl = h("ol", "tl");
   STEPS.forEach((label, i) => {
-    const txt = t("stepTxt")[i];
-    const li = h("li", i < cur ? "past" : i === cur ? "cur" : "");
-    const body = h("div"); body.append(h("b", null, label), h("small", null, txt));
-    li.append(h("span", "dot", i < cur ? "✓" : ""), body); tl.append(li);
+    // A failed attempt replaces the last step: in transit is done, delivery didn't happen.
+    const isFail = failed && i === 3;
+    const txt = isFail ? t("failedTxt") : t("stepTxt")[i];
+    const li = h("li", isFail ? "fail" : i < cur ? "past" : i === cur ? "cur" : "");
+    const body = h("div"); body.append(h("b", null, isFail ? t("failedTitle") : label), h("small", null, txt));
+    li.append(h("span", "dot", isFail ? "!" : i < cur ? "✓" : ""), body); tl.append(li);
   });
+  const extra = [];
+  if (o.delivery_note) extra.push(h("div", "note", o.delivery_note));
+  if (o.proof_path) {
+    const img = h("img"); img.src = url + "/storage/v1/object/public/cdf-entregas/" + o.proof_path; img.alt = t("proofPhoto");
+    img.style.cssText = "border-radius:10px;width:100%;max-height:320px;object-fit:cover";
+    extra.push(img);
+  }
   const upd = h("div", "meta", t("updated", { when: new Date(o.updated_at).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }));
-  card.replaceChildren(head, tl, upd);
+  card.replaceChildren(head, tl, ...extra, upd);
 }
 document.addEventListener("langchange", render);
 load();

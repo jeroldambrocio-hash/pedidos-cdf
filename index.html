@@ -21,10 +21,15 @@
     </div>
     <div class="hright">
       <div class="prefs">
-        <div class="seg lang" role="group" aria-label="Idioma / Language"><button data-lang="es">ES</button><button data-lang="en">EN</button></div>
-        <button class="iconbtn" type="button" data-pref="size">A+</button>
-        <button class="iconbtn" type="button" data-pref="theme">☾</button>
+      <div class="settings">
+        <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-label="Ajustes" data-i18n-aria="settings" title="Ajustes">⚙</button>
+        <div class="menu" hidden>
+          <div class="mrow"><span data-i18n="language">Idioma</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
+          <div class="mrow"><span data-i18n="textSize">Tamaño de letra</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Grande</button></div></div>
+          <div class="mrow"><span data-i18n="theme">Modo</span><div class="seg"><button type="button" data-theme-set="" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Claro</button><button type="button" data-theme-set="dark" data-i18n="dark">Oscuro</button></div></div>
+        </div>
       </div>
+    </div>
       <div class="hright" id="hright" hidden>
       <div class="seg" id="tabs" hidden>
         <button id="tabOrders" aria-pressed="true" data-i18n="tabOrders">Pedidos</button>

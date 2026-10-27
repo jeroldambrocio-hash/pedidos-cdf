@@ -4,7 +4,7 @@
   --accent:#13302a; --accent-fg:#eef4f0; --petal:#d23d20; --petal-soft:#f8e2dc;
   --st-prep:#b2591a; --st-prep-bg:#fbeadb; --st-ready:#1f6b8f; --st-ready-bg:#e0eef4;
   --st-transit:#6a4aa8; --st-transit-bg:#ece6f7; --st-done:#1f7a52; --st-done-bg:#dcf0e5;
-  --danger:#d23d20; --danger-bg:#f8e2dc;
+  --danger:#d23d20; --danger-bg:#f8e2dc; --st-fail:#d23d20; --st-fail-bg:#f8e2dc;
   --ch-shopify:#5e8e3e; --ch-tiktok:#222; --ch-instagram:#c13584; --ch-web:#1f6f8b;
   --f-body:"Geist", "Segoe UI", system-ui, sans-serif;
   --f-mono:"Geist Mono", ui-monospace, Menlo, monospace;
@@ -15,7 +15,7 @@
   --accent:#eef4f0; --accent-fg:#18191b; --petal:#ec6a4e; --petal-soft:#3a2420;
   --st-prep:#f0a463; --st-prep-bg:#3a2715; --st-ready:#7fc0de; --st-ready-bg:#16323d;
   --st-transit:#bba3ee; --st-transit-bg:#2a2340; --st-done:#79d3a6; --st-done-bg:#143627;
-  --danger:#ff8a70; --danger-bg:#3b2119;
+  --danger:#ff8a70; --danger-bg:#3b2119; --st-fail:#ff8a70; --st-fail-bg:#3b2119;
   --ch-shopify:#95bf47; --ch-tiktok:#e6e6e6; --ch-instagram:#f07fc0; --ch-web:#6cc3df;
   color-scheme:dark}}
 :root[data-theme="dark"]{
@@ -23,7 +23,7 @@
   --accent:#eef4f0; --accent-fg:#18191b; --petal:#ec6a4e; --petal-soft:#3a2420;
   --st-prep:#f0a463; --st-prep-bg:#3a2715; --st-ready:#7fc0de; --st-ready-bg:#16323d;
   --st-transit:#bba3ee; --st-transit-bg:#2a2340; --st-done:#79d3a6; --st-done-bg:#143627;
-  --danger:#ff8a70; --danger-bg:#3b2119;
+  --danger:#ff8a70; --danger-bg:#3b2119; --st-fail:#ff8a70; --st-fail-bg:#3b2119;
   --ch-shopify:#95bf47; --ch-tiktok:#e6e6e6; --ch-instagram:#f07fc0; --ch-web:#6cc3df;
   color-scheme:dark}
 *{box-sizing:border-box}
@@ -101,6 +101,10 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .s-ready.on{background:var(--st-ready-bg);color:var(--st-ready)}
 .s-transit.on{background:var(--st-transit-bg);color:var(--st-transit)}
 .s-done.on{background:var(--st-done-bg);color:var(--st-done)}
+.s-fail{border-style:dashed}
+.s-fail.on{background:var(--st-fail-bg);color:var(--st-fail);border-style:solid}
+.tl li.fail .dot{background:var(--st-fail);border-color:var(--st-fail)}
+.tl li.fail{color:var(--fg)}
 .step.past{color:var(--fg);opacity:.55}
 @media (max-width:620px){.order{grid-template-columns:40px minmax(0,1fr)}.steps{grid-column:1/-1;justify-content:flex-start}}
 .empty{border:1.5px dashed var(--line);border-radius:12px;padding:24px;text-align:center;color:var(--muted)}
@@ -124,7 +128,7 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 .confirm div{display:flex;gap:8px}
 .ro dt{font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}
 .ro dd{margin:2px 0 12px}
-.ro .note{white-space:pre-wrap;background:var(--sunk);border-radius:8px;padding:10px}
+.card .note,.ro .note{white-space:pre-wrap;background:var(--sunk);border-radius:8px;padding:10px}
 .link-row{display:flex;gap:6px}
 .link-row input{flex:1;min-width:0;font-family:var(--f-mono);font-size:.76rem}
 .toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(20px + env(safe-area-inset-bottom,0px));background:var(--fg);color:var(--bg);padding:9px 16px;border-radius:999px;font-size:.86rem;z-index:30;max-width:calc(100% - 32px)}
@@ -160,6 +164,11 @@ header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-betw
 :root[data-theme="dark"] .logo .on-light{display:none}
 :root[data-theme="dark"] .logo .on-dark{display:block}
 .prefs{display:flex;align-items:center;gap:6px}
-.prefs .seg button{padding:3px 9px;font-size:.75rem}
-.prefs .iconbtn{width:auto;min-width:30px;padding:0 8px;font-size:.8rem;font-weight:600;height:28px}
-.prefs .iconbtn[aria-pressed="true"]{background:var(--sunk)}
+.settings{position:relative}
+.settings .iconbtn{font-size:1rem}
+.settings .menu{position:absolute;right:0;top:calc(100% + 6px);z-index:15;background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px;display:grid;gap:10px;min-width:250px;box-shadow:0 8px 24px rgb(0 0 0/.18)}
+.mrow{display:flex;align-items:center;justify-content:space-between;gap:10px;font-size:.8rem;color:var(--muted)}
+.mrow .seg button{padding:3px 9px;font-size:.75rem}
+.deliv{border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.deliv[open]{display:grid;gap:10px}
+.deliv summary{cursor:pointer;font-size:.72rem;text-transform:uppercase;letter-spacing:.07em;color:var(--muted);font-weight:600}

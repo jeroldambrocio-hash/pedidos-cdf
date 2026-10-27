@@ -38,6 +38,17 @@ const I18N = {
     notFoundTxt: "Revisa que el enlace esté completo o escríbenos por el mismo canal donde hiciste tu compra.",
     autoRefresh: "Esta página se actualiza sola cuando cambia el estado.", updated: "Actualizado {when}",
     pending: "Pendientes", noneFiltered: "Nada con este filtro", showAll: "Ver todos", lightMode: "Modo claro", darkMode: "Modo oscuro", bigText: "Letra más grande",
+    deliveryNote: "Nota para el cliente", deliveryNotePh: "Ej.: No había nadie, volvemos mañana de 12 a 16", deliveryNoteHint: "El cliente la ve en su enlace de seguimiento.",
+    proofPhoto: "Foto de prueba", proofHint: "Foto de la puerta o del ramo entregado", phone: "Teléfono (opcional)", emailOpt: "Email (opcional)",
+    notify: "Avisar al cliente", deliverySection: "Entrega: nota y foto de prueba",
+    msgPrep: "Hola{name}, estamos preparando tu pedido #{num} de Casa de Flores. Síguelo aquí: {link}",
+    msgReady: "Hola{name}, tu pedido #{num} de Casa de Flores está listo. Síguelo aquí: {link}",
+    msgTransit: "Hola{name}, tu pedido #{num} de Casa de Flores va de camino. Síguelo aquí: {link}",
+    msgDone: "Hola{name}, tu pedido #{num} de Casa de Flores se ha entregado. ¡Gracias! {link}",
+    msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
+    mailSubject: "Tu pedido #{num} · Casa de Flores", needEmail: "Añade el email del cliente primero", copyMsg: "Copiar mensaje", msgCopied: "Mensaje copiado",
+    settings: "Ajustes", language: "Idioma", textSize: "Tamaño de letra", normal: "Normal", large: "Grande", theme: "Modo", light: "Claro", dark: "Oscuro", auto: "Auto",
+    failedTitle: "No pudimos entregarlo", failedTxt: "Hemos pasado por la dirección y no había nadie. Te contactaremos para volver a intentarlo.",
     stepTxt: ["Estamos preparando tu ramo", "Tu ramo está listo para salir", "Tu ramo va de camino", "Entregado. ¡Gracias por tu compra!"],
   },
   en: {
@@ -77,6 +88,17 @@ const I18N = {
     notFoundTxt: "Check that the link is complete, or message us on the channel where you placed your order.",
     autoRefresh: "This page updates by itself when the status changes.", updated: "Updated {when}",
     pending: "Pending", noneFiltered: "Nothing matches this filter", showAll: "Show all", lightMode: "Light mode", darkMode: "Dark mode", bigText: "Larger text",
+    deliveryNote: "Note for the customer", deliveryNotePh: "E.g. Nobody was home, we'll come back tomorrow 12-16", deliveryNoteHint: "The customer sees it on their tracking link.",
+    proofPhoto: "Proof photo", proofHint: "Photo of the door or the delivered bouquet", phone: "Phone (optional)", emailOpt: "Email (optional)",
+    notify: "Notify the customer", deliverySection: "Delivery: note and proof photo",
+    msgPrep: "Hi{name}, we're preparing your Casa de Flores order #{num}. Track it here: {link}",
+    msgReady: "Hi{name}, your Casa de Flores order #{num} is ready. Track it here: {link}",
+    msgTransit: "Hi{name}, your Casa de Flores order #{num} is on its way. Track it here: {link}",
+    msgDone: "Hi{name}, your Casa de Flores order #{num} has been delivered. Thank you! {link}",
+    msgFail: "Hi{name}, we tried to deliver your Casa de Flores order #{num} but nobody was home. Details: {link}",
+    mailSubject: "Your order #{num} · Casa de Flores", needEmail: "Add the customer's email first", copyMsg: "Copy message", msgCopied: "Message copied",
+    settings: "Settings", language: "Language", textSize: "Text size", normal: "Normal", large: "Large", theme: "Mode", light: "Light", dark: "Dark", auto: "Auto",
+    failedTitle: "We couldn't deliver it", failedTxt: "We came to the address and nobody was home. We'll contact you to try again.",
     stepTxt: ["We're preparing your bouquet", "Your bouquet is ready to go", "Your bouquet is on its way", "Delivered. Thank you for your order!"],
   },
 };
@@ -108,23 +130,22 @@ function setLang(l) {
 // ---------- light / dark and text size ----------
 const pref = (k) => { try { return localStorage.getItem(k); } catch { return null; } };
 const savePref = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
-const isDark = () => document.documentElement.dataset.theme
-  ? document.documentElement.dataset.theme === "dark" : matchMedia("(prefers-color-scheme: dark)").matches;
 function applyPrefs() {
-  const root = document.documentElement, th = pref("cdf-theme"), sz = pref("cdf-size");
+  const root = document.documentElement, th = pref("cdf-theme") || "", sz = pref("cdf-size") || "";
   if (th) root.dataset.theme = th; else delete root.dataset.theme;
   if (sz === "lg") root.dataset.size = "lg"; else delete root.dataset.size;
-  const tb = document.querySelector("[data-pref=theme]"), sb2 = document.querySelector("[data-pref=size]");
-  if (tb) { tb.textContent = isDark() ? "☀" : "☾"; tb.setAttribute("aria-label", t(isDark() ? "lightMode" : "darkMode")); tb.title = tb.getAttribute("aria-label"); }
-  if (sb2) { sb2.setAttribute("aria-pressed", String(sz === "lg")); sb2.setAttribute("aria-label", t("bigText")); sb2.title = t("bigText"); }
+  for (const b of document.querySelectorAll("button[data-size]")) b.setAttribute("aria-pressed", String(b.dataset.size === sz));
+  for (const b of document.querySelectorAll("[data-theme-set]")) b.setAttribute("aria-pressed", String(b.dataset.themeSet === th));
 }
 document.addEventListener("click", (e) => {
-  const b = e.target.closest(".lang button"); if (b) { setLang(b.dataset.lang); applyPrefs(); return; }
-  const p = e.target.closest("[data-pref]"); if (!p) return;
-  if (p.dataset.pref === "theme") savePref("cdf-theme", isDark() ? "light" : "dark");
-  else savePref("cdf-size", pref("cdf-size") === "lg" ? "" : "lg");
-  applyPrefs();
+  const gear = e.target.closest("[data-settings]");
+  const menu = document.querySelector(".settings .menu");
+  if (gear) { menu.hidden = !menu.hidden; gear.setAttribute("aria-expanded", String(!menu.hidden)); return; }
+  if (menu && !menu.hidden && !e.target.closest(".settings")) { menu.hidden = true; document.querySelector("[data-settings]").setAttribute("aria-expanded", "false"); }
+  const l = e.target.closest(".lang button"); if (l) { setLang(l.dataset.lang); applyPrefs(); return; }
+  const z = e.target.closest("button[data-size]"); if (z) { savePref("cdf-size", z.dataset.size); applyPrefs(); return; }
+  const th = e.target.closest("button[data-theme-set]"); if (th) { savePref("cdf-theme", th.dataset.themeSet); applyPrefs(); }
 });
-matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change", applyPrefs);
+document.addEventListener("keydown", (e) => { const m = document.querySelector(".settings .menu"); if (e.key === "Escape" && m && !m.hidden) m.hidden = true; });
 applyStatic();
 applyPrefs();
