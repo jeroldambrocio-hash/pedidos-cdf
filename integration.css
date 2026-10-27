@@ -17,3 +17,9 @@
 /* the reference photo is what the florist works from: show it bigger */
 .w-main{grid-template-columns:112px minmax(0,1fr)}.thumb.lg{width:112px;height:112px}
 @media(max-width:560px){.w-main{grid-template-columns:88px minmax(0,1fr)}.thumb.lg{width:88px;height:88px}}
+/* failed visits ("nobody home") stay visible on the day they failed */
+.missed-banner{display:flex;gap:10px;align-items:flex-start;border:1px solid var(--st-fail);background:var(--st-fail-bg);color:var(--fg);border-radius:12px;padding:12px 14px;margin-bottom:16px}
+.missed-banner>.icon{color:var(--st-fail);flex-shrink:0}.missed-banner b{display:block;margin-bottom:4px}
+.missed-row{display:block;border:0;background:none;padding:4px 0;text-align:left;color:var(--fg);text-decoration:underline;text-underline-offset:3px;cursor:pointer;min-height:32px}
+.missed-row small{color:var(--muted)}
+.o-main .tag.fail,.wcard .tag.fail{display:inline-block;margin-top:4px}

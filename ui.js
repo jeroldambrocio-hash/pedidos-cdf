@@ -54,10 +54,12 @@ function renderDay() {
   $('clearSearch').hidden=!query;
   $('dLabel').textContent=query?t('searchResults'):(!isStaff()?t('routeTitle'):cap(fromIso(S.sel).toLocaleDateString(locale(),{weekday:'long',day:'numeric',month:'long'})));
   $('dSub').textContent=(all.length===1?t('oneOrder'):t('nOrders',{n:all.length}))+' · '+t('manila');
+  // "Nobody home" moves the order to its new date; keep it visible on the day it failed
+  const missedHere=isStaff()&&!query?S.orders.filter(o=>o.missed_on===S.sel&&o.date!==S.sel):[];
   const summary=$('summary'); summary.replaceChildren();
   const stat=(label,n,kind,glyph,sub)=>el('div',{class:'summary-card metric-'+kind},el('div',{class:'summary-icon'},icon(glyph)),el('div',{class:'summary-copy'},el('b',{},String(n)),el('span',{},t(label)),el('small',{},t(sub))));
   summary.append(stat('summaryTotal',all.length,'total','orders','statToday'),stat('summaryPending',all.filter(o=>stepOf(o)!==3).length,'pending','clock','statPending'));
-  if(isStaff())summary.append(stat('summaryPrep',all.filter(o=>stepOf(o)===0).length,'prep','flower','statPrep'),stat('summaryFailed',all.filter(o=>stepOf(o)===4).length,'failed','truck','statFailed'),stat('summaryUnassigned',all.filter(o=>!o.vendor_email).length,'unassigned','user','statUnassigned'));
+  if(isStaff())summary.append(stat('summaryPrep',all.filter(o=>stepOf(o)===0).length,'prep','flower','statPrep'),stat('summaryFailed',all.filter(o=>stepOf(o)===4).length+missedHere.length,'failed','truck','statFailed'),stat('summaryUnassigned',all.filter(o=>!o.vendor_email).length,'unassigned','user','statUnassigned'));
   else if(all.some(o=>stepOf(o)===4))summary.append(stat('summaryFailed',all.filter(o=>stepOf(o)===4).length,'failed','truck','statFailed'));
   const match=o=>S.filter==null?true:S.filter==='pending'?stepOf(o)!==3:S.filter==='unassigned'?!o.vendor_email:stepOf(o)===S.filter;
   const filterSelect=$('statusFilter');
@@ -70,6 +72,11 @@ function renderDay() {
   STEPS.forEach((s,i)=>chip(i,statusLabel(s),all.filter(o=>stepOf(o)===i).length,'s-'+s.k,['box','check','truck','check','alert'][i]));
   if(isStaff())chip('unassigned',t('unassigned'),all.filter(o=>!o.vendor_email).length,'','user');
   const list=all.filter(match),box=$('list'); box.replaceChildren();
+  if(missedHere.length)box.append(el('div',{class:'missed-banner',role:'status'},icon('alert'),el('div',{},
+    el('b',{},t('missedBanner',{n:missedHere.length})),
+    ...missedHere.map(o=>el('button',{class:'missed-row',type:'button',onclick:()=>{S.sel=o.date;S.month=fromIso(o.date);S.month.setDate(1);renderOrders();openFresh(o);}},
+      '#'+o.num+' · '+(o.customer_name||t('noName'))+' → '+shortDate(o.date)+' · '+o.slot,
+      o.missed_at?el('small',{},' ('+new Date(o.missed_at).toLocaleTimeString(locale(),{timeZone:TZ,hour:'2-digit',minute:'2-digit'})+')'):null)))));
   if(S.loadError&&!S.loaded){box.append(el('div',{class:'empty'},el('b',{},t('loadFail')),el('button',{class:'btn',onclick:loadOrders},t('retry'))));return;}
   if(!all.length){box.append(el('div',{class:'empty'},el('b',{},t(query?'emptySearch':'noOrdersDay')),t(isStaff()?'emptyAdmin':'emptyVendor')));return;}
   if(!list.length){box.append(el('div',{class:'empty'},el('b',{},t('noneFiltered')),el('button',{class:'btn',onclick:()=>{S.filter=null;renderDay();}},t('showAll'))));return;}
@@ -77,7 +84,8 @@ function renderDay() {
     const current=stepOf(o),state=STEPS[current].k;
     const th=el('div',{class:'thumb'},(o.bouquet_path||o.photo_path)?'':el('img',{src:'/img/emblem.png',alt:'',class:'placeholder-emblem'}));
     if(o.bouquet_path||o.photo_path)photoUrl(o.bouquet_path||o.photo_path,o.bouquet_path?ENTREGAS:bucket).then(u=>{if(u)th.replaceChildren(el('img',{src:u,alt:'',loading:'lazy'}));});
-    const details=el('button',{class:'order-open',type:'button',onclick:()=>openFresh(o),'aria-label':t('order',{num:o.num})+' · '+(o.customer_name||t('noName'))},th,el('div',{class:'o-main'},el('div',{class:'o-top'},el('span',{class:'num'},'#'+o.num),chanChip(o.channel)),el('b',{class:'o-name'},o.customer_name||t('noName')),el('div',{class:'o-sub'},isStaff()?memberName(o.vendor_email):o.slot)));
+    const details=el('button',{class:'order-open',type:'button',onclick:()=>openFresh(o),'aria-label':t('order',{num:o.num})+' · '+(o.customer_name||t('noName'))},th,el('div',{class:'o-main'},el('div',{class:'o-top'},el('span',{class:'num'},'#'+o.num),chanChip(o.channel)),el('b',{class:'o-name'},o.customer_name||t('noName')),el('div',{class:'o-sub'},isStaff()?memberName(o.vendor_email):o.slot),
+      o.attempts>0&&current!==3?el('span',{class:'tag fail'},t('retryTag',{n:o.attempts+1,date:o.missed_on?shortDate(o.missed_on):''})):null));
     const info=el('div',{class:'order-info'});
     const phone=intlPhone(o.customer_phone||'');
     if(/^\d{7,15}$/.test(phone))info.append(el('a',{href:'tel:+'+phone},icon('phone'),'+'+phone));

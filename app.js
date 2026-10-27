@@ -303,6 +303,7 @@ function workCard(o, withDate) {
           el("span", { class: "num" }, "#" + o.num), chanChip(o.channel),
           el("span", { class: "pill s-" + k }, stepName(cur))),
         el("div", { class: "w-name" }, o.customer_name || t("noName")),
+        o.attempts > 0 && cur !== 3 ? el("span", { class: "tag fail" }, t("retryTag", { n: o.attempts + 1, date: o.missed_on ? shortDate(o.missed_on) : "" })) : null,
         o.address ? el("div", { class: "o-sub" }, o.address) : null,
         o.card_message ? el("div", { class: "w-note" }, "💌 " + o.card_message) : null,
         o.notes ? el("div", { class: "w-note" }, o.notes) : null)),

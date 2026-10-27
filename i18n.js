@@ -2,6 +2,7 @@
 // Spanish / English texts. Static HTML uses data-i18n (text), data-i18n-ph (placeholder) and data-i18n-aria (aria-label).
 const I18N = {
   es: {
+    missedBanner: "No había nadie: {n} reprogramado(s) desde este día", retryTag: "Intento {n} · no había nadie el {date}",
     sameAsBuyer: "Es para la misma persona que compra (no es un regalo)", fillRequired: "Rellena los campos marcados con *.", required: "Obligatorio",
     retry: "Reintentar", loadErrTitle: "No se pudo cargar tu pedido", loadErrTxt: "Parece un problema de conexión. Inténtalo de nuevo en un momento.", staleNote: "sin conexión, puede no estar al día", forName: "Para: {name}", bouquetCaption: "Tu ramo antes de salir de nuestro taller",
     recipient: "Para", recipientH: "Para quién", buyerH: "Quién compra", buyerHint: "Recibe los avisos y el correo cuando sale. Pon al menos teléfono o email.",
@@ -73,6 +74,7 @@ const I18N = {
     stepTxt: ["Estamos preparando tu ramo", "Tu ramo está listo para salir", "Tu ramo va de camino", "Entregado. ¡Gracias por tu compra!"],
   },
   en: {
+    missedBanner: "Nobody home: {n} rescheduled from this day", retryTag: "Attempt {n} · nobody home on {date}",
     sameAsBuyer: "It's for the buyer themselves (not a gift)", fillRequired: "Fill in the fields marked with *.", required: "Required",
     retry: "Try again", loadErrTitle: "We couldn't load your order", loadErrTxt: "This looks like a connection problem. Please try again in a moment.", staleNote: "offline, may be out of date", forName: "For: {name}", bouquetCaption: "Here's your bouquet before it leaves our studio",
     recipient: "For", recipientH: "Who it's for", buyerH: "Who's buying", buyerHint: "Gets the notices and the email when it goes out. Add at least a phone or an email.",
