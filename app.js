@@ -32,9 +32,11 @@ const el = (t, a = {}, ...kids) => {
 };
 const trackUrl = (o) => location.origin + "/p/" + o.code;
 
-const today = iso(new Date());
-const S = { me: null, filter: null, tab: "orders", sel: today, month: new Date(), orders: [], members: [], photoUrls: {}, channel: null };
-S.month = new Date(S.month.getFullYear(), S.month.getMonth(), 1);
+// The shop works on Philippine time, wherever the admin happens to be
+const TZ = "Asia/Manila";
+const today = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
+const S = { me: null, filter: null, tab: "orders", sel: today, month: fromIso(today), orders: [], members: [], photoUrls: {}, channel: null };
+S.month.setDate(1);
 const isAdmin = () => S.me?.role === "admin";
 
 function toast(msg) { const t = $("toast"); t.textContent = msg; t.hidden = false; clearTimeout(toast.h); toast.h = setTimeout(() => (t.hidden = true), 2600); }
@@ -201,7 +203,7 @@ function renderDay() {
 }
 $("prevM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() - 1, 1); renderCal(); };
 $("nextM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderCal(); };
-$("todayBtn").onclick = () => { S.sel = today; S.filter = null; S.month = new Date(); S.month.setDate(1); renderOrders(); };
+$("todayBtn").onclick = () => { S.sel = today; S.filter = null; S.month = fromIso(today); S.month.setDate(1); renderOrders(); };
 $("newBtn").onclick = () => openSheet(null);
 
 // ---------- purge delivered ----------
@@ -275,22 +277,38 @@ function mapHint(input) {
 }
 
 // ---------- notify the customer (opens the app with the message written; nothing is sent automatically) ----------
-function notifyMsg(o, name, label) {
+function notifyMsg(o, name, label, lang) {
   const st = { "Preparing": "msgPrep", "Ready": "msgReady", "In transit": "msgTransit", "Delivered": "msgDone", "Failed": "msgFail" }[label] || "msgTransit";
-  return t(st, { name: name ? " " + name : "", num: o.num, link: trackUrl(o) });
+  return tIn(lang, st, { name: name ? " " + name : "", num: o.num, link: trackUrl(o) });
+}
+// Customers are in the Philippines or Spain. Local numbers get their country code (wa.me needs it):
+// 0917… / 917… → 63917…, and Spanish 6xx/7xx → 34…
+function intlPhone(raw) {
+  const d = raw.replace(/[^\d]/g, "");
+  if (/^09\d{9}$/.test(d)) return "63" + d.slice(1);
+  if (/^9\d{9}$/.test(d)) return "63" + d;
+  if (/^[67]\d{8}$/.test(d)) return "34" + d;
+  return d;
 }
 function notifyRow(o, iName, iPhone, iEmail, iStatus) {
-  const msg = () => notifyMsg(o, iName.value.trim(), iStatus.value);
-  const digits = () => iPhone.value.replace(/[^\d]/g, "");
+  // Message language: Spanish for +34 numbers, English otherwise, unless picked by hand
+  let picked = null;
+  const lang = () => picked || (intlPhone(iPhone.value).startsWith("34") ? "es" : "en");
+  const msg = () => notifyMsg(o, iName.value.trim(), iStatus.value, lang());
   const open = (href) => window.open(href, "_blank", "noopener");
   const b = (label, fn) => el("button", { class: "btn", type: "button", onclick: fn }, label);
-  return el("div", { style: "display:flex;gap:6px;flex-wrap:wrap" },
-    b("WhatsApp", () => open("https://wa.me/" + digits() + "?text=" + encodeURIComponent(msg()))),
+  const seg = el("div", { class: "seg", title: t("msgLang") });
+  const syncSeg = () => { for (const x of seg.children) x.setAttribute("aria-pressed", String(x.dataset.l === lang())); };
+  for (const l of ["en", "es"]) seg.append(el("button", { type: "button", "data-l": l, onclick: () => { picked = l; syncSeg(); } }, l.toUpperCase()));
+  iPhone.addEventListener("input", syncSeg); syncSeg();
+  return el("div", { style: "display:flex;gap:6px;flex-wrap:wrap;align-items:center" },
+    seg,
+    b("WhatsApp", () => open("https://wa.me/" + intlPhone(iPhone.value) + "?text=" + encodeURIComponent(msg()))),
     b("Telegram", () => open("https://t.me/share/url?url=" + encodeURIComponent(trackUrl(o)) + "&text=" + encodeURIComponent(msg().replace(trackUrl(o), "").trim()))),
     b("Viber", () => (location.href = "viber://forward?text=" + encodeURIComponent(msg()))),
     b("Email", () => {
       if (!iEmail.value.trim()) { toast(t("needEmail")); return; }
-      location.href = "mailto:" + iEmail.value.trim() + "?subject=" + encodeURIComponent(t("mailSubject", { num: o.num })) + "&body=" + encodeURIComponent(msg());
+      location.href = "mailto:" + iEmail.value.trim() + "?subject=" + encodeURIComponent(tIn(lang(), "mailSubject", { num: o.num })) + "&body=" + encodeURIComponent(msg());
     }),
     b(t("copyMsg"), () => navigator.clipboard?.writeText(msg()).then(() => toast(t("msgCopied")), () => toast(t("selectCopy")))));
 }
@@ -341,7 +359,7 @@ function openSheet(o) {
   const iChan = sel("f-chan", [["", t("noChannel")], ...CHANNELS.map((c) => [c[0], c[0]])], f.channel);
   const iName = el("input", { id: "f-name", value: f.customer_name || "", placeholder: t("namePh"), autocomplete: "off" });
   const iAddr = el("input", { id: "f-addr", value: f.address || "", placeholder: t("addrPh"), autocomplete: "off" });
-  const iPhone = el("input", { id: "f-phone", type: "tel", value: f.customer_phone || "", placeholder: "+34 600 000 000", autocomplete: "off" });
+  const iPhone = el("input", { id: "f-phone", type: "tel", value: f.customer_phone || "", placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email || "", placeholder: "cliente@email.com", autocomplete: "off" });
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, f.delivery_note || "");
   let proofBlob = null, proofRemoved = false;

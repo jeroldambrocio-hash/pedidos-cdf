@@ -46,7 +46,7 @@ const I18N = {
     msgTransit: "Hola{name}, tu pedido #{num} de Casa de Flores va de camino. Síguelo aquí: {link}",
     msgDone: "Hola{name}, tu pedido #{num} de Casa de Flores se ha entregado. ¡Gracias! {link}",
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
-    mailSubject: "Tu pedido #{num} · Casa de Flores", needEmail: "Añade el email del cliente primero", copyMsg: "Copiar mensaje", msgCopied: "Mensaje copiado",
+    mailSubject: "Tu pedido #{num} · Casa de Flores", needEmail: "Añade el email del cliente primero", copyMsg: "Copiar mensaje", msgLang: "Idioma del mensaje", msgCopied: "Mensaje copiado",
     settings: "Ajustes", language: "Idioma", textSize: "Tamaño de letra", normal: "Normal", large: "Grande", theme: "Modo", light: "Claro", dark: "Oscuro", auto: "Auto",
     failedTitle: "No pudimos entregarlo", failedTxt: "Hemos pasado por la dirección y no había nadie. Te contactaremos para volver a intentarlo.",
     stepTxt: ["Estamos preparando tu ramo", "Tu ramo está listo para salir", "Tu ramo va de camino", "Entregado. ¡Gracias por tu compra!"],
@@ -96,7 +96,7 @@ const I18N = {
     msgTransit: "Hi{name}, your Casa de Flores order #{num} is on its way. Track it here: {link}",
     msgDone: "Hi{name}, your Casa de Flores order #{num} has been delivered. Thank you! {link}",
     msgFail: "Hi{name}, we tried to deliver your Casa de Flores order #{num} but nobody was home. Details: {link}",
-    mailSubject: "Your order #{num} · Casa de Flores", needEmail: "Add the customer's email first", copyMsg: "Copy message", msgCopied: "Message copied",
+    mailSubject: "Your order #{num} · Casa de Flores", needEmail: "Add the customer's email first", copyMsg: "Copy message", msgLang: "Message language", msgCopied: "Message copied",
     settings: "Settings", language: "Language", textSize: "Text size", normal: "Normal", large: "Large", theme: "Mode", light: "Light", dark: "Dark", auto: "Auto",
     failedTitle: "We couldn't deliver it", failedTxt: "We came to the address and nobody was home. We'll contact you to try again.",
     stepTxt: ["We're preparing your bouquet", "Your bouquet is ready to go", "Your bouquet is on its way", "Delivered. Thank you for your order!"],
@@ -105,13 +105,17 @@ const I18N = {
 
 let LANG = (() => {
   try { const s = localStorage.getItem("cdf-lang"); if (s === "es" || s === "en") return s; } catch {}
+  const def = document.documentElement.dataset.defaultLang;
+  if (def) return def;
   return (navigator.language || "es").toLowerCase().startsWith("en") ? "en" : "es";
 })();
-const t = (k, vars = {}) => {
-  const v = I18N[LANG][k] ?? I18N.es[k] ?? k;
+const t = (k, vars = {}) => tIn(LANG, k, vars);
+// Text in a fixed language (messages to customers in the Philippines go out in English)
+const tIn = (lang, k, vars = {}) => {
+  const v = I18N[lang][k] ?? I18N.es[k] ?? k;
   return typeof v === "string" ? v.replace(/\{(\w+)\}/g, (_, n) => vars[n] ?? "") : v;
 };
-const locale = () => (LANG === "en" ? "en-GB" : "es-ES");
+const locale = () => (LANG === "en" ? "en-PH" : "es-ES");
 
 function applyStatic() {
   document.documentElement.lang = LANG;
