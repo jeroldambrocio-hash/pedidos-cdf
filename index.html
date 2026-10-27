@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Pedidos CDF</title>
+<meta name="theme-color" content="#13302a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Cg fill='%23d23d20'%3E%3Ccircle cx='17' cy='9' r='5'/%3E%3Ccircle cx='25' cy='15' r='5'/%3E%3Ccircle cx='22' cy='24' r='5'/%3E%3Ccircle cx='12' cy='24' r='5'/%3E%3Ccircle cx='9' cy='15' r='5'/%3E%3C/g%3E%3Ccircle cx='17' cy='17' r='4' fill='%2313302a'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div class="brand">
+      <svg width="24" height="24" viewBox="0 0 34 34" aria-hidden="true"><g fill="var(--petal)"><circle cx="17" cy="9" r="5"/><circle cx="25" cy="15" r="5"/><circle cx="22" cy="24" r="5"/><circle cx="12" cy="24" r="5"/><circle cx="9" cy="15" r="5"/></g><circle cx="17" cy="17" r="4" fill="var(--accent)"/></svg>
+      <div><h1>Pedidos CDF</h1><small id="sub">Inicia sesión</small></div>
+    </div>
+    <div class="hright" id="hright" hidden>
+      <div class="seg" id="tabs" hidden>
+        <button id="tabOrders" aria-pressed="true">Pedidos</button>
+        <button id="tabTeam" aria-pressed="false">Equipo</button>
+      </div>
+      <button class="btn ghost" id="logout">Salir</button>
+    </div>
+  </header>
+
+  <section id="login" class="center" hidden>
+    <form class="card" id="loginForm">
+      <h2>Entrar</h2>
+      <label class="field"><span>Email</span><input id="lEmail" type="email" autocomplete="email" required></label>
+      <label class="field"><span>Contraseña</span><input id="lPass" type="password" autocomplete="current-password" required></label>
+      <div class="err" id="lErr" role="alert"></div>
+      <button class="btn primary" type="submit" id="lBtn">Entrar</button>
+    </form>
+  </section>
+
+  <section id="noaccess" class="center" hidden>
+    <div class="card"><h2>Sin acceso</h2><p class="meta" id="noaccessTxt"></p></div>
+  </section>
+
+  <section id="ordersView" hidden>
+    <div class="grid">
+      <aside class="panel">
+        <div class="cal-head">
+          <button class="iconbtn" id="prevM" aria-label="Mes anterior">‹</button>
+          <h2 id="mLabel"></h2>
+          <button class="iconbtn" id="nextM" aria-label="Mes siguiente">›</button>
+        </div>
+        <div class="cal" id="cal"></div>
+        <div class="cal-foot">
+          <button class="btn" id="todayBtn">Hoy</button>
+          <button class="btn primary" id="newBtn" hidden>+ Nuevo pedido</button>
+        </div>
+        <div class="legend" id="adminTools" hidden>
+          <div>Preparing → Ready → In transit → Delivered. Un toque en el paso lo marca.</div>
+          <button class="btn" id="purgeBtn">Borrar entregados</button>
+          <div class="confirm" id="purgeConfirm" hidden>
+            <span id="purgeTxt"></span>
+            <div><button class="btn danger" id="purgeYes">Sí, borrar</button><button class="btn" id="purgeNo">Cancelar</button></div>
+          </div>
+        </div>
+      </aside>
+      <main>
+        <div class="day-head"><div><h2 id="dLabel"></h2><p id="dSub"></p></div></div>
+        <div class="tally" id="tally"></div>
+        <div id="list"></div>
+      </main>
+    </div>
+  </section>
+
+  <section id="teamView" hidden>
+    <div class="grid">
+      <form class="panel" id="addForm" style="display:grid;gap:10px">
+        <h2 style="margin:0;font-size:.95rem;font-weight:600">Añadir persona</h2>
+        <label class="field"><span>Nombre</span><input id="aName" required placeholder="Usuario 1"></label>
+        <label class="field"><span>Email</span><input id="aEmail" type="email" required></label>
+        <label class="field"><span>Rol</span><select id="aRole"><option value="vendor">Vendedor</option><option value="admin">Admin</option></select></label>
+        <label class="field"><span>Contraseña inicial</span><input id="aPass" minlength="8" required placeholder="Mínimo 8 caracteres"></label>
+        <div class="hint">Pásale el email y esta contraseña. Si ya tenía cuenta en este proyecto, conserva la suya.</div>
+        <div class="err" id="aErr" role="alert"></div>
+        <button class="btn primary" type="submit" id="aBtn">Añadir</button>
+      </form>
+      <main>
+        <div class="day-head"><div><h2>Equipo</h2><p>Los vendedores solo ven los pedidos que tienen asignados.</p></div></div>
+        <div class="team" id="team"></div>
+      </main>
+    </div>
+  </section>
+</div>
+<div id="sheetRoot"></div>
+<div class="toast" id="toast" hidden></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/config.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Tu pedido · CDF</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#13302a">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 34 34'%3E%3Cg fill='%23d23d20'%3E%3Ccircle cx='17' cy='9' r='5'/%3E%3Ccircle cx='25' cy='15' r='5'/%3E%3Ccircle cx='22' cy='24' r='5'/%3E%3Ccircle cx='12' cy='24' r='5'/%3E%3Ccircle cx='9' cy='15' r='5'/%3E%3C/g%3E%3Ccircle cx='17' cy='17' r='4' fill='%2313302a'/%3E%3C/svg%3E">
+</head>
+<body>
+<div class="center" style="max-width:440px;padding-top:32px">
+  <div class="brand">
+    <svg width="24" height="24" viewBox="0 0 34 34" aria-hidden="true"><g fill="var(--petal)"><circle cx="17" cy="9" r="5"/><circle cx="25" cy="15" r="5"/><circle cx="22" cy="24" r="5"/><circle cx="12" cy="24" r="5"/><circle cx="9" cy="15" r="5"/></g><circle cx="17" cy="17" r="4" fill="var(--accent)"/></svg>
+    <div><h1>CDF</h1><small>Seguimiento de tu pedido</small></div>
+  </div>
+  <div class="card" id="card"><h2>Cargando tu pedido…</h2></div>
+  <p class="meta" style="text-align:center;margin:0">Esta página se actualiza sola cuando cambia el estado.</p>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="/config.js"></script>
+<script>
+const { url, anonKey } = window.CDF_CONFIG;
+const sb = supabase.createClient(url, anonKey, { auth: { persistSession: false } });
+const STEPS = [["Preparing", "Estamos preparando tu ramo"], ["Ready", "Tu ramo está listo para salir"], ["In transit", "Tu ramo va de camino"], ["Delivered", "Entregado. ¡Gracias por tu compra!"]];
+const code = (location.pathname.match(/\/p\/([a-z0-9]+)/i) || [])[1] || new URLSearchParams(location.search).get("c") || "";
+const card = document.getElementById("card");
+const h = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
+const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
+
+async function load() {
+  const { data, error } = await sb.rpc("cdf_track", { p_code: code });
+  const o = data && data[0];
+  if (error || !o) {
+    card.replaceChildren(h("h2", null, "No encontramos este pedido"), h("div", "meta", "Revisa que el enlace esté completo o escríbenos por el mismo canal donde hiciste tu compra."));
+    return;
+  }
+  const cur = o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
+  const [y, m, d] = o.date.split("-").map(Number);
+  const head = h("div");
+  head.append(h("h2", null, "Pedido #" + o.num), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString("es-ES", { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot));
+  const tl = h("ol", "tl");
+  STEPS.forEach(([label, txt], i) => {
+    const li = h("li", i < cur ? "past" : i === cur ? "cur" : "");
+    const body = h("div"); body.append(h("b", null, label), h("small", null, txt));
+    li.append(h("span", "dot", i < cur ? "✓" : ""), body); tl.append(li);
+  });
+  const upd = h("div", "meta", "Actualizado " + new Date(o.updated_at).toLocaleString("es-ES", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }));
+  card.replaceChildren(head, tl, upd);
+}
+load();
+setInterval(() => { if (!document.hidden) load(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
+</script>
+</body>
+</html>
