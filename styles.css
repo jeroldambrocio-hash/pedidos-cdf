@@ -225,3 +225,8 @@ a.btn{text-decoration:none;color:inherit;display:inline-flex;align-items:center}
 .tag.fail{background:var(--st-fail-bg);color:var(--st-fail)}
 .bcard .o-top{justify-content:flex-start;gap:6px}
 .bcard .o-sub{font-size:.76rem}
+/* order form groups, search */
+.group{display:grid;gap:10px;border-top:1px solid var(--line);padding-top:10px}
+.group h3{margin:0;font-size:.8rem;font-weight:600}
+.search{border:1px solid var(--line);background:var(--surface);border-radius:8px;padding:7px 10px;min-width:0;width:min(280px,100%)}
+.results{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:8px}

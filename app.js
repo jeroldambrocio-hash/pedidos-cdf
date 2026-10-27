@@ -13,7 +13,8 @@ const STEPS = [
   { k: "fail", status: "Ready", delivery: "Failed" }, // attempted, nobody home
 ];
 const stepOf = (o) => (o.delivery === "Failed" ? 4 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0);
-const proofUrl = (path) => url + "/storage/v1/object/public/cdf-entregas/" + path;
+// Private buckets: order screenshots (bucket) and bouquet / delivery photos (ENTREGAS)
+const ENTREGAS = "cdf-entregas";
 
 const $ = (id) => document.getElementById(id);
 const pad = (n) => String(n).padStart(2, "0");
@@ -85,6 +86,7 @@ async function start(user) {
   $("tabs").hidden = !isAdmin();
   $("newBtn").hidden = !isStaff();
   $("adminTools").hidden = !isAdmin();
+  $("q").hidden = !isStaff();
   if (isStaff()) await loadMembers();
   await loadOrders();
   S.channel = sb.channel("cdf-orders")
@@ -147,7 +149,7 @@ function renderCal() {
     cal.append(el("button", {
       class: "day" + (d.getMonth() !== mo ? " out" : "") + (k === today ? " today" : "") + (k === S.sel ? " sel" : ""),
       "aria-label": d.toLocaleDateString(locale(), { day: "numeric", month: "long" }) + (n ? ", " + t("nOrders", { n }) : ""),
-      onclick: () => { S.sel = k; S.month = new Date(d.getFullYear(), d.getMonth(), 1); renderOrders(); },
+      onclick: () => { S.sel = k; $("q").value = ""; S.month = new Date(d.getFullYear(), d.getMonth(), 1); renderOrders(); },
     }, String(d.getDate()), dots));
   }
 }
@@ -173,13 +175,21 @@ async function advance(o, i) {
   if (error) { Object.assign(o, prev); renderOrders(); toast(t("statusFail")); return; }
   if (s.k === "transit") toast(o.customer_email ? t("outMailed") : t("outNoMail"));
 }
-async function photoUrl(path) {
+// Signed links last an hour; renew them a bit before they run out.
+async function photoUrl(path, bkt = bucket) {
   if (!path) return null;
-  if (S.photoUrls[path]) return S.photoUrls[path];
-  const { data } = await sb.storage.from(bucket).createSignedUrl(path, 3600);
-  if (data?.signedUrl) S.photoUrls[path] = data.signedUrl;
-  return S.photoUrls[path] || null;
+  const key = bkt + "/" + path, c = S.photoUrls[key];
+  if (c && c.exp > Date.now()) return c.url;
+  const { data } = await sb.storage.from(bkt).createSignedUrl(path, 3600);
+  if (!data?.signedUrl) return null;
+  S.photoUrls[key] = { url: data.signedUrl, exp: Date.now() + 50 * 60e3 };
+  return data.signedUrl;
 }
+const imgOf = (path, bkt, alt) => {
+  const box = el("div", { class: "drop" }, t("loadingPhoto"));
+  photoUrl(path, bkt).then((u) => box.replaceChildren(u ? el("img", { src: u, alt }) : t("photoFail")));
+  return box;
+};
 function thumb(o, cls = "thumb") {
   const th = el("div", { class: cls }, o.photo_path ? "" : t("noPhotoShort"));
   if (o.photo_path) photoUrl(o.photo_path).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "" })); });
@@ -190,6 +200,8 @@ const dayCount = (n) => (n ? (n === 1 ? t("oneOrder") : t("nOrders", { n })) : "
 // ---------- admin: the day as a board, one column per step ----------
 const COLS = [{ k: "prep", steps: [0] }, { k: "ready", steps: [1, 4] }, { k: "transit", steps: [2] }, { k: "done", steps: [3] }];
 function renderBoard() {
+  const q = $("q").value.trim().toLowerCase();
+  if (q) return renderSearch(q);
   $("dLabel").textContent = longDate(S.sel);
   const all = S.orders.filter((o) => o.date === S.sel).sort(byTime);
   $("dSub").textContent = dayCount(all.length);
@@ -200,21 +212,35 @@ function renderBoard() {
     const os = all.filter((o) => c.steps.includes(stepOf(o)));
     board.append(el("section", { class: "col c-" + c.k },
       el("h3", {}, t("st_" + c.k), el("span", { class: "n" }, String(os.length))),
-      ...os.map(boardCard)));
+      ...os.map((o) => boardCard(o))));
   }
   box.append(board);
 }
-function boardCard(o) {
+// Search every loaded order by number, name or phone (recipient or buyer)
+function renderSearch(q) {
+  const digits = q.replace(/\D/g, "");
+  const hits = S.orders.filter((o) => o.num.toLowerCase().includes(q)
+    || [o.customer_name, o.buyer_name].some((n) => (n || "").toLowerCase().includes(q))
+    || (digits.length >= 3 && [o.customer_phone, o.buyer_phone].some((p) => (p || "").replace(/\D/g, "").includes(digits))))
+    .sort(byTime);
+  $("dLabel").textContent = t("searchTitle", { q });
+  $("dSub").textContent = dayCount(hits.length);
+  const box = $("list"); box.replaceChildren();
+  if (!hits.length) { box.append(el("div", { class: "empty" }, el("b", {}, t("searchNone")))); return; }
+  box.append(el("div", { class: "results" }, ...hits.map((o) => boardCard(o, true))));
+}
+function boardCard(o, withDate) {
   const cur = stepOf(o), next = NEXT[cur];
   const open = () => openFresh(o);
   return el("div", { class: "bcard", role: "button", tabindex: "0", onclick: open, onkeydown: (e) => { if (e.key === "Enter") open(); } },
     el("div", { class: "b-head" }, thumb(o),
       el("div", { class: "o-main" },
-        el("div", { class: "o-top" }, el("span", { class: "time" }, o.slot), el("span", { class: "num" }, "#" + o.num)),
+        el("div", { class: "o-top" }, el("span", { class: "time" }, (withDate ? shortDate(o.date) + " · " : "") + o.slot), el("span", { class: "num" }, "#" + o.num),
+          withDate ? el("span", { class: "pill s-" + STEPS[cur].k }, stepName(cur)) : null),
         el("div", { class: "o-sub" }, o.customer_name || t("noName")),
         el("div", { class: "o-sub" }, memberName(o.vendor_email)))),
-    cur === 4 ? el("span", { class: "tag fail" }, t("st_fail")) : null,
-    next != null ? el("button", { class: "btn adv", type: "button", onclick: (e) => { e.stopPropagation(); advance(o, next); } }, stepName(next) + " →") : null);
+    cur === 4 && !withDate ? el("span", { class: "tag fail" }, t("st_fail")) : null,
+    next != null && !withDate ? el("button", { class: "btn adv", type: "button", onclick: (e) => { e.stopPropagation(); advance(o, next); } }, stepName(next) + " →") : null);
 }
 
 // ---------- florist and driver: what to do, by day ----------
@@ -244,7 +270,7 @@ function workCard(o, withDate) {
   const cur = stepOf(o), k = STEPS[cur].k;
   const big = (label, fn, cls = "primary") => el("button", { class: "btn big " + cls, type: "button", onclick: fn }, label);
   const acts = [];
-  if (cur === 0 && !isCarrier()) acts.push(big("✓ " + t("actReady"), () => advance(o, 1)));
+  if (cur === 0 && !isCarrier()) acts.push(big("✓ " + t("actReady"), () => readyDialog(o)));
   if (cur === 1 || cur === 4) acts.push(big(t("actOut"), () => advance(o, 2)));
   if (cur === 2) acts.push(big("✓ " + t("actDelivered"), () => deliverDialog(o)), big(t("actMissed"), () => missedDialog(o), ""));
   const phone = o.customer_phone && cur !== 3 ? intlPhone(o.customer_phone) : "";
@@ -264,6 +290,7 @@ function workCard(o, withDate) {
           el("span", { class: "pill s-" + k }, stepName(cur))),
         el("div", { class: "w-name" }, o.customer_name || t("noName")),
         o.address ? el("div", { class: "o-sub" }, o.address) : null,
+        o.card_message ? el("div", { class: "w-note" }, "💌 " + o.card_message) : null,
         o.notes ? el("div", { class: "w-note" }, o.notes) : null)),
     el("div", { class: "w-acts" }, ...acts, ...small));
 }
@@ -287,6 +314,21 @@ function miniSheet(title, nodes, confirmLabel, onConfirm) {
   onKey = (e) => { if (e.key === "Escape") closeSheet(); }; document.addEventListener("keydown", onKey);
 }
 const field = (label, ...kids) => el("div", { class: "field" }, el("span", {}, label), ...kids);
+// Ready: the florist can add a photo of the finished bouquet, which the customer sees on their link.
+function readyDialog(o) {
+  let setErr;
+  const pic = proofPicker(o.bouquet_path, (m) => setErr?.(m), t("bouquetHint"));
+  miniSheet(t("readyTitle", { num: o.num }), [field(t("bouquetPhoto"), pic.node)], t("confirmReady"), async (se) => {
+    setErr = se;
+    const bp = await pic.commit(o.id);
+    if (bp !== undefined) {
+      const { error } = isStaff() ? await sb.from("cdf_orders").update({ bouquet_path: bp }).eq("id", o.id)
+        : await sb.rpc("cdf_set_bouquet", { p_id: o.id, p_path: bp });
+      if (error) return t("saveFail", { msg: error.message });
+    }
+    closeSheet(); await advance(o, 1); loadOrders();
+  });
+}
 function deliverDialog(o) {
   let setErr;
   const proof = proofPicker(o.proof_path, (m) => setErr?.(m));
@@ -331,6 +373,9 @@ $("prevM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.g
 $("nextM").onclick = () => { S.month = new Date(S.month.getFullYear(), S.month.getMonth() + 1, 1); renderCal(); };
 $("todayBtn").onclick = () => { S.sel = today; S.month = fromIso(today); S.month.setDate(1); renderOrders(); };
 $("newBtn").onclick = () => openFresh(null);
+$("q").addEventListener("input", () => renderOrders());
+// Ctrl/⌘+K jumps to search
+document.addEventListener("keydown", (e) => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" && !$("q").hidden) { e.preventDefault(); $("q").focus(); } });
 
 // ---------- purge delivered ----------
 function renderPurge() {
@@ -347,14 +392,20 @@ $("purgeBtn").onclick = () => {
 $("purgeNo").onclick = () => ($("purgeConfirm").hidden = true);
 $("purgeYes").onclick = async () => {
   const done = S.orders.filter((o) => o.delivery === "Delivered");
-  const paths = done.map((o) => o.photo_path).filter(Boolean);
-  if (paths.length) await sb.storage.from(bucket).remove(paths);
-  const proofs = done.map((o) => o.proof_path).filter(Boolean);
-  if (proofs.length) await sb.storage.from("cdf-entregas").remove(proofs);
+  // Rows first: if that fails, every order keeps its photos
   const { error } = await sb.from("cdf_orders").delete().in("id", done.map((o) => o.id));
   $("purgeConfirm").hidden = true;
-  if (error) toast(t("purgeFail")); else { toast(t("purged", { n: done.length })); loadOrders(); }
+  if (error) { toast(t("purgeFail")); return; }
+  await removeFiles(done);
+  toast(t("purged", { n: done.length })); loadOrders();
 };
+
+async function removeFiles(orders) {
+  const shots = orders.map((o) => o.photo_path).filter(Boolean);
+  const pics = orders.flatMap((o) => [o.proof_path, o.bouquet_path]).filter(Boolean);
+  if (shots.length) await sb.storage.from(bucket).remove(shots);
+  if (pics.length) await sb.storage.from(ENTREGAS).remove(pics);
+}
 
 // ---------- photo helpers ----------
 const IMAGE_EXT = /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif|tiff?|jfif)$/i;
@@ -462,16 +513,16 @@ function notifyRow(o, name, phone, stepK, hist) {
     el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(msg()).then(() => { toast(t("msgCopied")); log("copy", ""); }, () => toast(t("selectCopy"))) }, t("copyMsg")));
 }
 
-// Proof-of-delivery photo: pick/replace/remove, then commit(orderId) uploads it.
-// commit returns the new proof_path (or null when removed), or undefined when nothing changed.
-function proofPicker(current, onErr) {
+// Bouquet or proof-of-delivery photo: pick/replace/remove, then commit(orderId) uploads it to the order's folder.
+// commit returns the new path (or null when removed), or undefined when nothing changed.
+function proofPicker(current, onErr, hint = t("proofHint")) {
   let blob = null, removed = false;
-  const input = el("input", { type: "file", accept: "image/*,.heic,.heif", id: "f-proof", hidden: true });
+  const input = el("input", { type: "file", accept: "image/*,.heic,.heif", hidden: true });
   const box = el("div", { class: "drop" });
-  const draw = () => {
-    const src = blob ? URL.createObjectURL(blob) : (!removed && current ? proofUrl(current) : null);
+  const draw = async () => {
+    const src = blob ? URL.createObjectURL(blob) : (!removed && current ? await photoUrl(current, ENTREGAS) : null);
     box.replaceChildren(
-      src ? el("img", { src, alt: t("proofPhoto") }) : el("div", {}, t("proofHint")),
+      src ? el("img", { src, alt: "" }) : el("div", {}, hint),
       el("div", { style: "display:flex;gap:8px;flex-wrap:wrap;justify-content:center" },
         el("button", { class: "btn", type: "button", onclick: () => input.click() }, src ? t("changePhoto") : t("uploadPhoto")),
         src ? el("button", { class: "btn", type: "button", onclick: () => { blob = null; removed = true; draw(); } }, t("remove")) : null));
@@ -487,12 +538,12 @@ function proofPicker(current, onErr) {
     async commit(orderId) {
       if (blob) {
         const path = orderId + "/" + crypto.randomUUID() + ".jpg";
-        const up = await sb.storage.from("cdf-entregas").upload(path, blob, { contentType: "image/jpeg" });
+        const up = await sb.storage.from(ENTREGAS).upload(path, blob, { contentType: "image/jpeg" });
         if (up.error) { toast(t("photoUploadFail")); return undefined; }
-        if (current) await sb.storage.from("cdf-entregas").remove([current]);
+        if (current) await sb.storage.from(ENTREGAS).remove([current]);
         return path;
       }
-      if (removed && current) { await sb.storage.from("cdf-entregas").remove([current]); return null; }
+      if (removed && current) { await sb.storage.from(ENTREGAS).remove([current]); return null; }
       return undefined;
     },
   };
@@ -545,8 +596,6 @@ function openSheet(o) {
   if (!isStaff()) {
     // Florists and drivers: the order to read, WhatsApp to the customer and the history.
     // Status changes happen on the card buttons.
-    const ph = el("div", { class: "drop" }, o.photo_path ? t("loadingPhoto") : t("noPhoto"));
-    if (o.photo_path) photoUrl(o.photo_path).then((u) => ph.replaceChildren(u ? el("img", { src: u, alt: t("photoAlt") + " " + o.num }) : t("photoFail")));
     const hist = historyBlock(o);
     const cur = stepOf(o);
     sheet.append(
@@ -554,15 +603,17 @@ function openSheet(o) {
       el("dl", { class: "ro" },
         el("dt", {}, t("status")), el("dd", {}, el("span", { class: "pill s-" + STEPS[cur].k }, stepName(cur))),
         el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
-        el("dt", {}, t("customer")), el("dd", {}, o.customer_name || t("noName")),
+        el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
         el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
         o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), style: "color:inherit" }, o.customer_phone))] : null,
+        o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "note" }, o.card_message)] : null,
         el("dt", {}, t("note")), el("dd", { class: "note" }, o.notes || t("noNotes")),
-        el("dt", {}, t("photo")), el("dd", {}, ph),
+        el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? imgOf(o.photo_path, bucket, t("photoAlt")) : t("noPhoto")),
+        o.bouquet_path ? [el("dt", {}, t("bouquetPhoto")), el("dd", {}, imgOf(o.bouquet_path, ENTREGAS, t("bouquetPhoto")))] : null,
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", { class: "note" }, o.delivery_note)] : null,
-        o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("img", { src: proofUrl(o.proof_path), alt: t("proofPhoto"), style: "border-radius:8px;max-height:220px" }))] : null),
-      el("div", { class: "field" }, el("span", {}, t("notify")),
-        notifyRow(o, () => o.customer_name || "", () => o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
+        o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, imgOf(o.proof_path, ENTREGAS, t("proofPhoto")))] : null),
+      el("div", { class: "field" }, el("span", {}, t("notifyBuyer")),
+        notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
       el("details", { class: "deliv" }, el("summary", {}, t("history")), hist),
       el("div", { class: "sheet-foot" }, el("span"), el("button", { class: "btn", type: "button", onclick: closeSheet }, t("close"))));
     return;
@@ -570,7 +621,7 @@ function openSheet(o) {
 
   const isNew = !o;
   const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
-  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", customer_phone: "", customer_email: "", delivery_note: "", proof_path: null, notes: "", status: "Preparing", delivery: "-", photo_path: null };
+  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", customer_phone: "", customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", proof_path: null, bouquet_path: null, notes: "", status: "Preparing", delivery: "-", photo_path: null };
   let photoBlob = null, photoRemoved = false;
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
@@ -581,6 +632,10 @@ function openSheet(o) {
   const iAddr = el("input", { id: "f-addr", value: f.address || "", placeholder: t("addrPh"), autocomplete: "off" });
   const iPhone = el("input", { id: "f-phone", type: "tel", value: f.customer_phone || "", placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email || "", placeholder: "cliente@email.com", autocomplete: "off" });
+  const iBName = el("input", { id: "f-bname", value: f.buyer_name || "", placeholder: t("buyerNamePh"), autocomplete: "off" });
+  const iBPhone = el("input", { id: "f-bphone", type: "tel", value: f.buyer_phone || "", placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
+  const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), style: "min-height:56px" }, f.card_message || "");
+  const bouquet = proofPicker(f.bouquet_path, (m) => (err.textContent = m), t("bouquetHint"));
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, f.delivery_note || "");
   const proof = proofPicker(f.proof_path, (m) => (err.textContent = m));
   const hist = isNew ? null : historyBlock(o);
@@ -627,9 +682,9 @@ function openSheet(o) {
   const confirmBox = el("div", { class: "confirm", hidden: true }, t("askDelete", { num: f.num }),
     el("div", {},
       el("button", { class: "btn danger", type: "button", onclick: async () => {
-        if (o.photo_path) await sb.storage.from(bucket).remove([o.photo_path]);
         const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
         if (error) { toast(t("deleteFail")); return; }
+        await removeFiles([o]);
         closeSheet(); toast(t("deleted")); loadOrders();
       } }, t("yesDelete")),
       el("button", { class: "btn", type: "button", onclick: () => (confirmBox.hidden = true) }, t("cancel"))));
@@ -640,7 +695,8 @@ function openSheet(o) {
     const st = STEPS.find((s) => s.k === iStatus.value);
     const row = { num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel: iChan.value, vendor_email: iVend.value || null,
  customer_name: iName.value.trim(), address: iAddr.value.trim(),
-      customer_phone: iPhone.value.trim(), customer_email: iEmail.value.trim(), delivery_note: iDNote.value.trim(),
+      customer_phone: iPhone.value.trim(), customer_email: iEmail.value.trim(), buyer_name: iBName.value.trim(), buyer_phone: iBPhone.value.trim(),
+      card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(),
       notes: iNotes.value.trim(), status: st.status, delivery: st.delivery };
     saveBtn.disabled = true;
     let saved, error;
@@ -651,32 +707,39 @@ function openSheet(o) {
       const path = saved.id + ".jpg";
       const up = await sb.storage.from(bucket).upload(path, photoBlob, { upsert: true, contentType: "image/jpeg" });
       if (up.error) toast(t("photoUploadFail"));
-      else { delete S.photoUrls[path]; await sb.from("cdf_orders").update({ photo_path: path }).eq("id", saved.id); }
+      else { delete S.photoUrls[bucket + "/" + path]; await sb.from("cdf_orders").update({ photo_path: path }).eq("id", saved.id); }
     } else if (photoRemoved && f.photo_path) {
       await sb.storage.from(bucket).remove([f.photo_path]);
       await sb.from("cdf_orders").update({ photo_path: null }).eq("id", saved.id);
     }
-    const pp = await proof.commit(saved.id);
-    if (pp !== undefined) await sb.from("cdf_orders").update({ proof_path: pp }).eq("id", saved.id);
+    const pp = await proof.commit(saved.id), bp = await bouquet.commit(saved.id), pics = {};
+    if (pp !== undefined) pics.proof_path = pp;
+    if (bp !== undefined) pics.bouquet_path = bp;
+    if (Object.keys(pics).length) await sb.from("cdf_orders").update(pics).eq("id", saved.id);
     S.sel = row.date; S.month = fromIso(row.date); S.month.setDate(1);
     closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
   } },
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t("newOrderTitle") : t("editOrder", { num: f.num })), closeBtn()),
     el("div", { class: "f-row f-when" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("div", { class: "field" }, el("span", {}, t("slot")), iSlot)),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("vendor")), iVend)),
-    el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
-    el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("phone")), iPhone),
+    el("div", { class: "group" }, el("h3", {}, t("recipientH")),
+      el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
+        el("label", { class: "field" }, el("span", {}, t("phone")), iPhone)),
+      el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
+      el("label", { class: "field" }, el("span", {}, t("cardMsg")), iCard)),
+    el("div", { class: "group" }, el("h3", {}, t("buyerH")), el("div", { class: "hint" }, t("buyerHint")),
+      el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("name")), iBName),
+        el("label", { class: "field" }, el("span", {}, t("phone")), iBPhone)),
       el("label", { class: "field" }, el("span", {}, t("emailOpt")), iEmail)),
-    el("div", { class: "hint" }, t("autoMailHint")),
     el("div", { class: "field" }, el("span", {}, t("photo")), drop, fileIn),
     isNew ? null : el("label", { class: "field" }, el("span", {}, t("status")), iStatus),
     isNew ? null : el("div", { class: "field" }, el("span", {}, t("customerLink")), linkBlock,
-      notifyRow(o, () => iName.value.trim(), () => iPhone.value.trim(), () => iStatus.value, hist)),
-    el("details", { class: "deliv", open: !!(f.notes || f.channel || f.delivery_note || f.proof_path) || null },
+      notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => iBPhone.value.trim() || iPhone.value.trim(), () => iStatus.value, hist)),
+    el("details", { class: "deliv", open: !!(f.notes || f.channel || f.delivery_note || f.proof_path || f.bouquet_path) || null },
       el("summary", {}, t("moreDetails")),
       el("label", { class: "field" }, el("span", {}, t("channel")), iChan),
       el("label", { class: "field" }, el("span", {}, t("note")), iNotes),
+      el("div", { class: "field" }, el("span", {}, t("bouquetPhoto")), bouquet.node),
       el("label", { class: "field" }, el("span", {}, t("deliveryNote")), iDNote, el("div", { class: "hint" }, t("deliveryNoteHint"))),
       el("div", { class: "field" }, el("span", {}, t("proofPhoto")), proof.node)),
     isNew ? null : el("details", { class: "deliv" }, el("summary", {}, t("history")), hist),

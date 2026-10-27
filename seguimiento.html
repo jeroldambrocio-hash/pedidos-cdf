@@ -30,40 +30,61 @@
   <div class="card" id="card"><h2 data-i18n="loadingOrder">Cargando tu pedido…</h2></div>
   <p class="meta" style="text-align:center;margin:0" data-i18n="autoRefresh">Esta página se actualiza sola cuando cambia el estado.</p>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
 <script src="/config.js"></script>
 <script src="/i18n.js"></script>
 <script>
 const { url, anonKey } = window.CDF_CONFIG;
-const sb = supabase.createClient(url, anonKey, { auth: { persistSession: false } });
 const STEPS = ["Preparing", "Ready", "In transit", "Delivered"];
 const code = (location.pathname.match(/\/p\/([a-z0-9]+)/i) || [])[1] || new URLSearchParams(location.search).get("c") || "";
 const card = document.getElementById("card");
 const h = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
 const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
 
-let last = null;
+// last = { o } once the order loaded; a failed refresh keeps showing it and says so,
+// so a dropped connection never reads as "order not found".
+let last = null, failed = false;
 async function load() {
-  const { data, error } = await sb.rpc("cdf_track", { p_code: code });
-  last = { o: data && data[0], error };
+  try {
+    const r = await fetch(url + "/functions/v1/cdf-track", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", apikey: anonKey, Authorization: "Bearer " + anonKey },
+      body: JSON.stringify({ code }),
+    });
+    if (!r.ok) throw new Error("HTTP " + r.status);
+    last = { o: (await r.json()).order };
+    failed = false;
+  } catch { failed = true; }
   render();
 }
 function render() {
-  if (!last) return;
-  const { o, error } = last;
-  if (error || !o) {
+  if (!last) {
+    if (!failed) return;
+    const retry = h("button", "btn", t("retry")); retry.type = "button"; retry.onclick = () => { card.replaceChildren(h("h2", null, t("loadingOrder"))); load(); };
+    card.replaceChildren(h("h2", null, t("loadErrTitle")), h("div", "meta", t("loadErrTxt")), retry);
+    return;
+  }
+  const { o } = last;
+  if (!o) {
     card.replaceChildren(h("h2", null, t("notFound")), h("div", "meta", t("notFoundTxt")));
     return;
   }
-  const failed = o.delivery === "Failed";
-  const cur = failed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
+  const isFailed = o.delivery === "Failed";
+  const cur = isFailed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
   const [y, m, d] = o.date.split("-").map(Number);
   const head = h("div");
   head.append(h("h2", null, t("order", { num: o.num })), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot));
+  if (o.for_name) head.append(h("div", "meta", t("forName", { name: o.for_name })));
+  const top = [head];
+  if (o.bouquet_url) {
+    const img = h("img"); img.src = o.bouquet_url; img.alt = t("bouquetPhoto");
+    img.style.cssText = "border-radius:10px;width:100%;max-height:360px;object-fit:cover";
+    top.push(img, h("div", "meta", t("bouquetCaption")));
+  }
+  if (o.card_message) top.push(h("div", "note", "💌 " + o.card_message));
   const tl = h("ol", "tl");
   STEPS.forEach((label, i) => {
     // A failed attempt replaces the last step: in transit is done, delivery didn't happen.
-    const isFail = failed && i === 3;
+    const isFail = isFailed && i === 3;
     const txt = isFail ? t("failedTxt") : t("stepTxt")[i];
     const li = h("li", isFail ? "fail" : i < cur ? "past" : i === cur ? "cur" : "");
     const body = h("div"); body.append(h("b", null, isFail ? t("failedTitle") : label), h("small", null, txt));
@@ -71,13 +92,15 @@ function render() {
   });
   const extra = [];
   if (o.delivery_note) extra.push(h("div", "note", o.delivery_note));
-  if (o.proof_path) {
-    const img = h("img"); img.src = url + "/storage/v1/object/public/cdf-entregas/" + o.proof_path; img.alt = t("proofPhoto");
+  if (o.proof_url) {
+    const img = h("img"); img.src = o.proof_url; img.alt = t("proofPhoto");
     img.style.cssText = "border-radius:10px;width:100%;max-height:320px;object-fit:cover";
     extra.push(img);
   }
-  const upd = h("div", "meta", t("updated", { when: new Date(o.updated_at).toLocaleString(locale(), { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }));
-  card.replaceChildren(head, tl, ...extra, upd);
+  // Shop time (Philippines), whatever the viewer's own time zone
+  const when = new Date(o.updated_at).toLocaleString(locale(), { timeZone: "Asia/Manila", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const upd = h("div", "meta", t("updated", { when: when + " PHT" }) + (failed ? " · " + t("staleNote") : ""));
+  card.replaceChildren(...top, tl, ...extra, upd);
 }
 document.addEventListener("langchange", render);
 load();

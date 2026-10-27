@@ -1,4 +1,4 @@
-// Pedidos CDF: admins add or remove team members (admin / moderator / vendor / carrier) with a password login.
+// Pedidos CDF: admins add or remove team members (admin / florist (vendor) / driver (carrier)) with a password login.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 
 const cors = {
@@ -34,7 +34,7 @@ Deno.serve(async (req) => {
     if (!name) return json({ error: "Falta el nombre" }, 400);
     if (password.length < 8) return json({ error: "La contraseña necesita al menos 8 caracteres" }, 400);
 
-    const created = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { cdf: true, name } });
+    const created = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name }, app_metadata: { cdf: true } });
     let existed = false;
     if (created.error) {
       if (!/already|registered|exists/i.test(created.error.message)) return json({ error: created.error.message }, 400);
@@ -50,9 +50,10 @@ Deno.serve(async (req) => {
     const { error } = await service.from("cdf_members").delete().eq("email", email);
     if (error) return json({ error: error.message }, 400);
     // Only delete the login if this app created it; accounts shared with other apps stay.
+    // The mark lives in app_metadata, which only the server can write (users can edit their own user_metadata).
     const { data: list } = await service.auth.admin.listUsers({ page: 1, perPage: 1000 });
     const u = list?.users.find((x) => x.email?.toLowerCase() === email);
-    if (u?.user_metadata?.cdf === true) await service.auth.admin.deleteUser(u.id);
+    if (u?.app_metadata?.cdf === true) await service.auth.admin.deleteUser(u.id);
     return json({ ok: true });
   }
 

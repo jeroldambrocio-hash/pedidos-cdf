@@ -101,7 +101,9 @@ Deno.serve(async (req) => {
     const to = String(o.customer_email || "").trim();
     if (!to) return json({ skipped: "no customer email" });
     const link = `${APP_URL}/p/${o.code}`;
-    const text = `Hi${o.customer_name ? " " + o.customer_name : ""}, your Casa de Flores order #${o.num} is on its way. Track it here: ${link}`;
+    // The email goes to the buyer; greet the buyer, or the recipient when they are the same person.
+    const hi = (o.buyer_name || o.customer_name || "").trim();
+    const text = `Hi${hi ? " " + hi : ""}, your Casa de Flores order #${o.num} is on its way. Track it here: ${link}`;
     const subject = `Your order #${o.num} is on its way · Casa de Flores`;
     const sent = await sendMail(to, subject, plainHtml(text), text);
     await log({ order_id: o.id, audience: "customer", channel: "email", recipient: to, ok: sent.ok, subject, message: text,
@@ -119,6 +121,7 @@ Deno.serve(async (req) => {
     ["Customer", o.customer_name],
     ["Address", o.address],
     ["Notes", o.notes],
+    ["Card", o.card_message],
   ].filter(([, v]) => v);
 
   const html = `<!doctype html><html><body style="margin:0;background:#f6f3ef;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#2b2622">
