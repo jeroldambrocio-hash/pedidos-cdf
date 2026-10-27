@@ -1,6 +1,7 @@
 // Pedidos CDF: emails a team member when an order is assigned to them.
 // Called by the database trigger cdf_orders_notify (migration 005) with a secret kept in Vault.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import nodemailer from "npm:nodemailer@6.9.14";
 
 const APP_URL = Deno.env.get("CDF_APP_URL") || "https://pedidos-cdf.netlify.app";
 const FROM = Deno.env.get("CDF_MAIL_FROM") || "Casa de Flores <onboarding@resend.dev>";
@@ -34,8 +35,10 @@ Deno.serve(async (req) => {
   const { data: m } = await service.from("cdf_members").select("email,name").eq("email", o.vendor_email).maybeSingle();
   if (!m) return json({ skipped: "no member" });
 
+  // Gmail (app password) if configured, otherwise Resend
+  const gUser = Deno.env.get("GMAIL_USER"), gPass = Deno.env.get("GMAIL_APP_PASSWORD");
   const key = Deno.env.get("RESEND_API_KEY");
-  if (!key) return json({ error: "RESEND_API_KEY missing" }, 500);
+  if (!(gUser && gPass) && !key) return json({ error: "no mail provider configured" }, 500);
 
   const when = `${fmtDate(o.date)} · ${o.slot}`;
   const rows = [
@@ -59,12 +62,24 @@ Deno.serve(async (req) => {
 
   const text = [`New delivery for you, ${m.name}`, `Order #${o.num}`, ...rows.map(([k, v]) => `${k}: ${v}`), "", `Open my orders: ${APP_URL}`].join("\n");
 
+  const subject = `New delivery: Order #${o.num} · ${when}`;
+  if (gUser && gPass) {
+    // Port 465: Supabase Edge Functions block outbound 25 and 587
+    const smtp = nodemailer.createTransport({ host: "smtp.gmail.com", port: 465, secure: true, auth: { user: gUser, pass: gPass.replace(/\s/g, "") } });
+    try {
+      const info = await smtp.sendMail({ from: `Casa de Flores <${gUser}>`, to: m.email, subject, html, text });
+      return json({ ok: true, via: "gmail", id: info.messageId });
+    } catch (e) {
+      return json({ error: "gmail", detail: String((e as Error)?.message || e) }, 502);
+    }
+  }
+
   const r = await fetch("https://api.resend.com/emails", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ from: FROM, to: [m.email], subject: `New delivery: Order #${o.num} · ${when}`, html, text }),
+    body: JSON.stringify({ from: FROM, to: [m.email], subject, html, text }),
   });
   const out = await r.json().catch(() => ({}));
   if (!r.ok) return json({ error: "resend", detail: out }, 502);
-  return json({ ok: true, id: out.id });
+  return json({ ok: true, via: "resend", id: out.id });
 });
