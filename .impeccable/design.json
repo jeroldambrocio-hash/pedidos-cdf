@@ -1,0 +1,811 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-27T08:15:46.495Z",
+  "title": "Design System: Pedidos · Casa de Flores",
+  "extensions": {
+    "colorMeta": {
+      "dark-bg": {
+        "role": "neutral",
+        "displayName": "dark bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0079 274.56)",
+          "oklch(0.26 0.0079 274.56)",
+          "oklch(0.38 0.0079 274.56)",
+          "oklch(0.49 0.0079 274.56)",
+          "oklch(0.61 0.0079 274.56)",
+          "oklch(0.72 0.0079 274.56)",
+          "oklch(0.84 0.0079 274.56)",
+          "oklch(0.95 0.0079 274.56)"
+        ]
+      },
+      "dark-surface": {
+        "role": "neutral",
+        "displayName": "dark surface",
+        "tonalRamp": [
+          "oklch(0.15 0.0115 270.96)",
+          "oklch(0.26 0.0115 270.96)",
+          "oklch(0.38 0.0115 270.96)",
+          "oklch(0.49 0.0115 270.96)",
+          "oklch(0.61 0.0115 270.96)",
+          "oklch(0.72 0.0115 270.96)",
+          "oklch(0.84 0.0115 270.96)",
+          "oklch(0.95 0.0115 270.96)"
+        ]
+      },
+      "dark-sunk": {
+        "role": "neutral",
+        "displayName": "dark sunk",
+        "tonalRamp": [
+          "oklch(0.15 0.0150 269.20)",
+          "oklch(0.26 0.0150 269.20)",
+          "oklch(0.38 0.0150 269.20)",
+          "oklch(0.49 0.0150 269.20)",
+          "oklch(0.61 0.0150 269.20)",
+          "oklch(0.72 0.0150 269.20)",
+          "oklch(0.84 0.0150 269.20)",
+          "oklch(0.95 0.0150 269.20)"
+        ]
+      },
+      "dark-line": {
+        "role": "neutral",
+        "displayName": "dark line",
+        "tonalRamp": [
+          "oklch(0.15 0.0177 268.23)",
+          "oklch(0.26 0.0177 268.23)",
+          "oklch(0.38 0.0177 268.23)",
+          "oklch(0.49 0.0177 268.23)",
+          "oklch(0.61 0.0177 268.23)",
+          "oklch(0.72 0.0177 268.23)",
+          "oklch(0.84 0.0177 268.23)",
+          "oklch(0.95 0.0177 268.23)"
+        ]
+      },
+      "dark-fg": {
+        "role": "neutral",
+        "displayName": "dark fg",
+        "tonalRamp": [
+          "oklch(0.15 0.0070 88.64)",
+          "oklch(0.26 0.0070 88.64)",
+          "oklch(0.38 0.0070 88.64)",
+          "oklch(0.49 0.0070 88.64)",
+          "oklch(0.61 0.0070 88.64)",
+          "oklch(0.72 0.0070 88.64)",
+          "oklch(0.84 0.0070 88.64)",
+          "oklch(0.95 0.0070 88.64)"
+        ]
+      },
+      "dark-muted": {
+        "role": "neutral",
+        "displayName": "dark muted",
+        "tonalRamp": [
+          "oklch(0.15 0.0170 278.44)",
+          "oklch(0.26 0.0170 278.44)",
+          "oklch(0.38 0.0170 278.44)",
+          "oklch(0.49 0.0170 278.44)",
+          "oklch(0.61 0.0170 278.44)",
+          "oklch(0.72 0.0170 278.44)",
+          "oklch(0.84 0.0170 278.44)",
+          "oklch(0.95 0.0170 278.44)"
+        ]
+      },
+      "paper": {
+        "role": "primary",
+        "displayName": "Lavanda suave",
+        "tonalRamp": [
+          "oklch(0.15 0.0848 288.18)",
+          "oklch(0.26 0.0848 288.18)",
+          "oklch(0.38 0.0848 288.18)",
+          "oklch(0.49 0.0848 288.18)",
+          "oklch(0.61 0.0848 288.18)",
+          "oklch(0.72 0.0848 288.18)",
+          "oklch(0.84 0.0848 288.18)",
+          "oklch(0.95 0.0848 288.18)"
+        ]
+      },
+      "paper-ink": {
+        "role": "primary",
+        "displayName": "paper ink",
+        "tonalRamp": [
+          "oklch(0.15 0.0426 289.10)",
+          "oklch(0.26 0.0426 289.10)",
+          "oklch(0.38 0.0426 289.10)",
+          "oklch(0.49 0.0426 289.10)",
+          "oklch(0.61 0.0426 289.10)",
+          "oklch(0.72 0.0426 289.10)",
+          "oklch(0.84 0.0426 289.10)",
+          "oklch(0.95 0.0426 289.10)"
+        ]
+      },
+      "dark-focus": {
+        "role": "secondary",
+        "displayName": "dark focus",
+        "tonalRamp": [
+          "oklch(0.15 0.0603 290.32)",
+          "oklch(0.26 0.0603 290.32)",
+          "oklch(0.38 0.0603 290.32)",
+          "oklch(0.49 0.0603 290.32)",
+          "oklch(0.61 0.0603 290.32)",
+          "oklch(0.72 0.0603 290.32)",
+          "oklch(0.84 0.0603 290.32)",
+          "oklch(0.95 0.0603 290.32)"
+        ]
+      },
+      "dark-prep": {
+        "role": "secondary",
+        "displayName": "dark prep",
+        "tonalRamp": [
+          "oklch(0.15 0.0936 81.40)",
+          "oklch(0.26 0.0936 81.40)",
+          "oklch(0.38 0.0936 81.40)",
+          "oklch(0.49 0.0936 81.40)",
+          "oklch(0.61 0.0936 81.40)",
+          "oklch(0.72 0.0936 81.40)",
+          "oklch(0.84 0.0936 81.40)",
+          "oklch(0.95 0.0936 81.40)"
+        ]
+      },
+      "dark-prep-bg": {
+        "role": "secondary",
+        "displayName": "dark prep bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0150 84.57)",
+          "oklch(0.26 0.0150 84.57)",
+          "oklch(0.38 0.0150 84.57)",
+          "oklch(0.49 0.0150 84.57)",
+          "oklch(0.61 0.0150 84.57)",
+          "oklch(0.72 0.0150 84.57)",
+          "oklch(0.84 0.0150 84.57)",
+          "oklch(0.95 0.0150 84.57)"
+        ]
+      },
+      "dark-ready": {
+        "role": "secondary",
+        "displayName": "dark ready",
+        "tonalRamp": [
+          "oklch(0.15 0.0750 176.44)",
+          "oklch(0.26 0.0750 176.44)",
+          "oklch(0.38 0.0750 176.44)",
+          "oklch(0.49 0.0750 176.44)",
+          "oklch(0.61 0.0750 176.44)",
+          "oklch(0.72 0.0750 176.44)",
+          "oklch(0.84 0.0750 176.44)",
+          "oklch(0.95 0.0750 176.44)"
+        ]
+      },
+      "dark-ready-bg": {
+        "role": "secondary",
+        "displayName": "dark ready bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0247 170.90)",
+          "oklch(0.26 0.0247 170.90)",
+          "oklch(0.38 0.0247 170.90)",
+          "oklch(0.49 0.0247 170.90)",
+          "oklch(0.61 0.0247 170.90)",
+          "oklch(0.72 0.0247 170.90)",
+          "oklch(0.84 0.0247 170.90)",
+          "oklch(0.95 0.0247 170.90)"
+        ]
+      },
+      "dark-transit": {
+        "role": "secondary",
+        "displayName": "dark transit",
+        "tonalRamp": [
+          "oklch(0.15 0.0854 268.39)",
+          "oklch(0.26 0.0854 268.39)",
+          "oklch(0.38 0.0854 268.39)",
+          "oklch(0.49 0.0854 268.39)",
+          "oklch(0.61 0.0854 268.39)",
+          "oklch(0.72 0.0854 268.39)",
+          "oklch(0.84 0.0854 268.39)",
+          "oklch(0.95 0.0854 268.39)"
+        ]
+      },
+      "dark-transit-bg": {
+        "role": "secondary",
+        "displayName": "dark transit bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0348 272.88)",
+          "oklch(0.26 0.0348 272.88)",
+          "oklch(0.38 0.0348 272.88)",
+          "oklch(0.49 0.0348 272.88)",
+          "oklch(0.61 0.0348 272.88)",
+          "oklch(0.72 0.0348 272.88)",
+          "oklch(0.84 0.0348 272.88)",
+          "oklch(0.95 0.0348 272.88)"
+        ]
+      },
+      "dark-done": {
+        "role": "secondary",
+        "displayName": "dark done",
+        "tonalRamp": [
+          "oklch(0.15 0.0784 148.13)",
+          "oklch(0.26 0.0784 148.13)",
+          "oklch(0.38 0.0784 148.13)",
+          "oklch(0.49 0.0784 148.13)",
+          "oklch(0.61 0.0784 148.13)",
+          "oklch(0.72 0.0784 148.13)",
+          "oklch(0.84 0.0784 148.13)",
+          "oklch(0.95 0.0784 148.13)"
+        ]
+      },
+      "dark-done-bg": {
+        "role": "secondary",
+        "displayName": "dark done bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0235 154.68)",
+          "oklch(0.26 0.0235 154.68)",
+          "oklch(0.38 0.0235 154.68)",
+          "oklch(0.49 0.0235 154.68)",
+          "oklch(0.61 0.0235 154.68)",
+          "oklch(0.72 0.0235 154.68)",
+          "oklch(0.84 0.0235 154.68)",
+          "oklch(0.95 0.0235 154.68)"
+        ]
+      },
+      "dark-fail": {
+        "role": "secondary",
+        "displayName": "dark fail",
+        "tonalRamp": [
+          "oklch(0.15 0.0893 21.80)",
+          "oklch(0.26 0.0893 21.80)",
+          "oklch(0.38 0.0893 21.80)",
+          "oklch(0.49 0.0893 21.80)",
+          "oklch(0.61 0.0893 21.80)",
+          "oklch(0.72 0.0893 21.80)",
+          "oklch(0.84 0.0893 21.80)",
+          "oklch(0.95 0.0893 21.80)"
+        ]
+      },
+      "dark-fail-bg": {
+        "role": "secondary",
+        "displayName": "dark fail bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0230 0.81)",
+          "oklch(0.26 0.0230 0.81)",
+          "oklch(0.38 0.0230 0.81)",
+          "oklch(0.49 0.0230 0.81)",
+          "oklch(0.61 0.0230 0.81)",
+          "oklch(0.72 0.0230 0.81)",
+          "oklch(0.84 0.0230 0.81)",
+          "oklch(0.95 0.0230 0.81)"
+        ]
+      },
+      "dark-danger": {
+        "role": "secondary",
+        "displayName": "dark danger",
+        "tonalRamp": [
+          "oklch(0.15 0.0893 21.80)",
+          "oklch(0.26 0.0893 21.80)",
+          "oklch(0.38 0.0893 21.80)",
+          "oklch(0.49 0.0893 21.80)",
+          "oklch(0.61 0.0893 21.80)",
+          "oklch(0.72 0.0893 21.80)",
+          "oklch(0.84 0.0893 21.80)",
+          "oklch(0.95 0.0893 21.80)"
+        ]
+      },
+      "dark-danger-bg": {
+        "role": "secondary",
+        "displayName": "dark danger bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0230 0.81)",
+          "oklch(0.26 0.0230 0.81)",
+          "oklch(0.38 0.0230 0.81)",
+          "oklch(0.49 0.0230 0.81)",
+          "oklch(0.61 0.0230 0.81)",
+          "oklch(0.72 0.0230 0.81)",
+          "oklch(0.84 0.0230 0.81)",
+          "oklch(0.95 0.0230 0.81)"
+        ]
+      },
+      "light-bg": {
+        "role": "neutral",
+        "displayName": "light bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0083 157.09)",
+          "oklch(0.26 0.0083 157.09)",
+          "oklch(0.38 0.0083 157.09)",
+          "oklch(0.49 0.0083 157.09)",
+          "oklch(0.61 0.0083 157.09)",
+          "oklch(0.72 0.0083 157.09)",
+          "oklch(0.84 0.0083 157.09)",
+          "oklch(0.95 0.0083 157.09)"
+        ]
+      },
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "light surface",
+        "tonalRamp": [
+          "oklch(0.15 0.0000 89.88)",
+          "oklch(0.26 0.0000 89.88)",
+          "oklch(0.38 0.0000 89.88)",
+          "oklch(0.49 0.0000 89.88)",
+          "oklch(0.61 0.0000 89.88)",
+          "oklch(0.72 0.0000 89.88)",
+          "oklch(0.84 0.0000 89.88)",
+          "oklch(0.95 0.0000 89.88)"
+        ]
+      },
+      "light-sunk": {
+        "role": "neutral",
+        "displayName": "light sunk",
+        "tonalRamp": [
+          "oklch(0.15 0.0108 158.84)",
+          "oklch(0.26 0.0108 158.84)",
+          "oklch(0.38 0.0108 158.84)",
+          "oklch(0.49 0.0108 158.84)",
+          "oklch(0.61 0.0108 158.84)",
+          "oklch(0.72 0.0108 158.84)",
+          "oklch(0.84 0.0108 158.84)",
+          "oklch(0.95 0.0108 158.84)"
+        ]
+      },
+      "light-line": {
+        "role": "neutral",
+        "displayName": "light line",
+        "tonalRamp": [
+          "oklch(0.15 0.0178 159.06)",
+          "oklch(0.26 0.0178 159.06)",
+          "oklch(0.38 0.0178 159.06)",
+          "oklch(0.49 0.0178 159.06)",
+          "oklch(0.61 0.0178 159.06)",
+          "oklch(0.72 0.0178 159.06)",
+          "oklch(0.84 0.0178 159.06)",
+          "oklch(0.95 0.0178 159.06)"
+        ]
+      },
+      "light-fg": {
+        "role": "neutral",
+        "displayName": "light fg",
+        "tonalRamp": [
+          "oklch(0.15 0.0369 178.21)",
+          "oklch(0.26 0.0369 178.21)",
+          "oklch(0.38 0.0369 178.21)",
+          "oklch(0.49 0.0369 178.21)",
+          "oklch(0.61 0.0369 178.21)",
+          "oklch(0.72 0.0369 178.21)",
+          "oklch(0.84 0.0369 178.21)",
+          "oklch(0.95 0.0369 178.21)"
+        ]
+      },
+      "light-muted": {
+        "role": "neutral",
+        "displayName": "light muted",
+        "tonalRamp": [
+          "oklch(0.15 0.0281 166.10)",
+          "oklch(0.26 0.0281 166.10)",
+          "oklch(0.38 0.0281 166.10)",
+          "oklch(0.49 0.0281 166.10)",
+          "oklch(0.61 0.0281 166.10)",
+          "oklch(0.72 0.0281 166.10)",
+          "oklch(0.84 0.0281 166.10)",
+          "oklch(0.95 0.0281 166.10)"
+        ]
+      },
+      "channel-shopify": {
+        "role": "secondary",
+        "displayName": "channel shopify",
+        "tonalRamp": [
+          "oklch(0.15 0.1163 160.65)",
+          "oklch(0.26 0.1163 160.65)",
+          "oklch(0.38 0.1163 160.65)",
+          "oklch(0.49 0.1163 160.65)",
+          "oklch(0.61 0.1163 160.65)",
+          "oklch(0.72 0.1163 160.65)",
+          "oklch(0.84 0.1163 160.65)",
+          "oklch(0.95 0.1163 160.65)"
+        ]
+      },
+      "channel-instagram": {
+        "role": "secondary",
+        "displayName": "channel instagram",
+        "tonalRamp": [
+          "oklch(0.15 0.1622 348.12)",
+          "oklch(0.26 0.1622 348.12)",
+          "oklch(0.38 0.1622 348.12)",
+          "oklch(0.49 0.1622 348.12)",
+          "oklch(0.61 0.1622 348.12)",
+          "oklch(0.72 0.1622 348.12)",
+          "oklch(0.84 0.1622 348.12)",
+          "oklch(0.95 0.1622 348.12)"
+        ]
+      },
+      "channel-tiktok": {
+        "role": "secondary",
+        "displayName": "channel tiktok",
+        "tonalRamp": [
+          "oklch(0.15 0.0040 228.76)",
+          "oklch(0.26 0.0040 228.76)",
+          "oklch(0.38 0.0040 228.76)",
+          "oklch(0.49 0.0040 228.76)",
+          "oklch(0.61 0.0040 228.76)",
+          "oklch(0.72 0.0040 228.76)",
+          "oklch(0.84 0.0040 228.76)",
+          "oklch(0.95 0.0040 228.76)"
+        ]
+      },
+      "light-action": {
+        "role": "primary",
+        "displayName": "light action",
+        "tonalRamp": [
+          "oklch(0.15 0.0870 285.71)",
+          "oklch(0.26 0.0870 285.71)",
+          "oklch(0.38 0.0870 285.71)",
+          "oklch(0.49 0.0870 285.71)",
+          "oklch(0.61 0.0870 285.71)",
+          "oklch(0.72 0.0870 285.71)",
+          "oklch(0.84 0.0870 285.71)",
+          "oklch(0.95 0.0870 285.71)"
+        ]
+      },
+      "light-focus": {
+        "role": "secondary",
+        "displayName": "light focus",
+        "tonalRamp": [
+          "oklch(0.15 0.0870 285.71)",
+          "oklch(0.26 0.0870 285.71)",
+          "oklch(0.38 0.0870 285.71)",
+          "oklch(0.49 0.0870 285.71)",
+          "oklch(0.61 0.0870 285.71)",
+          "oklch(0.72 0.0870 285.71)",
+          "oklch(0.84 0.0870 285.71)",
+          "oklch(0.95 0.0870 285.71)"
+        ]
+      },
+      "light-danger": {
+        "role": "secondary",
+        "displayName": "light danger",
+        "tonalRamp": [
+          "oklch(0.15 0.1654 32.83)",
+          "oklch(0.26 0.1654 32.83)",
+          "oklch(0.38 0.1654 32.83)",
+          "oklch(0.49 0.1654 32.83)",
+          "oklch(0.61 0.1654 32.83)",
+          "oklch(0.72 0.1654 32.83)",
+          "oklch(0.84 0.1654 32.83)",
+          "oklch(0.95 0.1654 32.83)"
+        ]
+      },
+      "light-danger-bg": {
+        "role": "secondary",
+        "displayName": "light danger bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0250 39.36)",
+          "oklch(0.26 0.0250 39.36)",
+          "oklch(0.38 0.0250 39.36)",
+          "oklch(0.49 0.0250 39.36)",
+          "oklch(0.61 0.0250 39.36)",
+          "oklch(0.72 0.0250 39.36)",
+          "oklch(0.84 0.0250 39.36)",
+          "oklch(0.95 0.0250 39.36)"
+        ]
+      },
+      "light-prep": {
+        "role": "secondary",
+        "displayName": "light prep",
+        "tonalRamp": [
+          "oklch(0.15 0.0977 59.48)",
+          "oklch(0.26 0.0977 59.48)",
+          "oklch(0.38 0.0977 59.48)",
+          "oklch(0.49 0.0977 59.48)",
+          "oklch(0.61 0.0977 59.48)",
+          "oklch(0.72 0.0977 59.48)",
+          "oklch(0.84 0.0977 59.48)",
+          "oklch(0.95 0.0977 59.48)"
+        ]
+      },
+      "light-prep-bg": {
+        "role": "secondary",
+        "displayName": "light prep bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0285 84.59)",
+          "oklch(0.26 0.0285 84.59)",
+          "oklch(0.38 0.0285 84.59)",
+          "oklch(0.49 0.0285 84.59)",
+          "oklch(0.61 0.0285 84.59)",
+          "oklch(0.72 0.0285 84.59)",
+          "oklch(0.84 0.0285 84.59)",
+          "oklch(0.95 0.0285 84.59)"
+        ]
+      },
+      "light-ready": {
+        "role": "secondary",
+        "displayName": "light ready",
+        "tonalRamp": [
+          "oklch(0.15 0.0691 223.21)",
+          "oklch(0.26 0.0691 223.21)",
+          "oklch(0.38 0.0691 223.21)",
+          "oklch(0.49 0.0691 223.21)",
+          "oklch(0.61 0.0691 223.21)",
+          "oklch(0.72 0.0691 223.21)",
+          "oklch(0.84 0.0691 223.21)",
+          "oklch(0.95 0.0691 223.21)"
+        ]
+      },
+      "light-ready-bg": {
+        "role": "secondary",
+        "displayName": "light ready bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0114 217.54)",
+          "oklch(0.26 0.0114 217.54)",
+          "oklch(0.38 0.0114 217.54)",
+          "oklch(0.49 0.0114 217.54)",
+          "oklch(0.61 0.0114 217.54)",
+          "oklch(0.72 0.0114 217.54)",
+          "oklch(0.84 0.0114 217.54)",
+          "oklch(0.95 0.0114 217.54)"
+        ]
+      },
+      "light-transit": {
+        "role": "secondary",
+        "displayName": "light transit",
+        "tonalRamp": [
+          "oklch(0.15 0.1164 294.78)",
+          "oklch(0.26 0.1164 294.78)",
+          "oklch(0.38 0.1164 294.78)",
+          "oklch(0.49 0.1164 294.78)",
+          "oklch(0.61 0.1164 294.78)",
+          "oklch(0.72 0.1164 294.78)",
+          "oklch(0.84 0.1164 294.78)",
+          "oklch(0.95 0.1164 294.78)"
+        ]
+      },
+      "light-transit-bg": {
+        "role": "secondary",
+        "displayName": "light transit bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0220 300.20)",
+          "oklch(0.26 0.0220 300.20)",
+          "oklch(0.38 0.0220 300.20)",
+          "oklch(0.49 0.0220 300.20)",
+          "oklch(0.61 0.0220 300.20)",
+          "oklch(0.72 0.0220 300.20)",
+          "oklch(0.84 0.0220 300.20)",
+          "oklch(0.95 0.0220 300.20)"
+        ]
+      },
+      "light-done": {
+        "role": "secondary",
+        "displayName": "light done",
+        "tonalRamp": [
+          "oklch(0.15 0.0889 155.69)",
+          "oklch(0.26 0.0889 155.69)",
+          "oklch(0.38 0.0889 155.69)",
+          "oklch(0.49 0.0889 155.69)",
+          "oklch(0.61 0.0889 155.69)",
+          "oklch(0.72 0.0889 155.69)",
+          "oklch(0.84 0.0889 155.69)",
+          "oklch(0.95 0.0889 155.69)"
+        ]
+      },
+      "light-done-bg": {
+        "role": "secondary",
+        "displayName": "light done bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0216 154.11)",
+          "oklch(0.26 0.0216 154.11)",
+          "oklch(0.38 0.0216 154.11)",
+          "oklch(0.49 0.0216 154.11)",
+          "oklch(0.61 0.0216 154.11)",
+          "oklch(0.72 0.0216 154.11)",
+          "oklch(0.84 0.0216 154.11)",
+          "oklch(0.95 0.0216 154.11)"
+        ]
+      },
+      "light-fail": {
+        "role": "secondary",
+        "displayName": "light fail",
+        "tonalRamp": [
+          "oklch(0.15 0.1071 66.49)",
+          "oklch(0.26 0.1071 66.49)",
+          "oklch(0.38 0.1071 66.49)",
+          "oklch(0.49 0.1071 66.49)",
+          "oklch(0.61 0.1071 66.49)",
+          "oklch(0.72 0.1071 66.49)",
+          "oklch(0.84 0.1071 66.49)",
+          "oklch(0.95 0.1071 66.49)"
+        ]
+      },
+      "light-fail-bg": {
+        "role": "secondary",
+        "displayName": "light fail bg",
+        "tonalRamp": [
+          "oklch(0.15 0.0460 86.46)",
+          "oklch(0.26 0.0460 86.46)",
+          "oklch(0.38 0.0460 86.46)",
+          "oklch(0.49 0.0460 86.46)",
+          "oklch(0.61 0.0460 86.46)",
+          "oklch(0.72 0.0460 86.46)",
+          "oklch(0.84 0.0460 86.46)",
+          "oklch(0.95 0.0460 86.46)"
+        ]
+      }
+    },
+    "typographyMeta": {
+      "display": {
+        "displayName": "Relato de acceso",
+        "purpose": "Titular Geist del acceso."
+      },
+      "headline": {
+        "displayName": "Jornada",
+        "purpose": "Fecha o título del listado."
+      },
+      "title": {
+        "displayName": "Tarjeta",
+        "purpose": "Títulos de tarjeta y editor según contexto."
+      },
+      "body": {
+        "displayName": "Lectura",
+        "purpose": "Texto operativo compacto."
+      },
+      "label": {
+        "displayName": "Campo",
+        "purpose": "Etiqueta visible externa."
+      },
+      "order-number": {
+        "displayName": "Número de pedido",
+        "purpose": "Identificador en Geist, reemplaza Mono en tarjetas."
+      }
+    },
+    "shadows": [
+      {
+        "name": "temporal",
+        "value": "0 12px 36px rgb(0 0 0 / .18)",
+        "purpose": "Menú de preferencias y toast."
+      }
+    ],
+    "motion": [
+      {
+        "name": "sheet-in",
+        "value": ".22s cubic-bezier(.16,1,.3,1)",
+        "purpose": "Entrada desde translateX(40px), solo sin reducción de movimiento."
+      },
+      {
+        "name": "toast-duration",
+        "value": "2600ms",
+        "purpose": "Duración del aviso polite."
+      }
+    ],
+    "breakpoints": [
+      {
+        "name": "dense-desktop",
+        "value": "1450px"
+      },
+      {
+        "name": "order-reflow",
+        "value": "1200px"
+      },
+      {
+        "name": "single-column",
+        "value": "900px"
+      },
+      {
+        "name": "legacy-calendar-spacing",
+        "value": "860px"
+      },
+      {
+        "name": "phone",
+        "value": "560px"
+      }
+    ]
+  },
+  "components": [
+    {
+      "name": "Principal lavanda",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Acción principal; --paper cambia a lavanda profunda en Claro.",
+      "html": "<button class=\"ds-primary\">Guardar pedido</button>",
+      "css": ".ds-primary{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;background:var(--paper,#c7c2ff);border:1px solid var(--paper,#c7c2ff);color:var(--paper-ink,#242138)}.ds-primary:hover{filter:brightness(.95)}.ds-primary:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}.ds-primary:disabled{opacity:.6;cursor:default}"
+    },
+    {
+      "name": "Secundario",
+      "kind": "button",
+      "refersTo": "button-secondary",
+      "description": "Acción alternativa transparente con borde.",
+      "html": "<button class=\"ds-secondary\">Cancelar</button>",
+      "css": ".ds-secondary{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;background:transparent;border:1px solid var(--line,#41454f);color:var(--fg,#f4f2ed)}.ds-secondary:hover{background:var(--sunk,#2d3038)}.ds-secondary:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Destructivo",
+      "kind": "button",
+      "refersTo": "button-danger",
+      "description": "Conserva la pareja heredada para eliminar, distinta de intento.",
+      "html": "<button class=\"ds-danger\">Eliminar pedido</button>",
+      "css": ".ds-danger{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;background:var(--danger-bg,#3b2c30);border:1px solid transparent;color:var(--danger,#f2a7a4)}.ds-danger:hover{background:var(--sunk,#2d3038)}.ds-danger:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Campo de editor",
+      "kind": "input",
+      "refersTo": "field",
+      "description": "Fondo de página, etiqueta externa y borde neutro.",
+      "html": "<label class=\"ds-field\"><span>Dirección de entrega</span><input placeholder=\"Calle, número, ciudad\"></label>",
+      "css": ".ds-field{display:grid;gap:7px;font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);font-size:.8rem;font-weight:550;color:var(--muted,#babcc8)}.ds-field input{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:44px;padding:10px 12px;border:1px solid var(--line,#41454f);border-radius:9px;background:var(--bg,#191a1e);color:var(--fg,#f4f2ed);font-size:.875rem;font-weight:400}.ds-field input::placeholder{color:var(--muted,#babcc8);opacity:1}.ds-field input:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Pestañas superiores",
+      "kind": "nav",
+      "description": "Subrayado lavanda; solo las vistas existentes.",
+      "html": "<nav class=\"ds-nav\" aria-label=\"Vistas\"><button aria-pressed=\"true\">Pedidos</button><button aria-pressed=\"false\">Equipo</button></nav>",
+      "css": ".ds-nav{display:flex;gap:24px;border-bottom:1px solid var(--line,#41454f)}.ds-nav button{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:52px;padding:0 10px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted,#babcc8);font-size:.88rem;cursor:pointer}.ds-nav button[aria-pressed=true]{border-bottom-color:var(--paper,#c7c2ff);color:var(--fg,#f4f2ed)}.ds-nav button:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Filtro lateral",
+      "kind": "chip",
+      "refersTo": "sidebar-filter",
+      "description": "Fila con icono, etiqueta y contador semántico.",
+      "html": "<button class=\"ds-filter\" aria-pressed=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l4 2\"/></svg><span>Pendientes</span><b>3</b></button>",
+      "css": ".ds-filter{display:grid;grid-template-columns:25px minmax(0,1fr) auto;align-items:center;gap:12px;width:100%;min-height:44px;padding:6px 12px;border:1px solid currentColor;border-left-color:var(--paper,#c7c2ff);border-radius:7px;background:var(--sunk,#2d3038);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);font-size:.82rem;text-align:left;font-weight:400;cursor:pointer}.ds-filter svg{width:20px;height:20px;color:var(--st-prep,#efca88)}.ds-filter b{font-size:.75rem;font-weight:500;min-width:30px;padding:3px 8px;border-radius:14px;text-align:center;background:var(--st-prep-bg,#343028);color:var(--st-prep,#efca88)}.ds-filter:hover{background:var(--sunk,#2d3038)}.ds-filter:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Tarjeta de pedido",
+      "kind": "card",
+      "refersTo": "order",
+      "description": "Fragmento de identidad, selector nativo, progreso y detalle; datos ficticios.",
+      "html": "<article class=\"ds-order\"><div><span class=\"ds-num\">#0124</span><strong>Maria Santos</strong><small>8:00 - 12:00 · Manila</small></div><label class=\"ds-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l4 2\"/></svg><select aria-label=\"Estado del pedido\"><option>Preparing</option><option>Ready</option><option>In transit</option><option>Delivered</option><option>Delivery attempted</option></select></label><div class=\"ds-progress\" aria-label=\"Progreso\"><span class=\"ds-current\"><i></i>Preparing</span><span><i></i>Ready</span><span><i></i>In transit</span><span><i></i>Delivered</span></div><button class=\"ds-detail\">Ver detalle<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></button></article>",
+      "css": ".ds-order{display:grid;gap:16px;padding:18px 20px;border:1px solid var(--line,#41454f);border-radius:13px;background:var(--surface,#24262c);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);}.ds-num{font-size:.92rem;font-weight:550}.ds-order strong{display:block;font-size:1.08rem;font-weight:600;margin:4px 0 5px}.ds-order small{font-size:.82rem;color:var(--muted,#babcc8)}.ds-status{display:flex;align-items:center;gap:10px;padding-left:12px;border:1px solid var(--st-prep,#efca88);border-radius:10px;color:var(--st-prep,#efca88);background:var(--st-prep-bg,#343028)}.ds-status svg{width:18px;height:18px}.ds-status select{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:44px;width:100%;border:0;background:transparent;color:inherit;font-size:.75rem;padding:8px 10px 8px 0;cursor:pointer}.ds-status option{background:var(--surface,#24262c);color:var(--fg,#f4f2ed)}.ds-status select:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}.ds-progress{position:relative;display:flex;padding-top:4px}.ds-progress:before{content:\"\";position:absolute;left:0;right:0;top:14px;height:4px;border-radius:3px;background:var(--line,#41454f)}.ds-progress span{position:relative;z-index:1;display:flex;align-items:center;flex-direction:column;flex:1;gap:9px;padding:3px 2px;font-size:.7rem;color:var(--muted,#babcc8);line-height:1.2;text-align:center}.ds-progress i{width:15px;height:15px;border:2px solid #596168;border-radius:50%;background:var(--surface,#24262c)}.ds-progress .ds-current{color:var(--st-prep,#efca88)}.ds-current i{background:var(--st-prep,#efca88);border-color:var(--st-prep,#efca88)}.ds-detail{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;display:flex;align-items:center;gap:20px;justify-self:end;border:1px solid var(--paper,#c7c2ff);background:var(--paper,#c7c2ff);color:var(--paper-ink,#242138);font-size:.75rem}.ds-detail svg{width:16px;height:16px}.ds-detail:hover{filter:brightness(.95)}.ds-detail:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Resumen de pendientes",
+      "kind": "card",
+      "refersTo": "summary",
+      "description": "Una métrica existente de la jornada.",
+      "html": "<div class=\"ds-summary\"><span class=\"ds-summary-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l4 2\"/></svg></span><div><b>3</b><span>Pendientes</span><small>Esperando completarse</small></div></div>",
+      "css": ".ds-summary{display:flex;align-items:center;gap:14px;padding:20px 16px;min-height:108px;border:1px solid var(--line,#41454f);border-radius:12px;background:var(--surface,#24262c);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);}.ds-summary-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:rgb(255 206 125 / .08);color:var(--summary-pending,#ffce7d)}.ds-summary-icon svg{width:25px;height:25px}.ds-summary>div{display:grid;gap:2px}.ds-summary b{font-size:1.5rem;font-weight:600;line-height:1.1}.ds-summary div>span{font-size:.78rem;line-height:1.3}.ds-summary small{font-size:.65rem;line-height:1.3;color:var(--muted,#babcc8);margin-top:4px}@media(max-width:560px){.ds-summary{width:142px;min-height:76px;padding:10px;gap:9px}.ds-summary-icon{width:30px;height:30px}.ds-summary-icon svg{width:22px;height:22px}.ds-summary b{font-size:1.25rem}.ds-summary div>span{font-size:.7rem}.ds-summary small{display:none}}"
+    },
+    {
+      "name": "Días del calendario",
+      "kind": "custom",
+      "description": "Fragmento de selección lavanda; el calendario completo usa siete columnas.",
+      "html": "<div class=\"ds-days\" role=\"group\" aria-label=\"Días\"><button>26</button><button aria-pressed=\"true\">27</button><button>28</button></div>",
+      "css": ".ds-days{display:flex;gap:0;background:var(--surface,#24262c);padding:8px}.ds-days button{min-width:44px;min-height:44px;height:47px;padding:2px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);font-size:.85rem;font-variant-numeric:tabular-nums;cursor:pointer}.ds-days button:hover{background:var(--sunk,#2d3038)}.ds-days button[aria-pressed=true]{background:var(--paper,#c7c2ff);color:var(--paper-ink,#242138);border-color:var(--paper,#c7c2ff)}.ds-days button:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+    },
+    {
+      "name": "Tarjeta de trabajo",
+      "kind": "card",
+      "refersTo": "work-card",
+      "description": "Agenda accionable de florista/repartidor; ejemplo visual de preparación.",
+      "html": "<article class=\"ds-work\"><div class=\"ds-work-main\"><div class=\"ds-work-image\"></div><div><div class=\"ds-work-meta\">8:00 - 12:00 · #0124</div><span class=\"ds-work-pill\">Preparing</span><h3>Maria Santos</h3><p>Salcedo Village, Makati</p><div class=\"ds-work-note\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3h14v18H5V3Zm3 5h8m-8 4h8m-8 4h5\"/></svg>Happy birthday, Maria!</div></div></div><div class=\"ds-work-actions\"><button class=\"ds-work-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m7 12 3 3 7-7\"/></svg>Marcar listo</button><button>Llamar</button><button>WhatsApp</button><button>Mapa</button></div></article>",
+      "css": ".ds-work{display:grid;gap:18px;padding:20px;border:1px solid var(--line,#41454f);border-radius:13px;background:var(--surface,#24262c);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);}.ds-work-main{display:grid;grid-template-columns:76px minmax(0,1fr);gap:18px}.ds-work-image{width:76px;height:84px;border:1px solid var(--line,#41454f);border-radius:6px;background:var(--sunk,#2d3038)}.ds-work-meta{font-size:.85rem}.ds-work-pill{display:inline-block;margin-top:5px;padding:5px 9px;border-radius:6px;font-size:.7rem;font-weight:600;background:var(--st-prep-bg,#343028);color:var(--st-prep,#efca88)}.ds-work h3{font-size:1.15rem;font-weight:600;margin:5px 0}.ds-work p{font-size:.82rem;margin:5px 0 0;color:var(--muted,#babcc8)}.ds-work-note{font-size:.8rem;padding:8px 10px;margin-top:8px;border-radius:6px;background:var(--bg,#191a1e)}.ds-work-actions{display:flex;flex-wrap:wrap;gap:10px}.ds-work-actions button{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:44px;padding:9px 14px;border:1px solid var(--line,#41454f);border-radius:9px;background:transparent;color:var(--fg,#f4f2ed);font-size:.82rem;cursor:pointer}.ds-work-actions .ds-work-primary{min-height:48px;background:var(--paper,#c7c2ff);color:var(--paper-ink,#242138);border-color:var(--paper,#c7c2ff)}.ds-work-actions button:hover{background:var(--sunk,#2d3038)}.ds-work-actions .ds-work-primary:hover{background:var(--paper,#c7c2ff);filter:brightness(.95)}.ds-work-actions button:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}@media(max-width:560px){.ds-work{padding:16px;gap:14px}.ds-work-main{grid-template-columns:54px minmax(0,1fr);gap:12px}.ds-work-image{width:54px;height:66px}.ds-work h3{font-size:1rem}.ds-work-actions{gap:8px}.ds-work-actions .ds-work-primary{flex-basis:100%}.ds-work-actions button:not(.ds-work-primary){flex:1}}.ds-work svg{display:inline-block;width:18px;height:18px;flex-shrink:0}.ds-work-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px}"
+    }
+  ],
+  "narrative": {
+    "northStar": "Despacho floral sobre una línea temporal",
+    "overview": "La referencia aprobada se adapta a las funciones reales: calendario y filtros laterales, resumen del día, horario en un margen propio y tarjetas con identidad, contacto, estado y detalle. El grafito neutro y las acciones lavanda mantienen una lectura tranquila; emblema y logotipos florales existentes aportan identidad.\n\nEste registro sigue la cascada `styles.css` → `reference.css` → `integration.css`, los flujos de `app.js`, el adaptador `ui.js` y las capturas de revisión del repositorio actualizado desde origin/main f5ff388. Conserva acceso, equipo, editor, agendas accionables de florista/repartidor y mensajes florales del seguimiento. No incorpora secciones ni datos inexistentes, ni raster nuevos. Las marcas de canal incorporan SVG locales con procedencia registrada.",
+    "keyCharacteristics": [
+      "Fondo grafito, tarjetas oscuras y bordes finos.",
+      "Acción principal lavanda y progreso con estado escrito.",
+      "Tiempo separado de identidad, contacto y acciones.",
+      "Densidad Timeline/Compact y adaptación móvil."
+    ],
+    "rules": [
+      {
+        "name": "The Oscuro inicial Rule",
+        "body": "Sin preferencia guardada se aplica Oscuro. Claro y Oscuro son elecciones explícitas; Auto sigue el sistema operativo.",
+        "section": "colors"
+      },
+      {
+        "name": "The Estado con palabras Rule",
+        "body": "Color, icono y etiqueta acompañan el estado; un intento no se presenta como entrega completada.",
+        "section": "colors"
+      },
+      {
+        "name": "The Profundidad funcional Rule",
+        "body": "Separar contenido cotidiano con tono y línea; reservar elevación para capas temporales.",
+        "section": "elevation"
+      }
+    ],
+    "dos": [
+      "**Do** iniciar en grafito y ofrecer Claro, Oscuro y Auto como preferencias.",
+      "**Do** conservar acciones lavanda, horario lateral y estados escritos en las superficies adaptadas.",
+      "**Do** respetar los cuatro roles actuales y conservar sus acciones de preparación, entrega y reprogramación.",
+      "**Do** conservar mensajes florales públicos, imágenes originales y errores recuperables."
+    ],
+    "donts": [
+      "**Don't** recuperar el verde como fondo oscuro ni los botones verdes como principal oscuro.",
+      "**Don't** extender la cabecera serif a todos los títulos ni recuperar números Mono en las tarjetas adaptadas.",
+      "**Don't** añadir productos, clientes, analítica, mapa agregado o fotos de ramos inexistentes.",
+      "**Don't** usar el coral administrativo para sustituir el intento público ámbar."
+    ]
+  }
+}

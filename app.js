@@ -39,6 +39,7 @@ const TZ = "Asia/Manila";
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const S = { me: null, tab: "orders", sel: today, month: fromIso(today), orders: [], members: [], photoUrls: {}, channel: null };
 S.month.setDate(1);
+S.filter=null; S.query=""; S.statusPending=new Set();
 // admin: everything · moderator: all orders, no team · vendor: own orders · carrier: Ready orders, delivery steps
 const isAdmin = () => S.me?.role === "admin";
 const isStaff = () => S.me?.role === "admin" || S.me?.role === "moderator";
@@ -67,9 +68,10 @@ sb.auth.onAuthStateChange((_ev, session) => {
 });
 
 function stop() {
-  S.me = null; S.orders = []; S.photoUrls = {};
+  S.me = null; S.orders = []; S.photoUrls = {}; S.filter=null; S.query=""; $("q").value=""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
   $("hright").hidden = true; $("sub").textContent = t("signIn");
+  $("tabs").hidden = true;
   closeSheet(); show("login");
 }
 
@@ -82,6 +84,7 @@ async function start(user) {
     $("tabs").hidden = true; show("noaccess"); return;
   }
   S.me = data;
+  document.body.dataset.role=data.role;
   renderSub();
   $("tabs").hidden = !isAdmin();
   $("newBtn").hidden = !isStaff();
@@ -168,12 +171,14 @@ function setStep(id, k, extra = {}) {
   return sb.rpc("cdf_progress", { p_id: id, p_step: k, p_note: extra.delivery_note ?? null,
     p_proof: extra.proof_path ?? null, p_set_proof: "proof_path" in extra });
 }
-async function advance(o, i) {
-  const s = STEPS[i], prev = { status: o.status, delivery: o.delivery };
-  Object.assign(o, { status: s.status, delivery: s.delivery }); renderOrders();
-  const { error } = await setStep(o.id, s.k);
-  if (error) { Object.assign(o, prev); renderOrders(); toast(t("statusFail")); return; }
-  if (s.k === "transit") toast(o.customer_email ? t("outMailed") : t("outNoMail"));
+async function advance(o,i){
+  if(S.statusPending.has(o.id))return;
+  S.statusPending.add(o.id);const step=STEPS[i],prev={status:o.status,delivery:o.delivery};
+  Object.assign(o,{status:step.status,delivery:step.delivery});renderOrders();
+  try{const {error}=await setStep(o.id,step.k);if(error)throw error;
+    if(step.k==='transit')toast(o.customer_email?t('outMailed'):t('outNoMail'));
+  }catch{Object.assign(o,prev);toast(t('statusFail'));}
+  finally{S.statusPending.delete(o.id);renderOrders();}
 }
 // Signed links last an hour; renew them a bit before they run out.
 async function photoUrl(path, bkt = bucket) {
@@ -191,8 +196,9 @@ const imgOf = (path, bkt, alt) => {
   return box;
 };
 function thumb(o, cls = "thumb") {
-  const th = el("div", { class: cls }, o.photo_path ? "" : t("noPhotoShort"));
-  if (o.photo_path) photoUrl(o.photo_path).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "" })); });
+  const photo=o.bouquet_path||o.photo_path;
+  const th = el("div", { class: cls }, photo ? "" : el("img",{src:"/img/emblem.png",alt:"",class:"placeholder-emblem"}));
+  if (photo) photoUrl(photo,o.bouquet_path?ENTREGAS:bucket).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "" })); });
   return th;
 }
 const dayCount = (n) => (n ? (n === 1 ? t("oneOrder") : t("nOrders", { n })) : "");
@@ -268,7 +274,7 @@ function renderAgenda() {
 }
 function workCard(o, withDate) {
   const cur = stepOf(o), k = STEPS[cur].k;
-  const big = (label, fn, cls = "primary") => el("button", { class: "btn big " + cls, type: "button", onclick: fn }, label);
+  const big = (label, fn, cls = "primary") => el("button", { class: "btn big " + cls, type: "button", onclick: fn, disabled:S.statusPending.has(o.id) }, label);
   const acts = [];
   if (cur === 0 && !isCarrier()) acts.push(big("✓ " + t("actReady"), () => readyDialog(o)));
   if (cur === 1 || cur === 4) acts.push(big(t("actOut"), () => advance(o, 2)));
@@ -286,7 +292,7 @@ function workCard(o, withDate) {
       el("div", { class: "o-main" },
         el("div", { class: "o-top" },
           el("b", { class: "time" }, (withDate ? shortDate(o.date) + " · " : "") + o.slot),
-          el("span", { class: "num" }, "#" + o.num),
+          el("span", { class: "num" }, "#" + o.num), chanChip(o.channel),
           el("span", { class: "pill s-" + k }, stepName(cur))),
         el("div", { class: "w-name" }, o.customer_name || t("noName")),
         o.address ? el("div", { class: "o-sub" }, o.address) : null,

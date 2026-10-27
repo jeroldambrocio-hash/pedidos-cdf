@@ -10,18 +10,20 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
 <link rel="stylesheet" href="/styles.css">
+<link rel="stylesheet" href="/reference.css">
+<link rel="stylesheet" href="/integration.css">
 <link rel="icon" type="image/png" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/emblem.png">
 </head>
 <body>
-<div class="center" style="max-width:440px;padding-top:32px">
+<main class="tracking">
   <div class="prefs" style="justify-content:flex-end">
       <div class="settings">
-        <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-label="Ajustes" data-i18n-aria="settings" title="Ajustes">⚙</button>
+        <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-label="Ajustes" data-i18n-aria="settings" title="Ajustes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg></button>
         <div class="menu" hidden>
           <div class="mrow"><span data-i18n="language">Idioma</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
           <div class="mrow"><span data-i18n="textSize">Tamaño de letra</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Grande</button></div></div>
-          <div class="mrow"><span data-i18n="theme">Modo</span><div class="seg"><button type="button" data-theme-set="" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Claro</button><button type="button" data-theme-set="dark" data-i18n="dark">Oscuro</button></div></div>
+          <div class="mrow"><span data-i18n="theme">Modo</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Claro</button><button type="button" data-theme-set="dark" data-i18n="dark">Oscuro</button></div></div>
         </div>
       </div>
     </div>
@@ -29,83 +31,9 @@
   <p class="meta" style="margin:0;text-align:center" data-i18n="trackSub">Seguimiento de tu pedido</p>
   <div class="card" id="card"><h2 data-i18n="loadingOrder">Cargando tu pedido…</h2></div>
   <p class="meta" style="text-align:center;margin:0" data-i18n="autoRefresh">Esta página se actualiza sola cuando cambia el estado.</p>
-</div>
+</main>
 <script src="/config.js"></script>
 <script src="/i18n.js"></script>
-<script>
-const { url, anonKey } = window.CDF_CONFIG;
-const STEPS = ["Preparing", "Ready", "In transit", "Delivered"];
-const code = (location.pathname.match(/\/p\/([a-z0-9]+)/i) || [])[1] || new URLSearchParams(location.search).get("c") || "";
-const card = document.getElementById("card");
-const h = (t, cls, txt) => { const e = document.createElement(t); if (cls) e.className = cls; if (txt != null) e.textContent = txt; return e; };
-const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
-
-// last = { o } once the order loaded; a failed refresh keeps showing it and says so,
-// so a dropped connection never reads as "order not found".
-let last = null, failed = false;
-async function load() {
-  try {
-    const r = await fetch(url + "/functions/v1/cdf-track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json", apikey: anonKey, Authorization: "Bearer " + anonKey },
-      body: JSON.stringify({ code }),
-    });
-    if (!r.ok) throw new Error("HTTP " + r.status);
-    last = { o: (await r.json()).order };
-    failed = false;
-  } catch { failed = true; }
-  render();
-}
-function render() {
-  if (!last) {
-    if (!failed) return;
-    const retry = h("button", "btn", t("retry")); retry.type = "button"; retry.onclick = () => { card.replaceChildren(h("h2", null, t("loadingOrder"))); load(); };
-    card.replaceChildren(h("h2", null, t("loadErrTitle")), h("div", "meta", t("loadErrTxt")), retry);
-    return;
-  }
-  const { o } = last;
-  if (!o) {
-    card.replaceChildren(h("h2", null, t("notFound")), h("div", "meta", t("notFoundTxt")));
-    return;
-  }
-  const isFailed = o.delivery === "Failed";
-  const cur = isFailed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
-  const [y, m, d] = o.date.split("-").map(Number);
-  const head = h("div");
-  head.append(h("h2", null, t("order", { num: o.num })), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot));
-  if (o.for_name) head.append(h("div", "meta", t("forName", { name: o.for_name })));
-  const top = [head];
-  if (o.bouquet_url) {
-    const img = h("img"); img.src = o.bouquet_url; img.alt = t("bouquetPhoto");
-    img.style.cssText = "border-radius:10px;width:100%;max-height:360px;object-fit:cover";
-    top.push(img, h("div", "meta", t("bouquetCaption")));
-  }
-  if (o.card_message) top.push(h("div", "note", "💌 " + o.card_message));
-  const tl = h("ol", "tl");
-  STEPS.forEach((label, i) => {
-    // A failed attempt replaces the last step: in transit is done, delivery didn't happen.
-    const isFail = isFailed && i === 3;
-    const txt = isFail ? t("failedTxt") : t("stepTxt")[i];
-    const li = h("li", isFail ? "fail" : i < cur ? "past" : i === cur ? "cur" : "");
-    const body = h("div"); body.append(h("b", null, isFail ? t("failedTitle") : label), h("small", null, txt));
-    li.append(h("span", "dot", isFail ? "!" : i < cur ? "✓" : ""), body); tl.append(li);
-  });
-  const extra = [];
-  if (o.delivery_note) extra.push(h("div", "note", o.delivery_note));
-  if (o.proof_url) {
-    const img = h("img"); img.src = o.proof_url; img.alt = t("proofPhoto");
-    img.style.cssText = "border-radius:10px;width:100%;max-height:320px;object-fit:cover";
-    extra.push(img);
-  }
-  // Shop time (Philippines), whatever the viewer's own time zone
-  const when = new Date(o.updated_at).toLocaleString(locale(), { timeZone: "Asia/Manila", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
-  const upd = h("div", "meta", t("updated", { when: when + " PHT" }) + (failed ? " · " + t("staleNote") : ""));
-  card.replaceChildren(...top, tl, ...extra, upd);
-}
-document.addEventListener("langchange", render);
-load();
-setInterval(() => { if (!document.hidden) load(); }, 60000);
-document.addEventListener("visibilitychange", () => { if (!document.hidden) load(); });
-</script>
+<script src="/tracking.js"></script>
 </body>
 </html>
