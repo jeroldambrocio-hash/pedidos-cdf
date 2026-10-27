@@ -12,6 +12,7 @@ colors:
   muted: "#999999"
   faint: "#8a8a8a"
   primary: "#f1f1f1"
+  primary-hover: "#ffffff"
   on-primary: "#171717"
   focus: "#d4d4d4"
   state-prep: "#e6b86a"
@@ -27,9 +28,14 @@ colors:
   light-surface: "#ffffff"
   light-hover: "#f1f1f0"
   light-line: "#e2e2e0"
+  light-line-soft: "#ebebea"
   light-fg: "#171717"
   light-muted: "#5c5c5c"
   light-faint: "#737373"
+  light-primary: "#171717"
+  light-primary-hover: "#000000"
+  light-on-primary: "#ffffff"
+  light-focus: "#171717"
   light-state-prep: "#8a5a14"
   light-state-ready: "#2e6a80"
   light-state-transit: "#5b4ba8"
@@ -71,6 +77,7 @@ typography:
     fontSize: ".75rem"
     fontWeight: 400
 rounded:
+  xs: "4px"
   sm: "6px"
   control: "8px"
   card: "12px"
@@ -82,12 +89,6 @@ spacing:
   md: "12px"
   lg: "16px"
   xl: "24px"
-motion:
-  fast: "150ms"
-  base: "200ms"
-  slow: "260ms"
-  ease-out: "cubic-bezier(.16,1,.3,1)"
-  ease-in: "cubic-bezier(.4,0,1,1)"
 components:
   button-primary:
     backgroundColor: "{colors.primary}"
@@ -135,7 +136,7 @@ components:
 
 **Norte creativo: "Un despacho floral tranquilo, donde solo el estado tiene color."**
 
-Fondo gris casi negro (#171717), barra superior un punto más clara (#1C1C1C), superficies #232323 y bordes finos #343434. Las acciones principales son blancas con texto oscuro; el color se reserva para el estado de cada pedido (Preparando ámbar, Listo azul grisáceo, En camino lavanda, Entregado verde, No había nadie coral) y para los logotipos de cada canal. La marca vive en la serif Newsreader (nombre de la tienda, títulos del día y de cada pedido) y en el emblema floral existente; todo lo funcional va en Geist.
+Fondo gris casi negro (#171717), barra superior un punto más clara (#1C1C1C), superficies #232323 y bordes finos #343434. Las acciones principales son blancas con texto oscuro; el color se reserva para el estado de cada pedido (Preparando ámbar, Listo azul grisáceo, En camino lavanda, Entregado verde, No había nadie coral) y para los logotipos de cada canal. La marca vive en la serif Newsreader (nombre de la tienda, título del día, cabecera de cada hoja, acceso y seguimiento); los nombres en las tarjetas y todo lo funcional van en Geist y en el emblema floral existente.
 
 Una sola hoja de estilos (`styles.css`) sirve al panel y a la página pública de seguimiento. Los tokens están arriba del archivo y todo lo demás los usa; el tema claro redefine los mismos tokens.
 
@@ -154,5 +155,5 @@ Una sola hoja de estilos (`styles.css`) sirve al panel y a la página pública d
 - Texto mínimo 12px (.75rem); cuerpo 14px; controles de 40px, 44px en pantallas táctiles.
 - Sin bordes laterales de color, sin tarjetas anidadas, sin degradados de texto. El riesgo se marca con un borde fino teñido y una etiqueta, nunca solo con color.
 - Números en cifras tabulares; selección, cursor, foco y barras de desplazamiento con los colores del sistema.
-- Movimiento: 150–260 ms, salida exponencial, sin rebotes. Hoja lateral que entra desde la derecha, diálogos que aparecen con una ligera escala, tarjetas que suben 4px al aparecer, puntos de estado que cambian de color. **Siempre activas**; solo se reducen si la persona elige "Animaciones: Reducidas" en Ajustes (no se usa el ajuste del sistema operativo).
+- Movimiento (duraciones en `.impeccable/design.json`): 150–260 ms, salida exponencial, sin rebotes. Hoja lateral que entra desde la derecha, diálogos que aparecen con una ligera escala, tarjetas que suben 4px al aparecer, puntos de estado que cambian de color. **Siempre activas**; solo se reducen si la persona elige "Animaciones: Reducidas" en Ajustes (no se usa el ajuste del sistema operativo).
 - Claro / oscuro / auto, tamaño de letra normal o grande, idioma ES / EN: preferencias del visitante, recordadas en su navegador.

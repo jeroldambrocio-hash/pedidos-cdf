@@ -425,7 +425,9 @@ main { min-width: 0; }
 
 /* ---------- touch and smaller screens ---------- */
 @media (pointer: coarse) {
-  .btn, .iconbtn, .seg button, .chip, .stat, .inline-select, .day { min-height: 44px; }
+  .btn, .iconbtn, .seg button, .chip, .stat, .inline-select, .day, .linkish, .toast button, .order-info > a, .order-info > .meta, .florist { min-height: 44px; }
+  .pick input { width: 24px; height: 24px; }
+  .pick { min-height: 44px; }
   .iconbtn { width: 44px; height: 44px; }
 }
 @media (max-width: 1200px) {

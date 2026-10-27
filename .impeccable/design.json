@@ -1,390 +1,286 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-27T08:15:46.495Z",
+  "generatedAt": "2026-10-27T23:42:30.008Z",
   "title": "Design System: Pedidos · Casa de Flores",
   "extensions": {
     "colorMeta": {
-      "dark-bg": {
+      "bg": {
         "role": "neutral",
-        "displayName": "dark bg",
+        "displayName": "Fondo casi negro",
+        "purpose": "Fondo general del panel y del seguimiento; también fondo de campos y huecos hundidos.",
+        "canonical": "oklch(20.5% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0079 274.56)",
-          "oklch(0.26 0.0079 274.56)",
-          "oklch(0.38 0.0079 274.56)",
-          "oklch(0.49 0.0079 274.56)",
-          "oklch(0.61 0.0079 274.56)",
-          "oklch(0.72 0.0079 274.56)",
-          "oklch(0.84 0.0079 274.56)",
-          "oklch(0.95 0.0079 274.56)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "dark-surface": {
+      "chrome": {
         "role": "neutral",
-        "displayName": "dark surface",
+        "displayName": "Barra superior",
+        "purpose": "Barra superior y columna narrativa del acceso; un punto más clara que el fondo.",
+        "canonical": "oklch(22.6% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0115 270.96)",
-          "oklch(0.26 0.0115 270.96)",
-          "oklch(0.38 0.0115 270.96)",
-          "oklch(0.49 0.0115 270.96)",
-          "oklch(0.61 0.0115 270.96)",
-          "oklch(0.72 0.0115 270.96)",
-          "oklch(0.84 0.0115 270.96)",
-          "oklch(0.95 0.0115 270.96)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "dark-sunk": {
+      "surface": {
         "role": "neutral",
-        "displayName": "dark sunk",
+        "displayName": "Superficie",
+        "purpose": "Tarjetas, paneles, hojas laterales y diálogos.",
+        "canonical": "oklch(25.6% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0150 269.20)",
-          "oklch(0.26 0.0150 269.20)",
-          "oklch(0.38 0.0150 269.20)",
-          "oklch(0.49 0.0150 269.20)",
-          "oklch(0.61 0.0150 269.20)",
-          "oklch(0.72 0.0150 269.20)",
-          "oklch(0.84 0.0150 269.20)",
-          "oklch(0.95 0.0150 269.20)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "dark-line": {
+      "hover": {
         "role": "neutral",
-        "displayName": "dark line",
+        "displayName": "Hover",
+        "purpose": "Fondo de hover, chips activos, segmentos pulsados y etiquetas neutras.",
+        "canonical": "oklch(29.7% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0177 268.23)",
-          "oklch(0.26 0.0177 268.23)",
-          "oklch(0.38 0.0177 268.23)",
-          "oklch(0.49 0.0177 268.23)",
-          "oklch(0.61 0.0177 268.23)",
-          "oklch(0.72 0.0177 268.23)",
-          "oklch(0.84 0.0177 268.23)",
-          "oklch(0.95 0.0177 268.23)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "dark-fg": {
+      "line": {
         "role": "neutral",
-        "displayName": "dark fg",
+        "displayName": "Borde",
+        "purpose": "Bordes de controles, diálogos y menús.",
+        "canonical": "oklch(32.5% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0070 88.64)",
-          "oklch(0.26 0.0070 88.64)",
-          "oklch(0.38 0.0070 88.64)",
-          "oklch(0.49 0.0070 88.64)",
-          "oklch(0.61 0.0070 88.64)",
-          "oklch(0.72 0.0070 88.64)",
-          "oklch(0.84 0.0070 88.64)",
-          "oklch(0.95 0.0070 88.64)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "dark-muted": {
+      "line-soft": {
         "role": "neutral",
-        "displayName": "dark muted",
+        "displayName": "Borde suave",
+        "purpose": "Bordes de tarjetas, divisores y hilo de la línea temporal.",
+        "canonical": "oklch(27.7% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0170 278.44)",
-          "oklch(0.26 0.0170 278.44)",
-          "oklch(0.38 0.0170 278.44)",
-          "oklch(0.49 0.0170 278.44)",
-          "oklch(0.61 0.0170 278.44)",
-          "oklch(0.72 0.0170 278.44)",
-          "oklch(0.84 0.0170 278.44)",
-          "oklch(0.95 0.0170 278.44)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "paper": {
+      "fg": {
+        "role": "neutral",
+        "displayName": "Texto",
+        "purpose": "Texto principal.",
+        "canonical": "oklch(95.8% 0.0000 0.00)",
+        "tonalRamp": [
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
+        ]
+      },
+      "muted": {
+        "role": "neutral",
+        "displayName": "Texto atenuado",
+        "purpose": "Texto secundario, etiquetas de campo, barras de gráfico.",
+        "canonical": "oklch(68.3% 0.0000 0.00)",
+        "tonalRamp": [
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
+        ]
+      },
+      "faint": {
+        "role": "neutral",
+        "displayName": "Texto tenue",
+        "purpose": "Metadatos, iconos de apoyo, placeholders.",
+        "canonical": "oklch(63.3% 0.0000 0.00)",
+        "tonalRamp": [
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
+        ]
+      },
+      "primary": {
         "role": "primary",
-        "displayName": "Lavanda suave",
+        "displayName": "Acción blanca",
+        "purpose": "Acción principal, día seleccionado y paso actual del seguimiento. Hover: #ffffff (--primary-hover).",
+        "canonical": "oklch(95.8% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0848 288.18)",
-          "oklch(0.26 0.0848 288.18)",
-          "oklch(0.38 0.0848 288.18)",
-          "oklch(0.49 0.0848 288.18)",
-          "oklch(0.61 0.0848 288.18)",
-          "oklch(0.72 0.0848 288.18)",
-          "oklch(0.84 0.0848 288.18)",
-          "oklch(0.95 0.0848 288.18)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "paper-ink": {
+      "on-primary": {
         "role": "primary",
-        "displayName": "paper ink",
+        "displayName": "Texto sobre acción",
+        "purpose": "Texto e iconos sobre la acción principal.",
+        "canonical": "oklch(20.5% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0426 289.10)",
-          "oklch(0.26 0.0426 289.10)",
-          "oklch(0.38 0.0426 289.10)",
-          "oklch(0.49 0.0426 289.10)",
-          "oklch(0.61 0.0426 289.10)",
-          "oklch(0.72 0.0426 289.10)",
-          "oklch(0.84 0.0426 289.10)",
-          "oklch(0.95 0.0426 289.10)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "dark-focus": {
-        "role": "secondary",
-        "displayName": "dark focus",
-        "tonalRamp": [
-          "oklch(0.15 0.0603 290.32)",
-          "oklch(0.26 0.0603 290.32)",
-          "oklch(0.38 0.0603 290.32)",
-          "oklch(0.49 0.0603 290.32)",
-          "oklch(0.61 0.0603 290.32)",
-          "oklch(0.72 0.0603 290.32)",
-          "oklch(0.84 0.0603 290.32)",
-          "oklch(0.95 0.0603 290.32)"
-        ]
-      },
-      "dark-prep": {
-        "role": "secondary",
-        "displayName": "dark prep",
-        "tonalRamp": [
-          "oklch(0.15 0.0936 81.40)",
-          "oklch(0.26 0.0936 81.40)",
-          "oklch(0.38 0.0936 81.40)",
-          "oklch(0.49 0.0936 81.40)",
-          "oklch(0.61 0.0936 81.40)",
-          "oklch(0.72 0.0936 81.40)",
-          "oklch(0.84 0.0936 81.40)",
-          "oklch(0.95 0.0936 81.40)"
-        ]
-      },
-      "dark-prep-bg": {
-        "role": "secondary",
-        "displayName": "dark prep bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0150 84.57)",
-          "oklch(0.26 0.0150 84.57)",
-          "oklch(0.38 0.0150 84.57)",
-          "oklch(0.49 0.0150 84.57)",
-          "oklch(0.61 0.0150 84.57)",
-          "oklch(0.72 0.0150 84.57)",
-          "oklch(0.84 0.0150 84.57)",
-          "oklch(0.95 0.0150 84.57)"
-        ]
-      },
-      "dark-ready": {
-        "role": "secondary",
-        "displayName": "dark ready",
-        "tonalRamp": [
-          "oklch(0.15 0.0750 176.44)",
-          "oklch(0.26 0.0750 176.44)",
-          "oklch(0.38 0.0750 176.44)",
-          "oklch(0.49 0.0750 176.44)",
-          "oklch(0.61 0.0750 176.44)",
-          "oklch(0.72 0.0750 176.44)",
-          "oklch(0.84 0.0750 176.44)",
-          "oklch(0.95 0.0750 176.44)"
-        ]
-      },
-      "dark-ready-bg": {
-        "role": "secondary",
-        "displayName": "dark ready bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0247 170.90)",
-          "oklch(0.26 0.0247 170.90)",
-          "oklch(0.38 0.0247 170.90)",
-          "oklch(0.49 0.0247 170.90)",
-          "oklch(0.61 0.0247 170.90)",
-          "oklch(0.72 0.0247 170.90)",
-          "oklch(0.84 0.0247 170.90)",
-          "oklch(0.95 0.0247 170.90)"
-        ]
-      },
-      "dark-transit": {
-        "role": "secondary",
-        "displayName": "dark transit",
-        "tonalRamp": [
-          "oklch(0.15 0.0854 268.39)",
-          "oklch(0.26 0.0854 268.39)",
-          "oklch(0.38 0.0854 268.39)",
-          "oklch(0.49 0.0854 268.39)",
-          "oklch(0.61 0.0854 268.39)",
-          "oklch(0.72 0.0854 268.39)",
-          "oklch(0.84 0.0854 268.39)",
-          "oklch(0.95 0.0854 268.39)"
-        ]
-      },
-      "dark-transit-bg": {
-        "role": "secondary",
-        "displayName": "dark transit bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0348 272.88)",
-          "oklch(0.26 0.0348 272.88)",
-          "oklch(0.38 0.0348 272.88)",
-          "oklch(0.49 0.0348 272.88)",
-          "oklch(0.61 0.0348 272.88)",
-          "oklch(0.72 0.0348 272.88)",
-          "oklch(0.84 0.0348 272.88)",
-          "oklch(0.95 0.0348 272.88)"
-        ]
-      },
-      "dark-done": {
-        "role": "secondary",
-        "displayName": "dark done",
-        "tonalRamp": [
-          "oklch(0.15 0.0784 148.13)",
-          "oklch(0.26 0.0784 148.13)",
-          "oklch(0.38 0.0784 148.13)",
-          "oklch(0.49 0.0784 148.13)",
-          "oklch(0.61 0.0784 148.13)",
-          "oklch(0.72 0.0784 148.13)",
-          "oklch(0.84 0.0784 148.13)",
-          "oklch(0.95 0.0784 148.13)"
-        ]
-      },
-      "dark-done-bg": {
-        "role": "secondary",
-        "displayName": "dark done bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0235 154.68)",
-          "oklch(0.26 0.0235 154.68)",
-          "oklch(0.38 0.0235 154.68)",
-          "oklch(0.49 0.0235 154.68)",
-          "oklch(0.61 0.0235 154.68)",
-          "oklch(0.72 0.0235 154.68)",
-          "oklch(0.84 0.0235 154.68)",
-          "oklch(0.95 0.0235 154.68)"
-        ]
-      },
-      "dark-fail": {
-        "role": "secondary",
-        "displayName": "dark fail",
-        "tonalRamp": [
-          "oklch(0.15 0.0893 21.80)",
-          "oklch(0.26 0.0893 21.80)",
-          "oklch(0.38 0.0893 21.80)",
-          "oklch(0.49 0.0893 21.80)",
-          "oklch(0.61 0.0893 21.80)",
-          "oklch(0.72 0.0893 21.80)",
-          "oklch(0.84 0.0893 21.80)",
-          "oklch(0.95 0.0893 21.80)"
-        ]
-      },
-      "dark-fail-bg": {
-        "role": "secondary",
-        "displayName": "dark fail bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0230 0.81)",
-          "oklch(0.26 0.0230 0.81)",
-          "oklch(0.38 0.0230 0.81)",
-          "oklch(0.49 0.0230 0.81)",
-          "oklch(0.61 0.0230 0.81)",
-          "oklch(0.72 0.0230 0.81)",
-          "oklch(0.84 0.0230 0.81)",
-          "oklch(0.95 0.0230 0.81)"
-        ]
-      },
-      "dark-danger": {
-        "role": "secondary",
-        "displayName": "dark danger",
-        "tonalRamp": [
-          "oklch(0.15 0.0893 21.80)",
-          "oklch(0.26 0.0893 21.80)",
-          "oklch(0.38 0.0893 21.80)",
-          "oklch(0.49 0.0893 21.80)",
-          "oklch(0.61 0.0893 21.80)",
-          "oklch(0.72 0.0893 21.80)",
-          "oklch(0.84 0.0893 21.80)",
-          "oklch(0.95 0.0893 21.80)"
-        ]
-      },
-      "dark-danger-bg": {
-        "role": "secondary",
-        "displayName": "dark danger bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0230 0.81)",
-          "oklch(0.26 0.0230 0.81)",
-          "oklch(0.38 0.0230 0.81)",
-          "oklch(0.49 0.0230 0.81)",
-          "oklch(0.61 0.0230 0.81)",
-          "oklch(0.72 0.0230 0.81)",
-          "oklch(0.84 0.0230 0.81)",
-          "oklch(0.95 0.0230 0.81)"
-        ]
-      },
-      "light-bg": {
+      "focus": {
         "role": "neutral",
-        "displayName": "light bg",
+        "displayName": "Foco",
+        "purpose": "Anillo de foco y borde de campo enfocado.",
+        "canonical": "oklch(87.0% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0083 157.09)",
-          "oklch(0.26 0.0083 157.09)",
-          "oklch(0.38 0.0083 157.09)",
-          "oklch(0.49 0.0083 157.09)",
-          "oklch(0.61 0.0083 157.09)",
-          "oklch(0.72 0.0083 157.09)",
-          "oklch(0.84 0.0083 157.09)",
-          "oklch(0.95 0.0083 157.09)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-surface": {
-        "role": "neutral",
-        "displayName": "light surface",
+      "state-prep": {
+        "role": "state",
+        "displayName": "Preparando (ámbar)",
+        "purpose": "Estado Preparando y marca de riesgo. Fondo teñido: color-mix 14% sobre surface.",
+        "canonical": "oklch(80.8% 0.1100 79.42)",
         "tonalRamp": [
-          "oklch(0.15 0.0000 89.88)",
-          "oklch(0.26 0.0000 89.88)",
-          "oklch(0.38 0.0000 89.88)",
-          "oklch(0.49 0.0000 89.88)",
-          "oklch(0.61 0.0000 89.88)",
-          "oklch(0.72 0.0000 89.88)",
-          "oklch(0.84 0.0000 89.88)",
-          "oklch(0.95 0.0000 89.88)"
+          "oklch(0.15 0.1100 79.42)",
+          "oklch(0.26 0.1100 79.42)",
+          "oklch(0.38 0.1100 79.42)",
+          "oklch(0.49 0.1100 79.42)",
+          "oklch(0.61 0.1100 79.42)",
+          "oklch(0.72 0.1100 79.42)",
+          "oklch(0.84 0.1100 79.42)",
+          "oklch(0.95 0.1100 79.42)"
         ]
       },
-      "light-sunk": {
-        "role": "neutral",
-        "displayName": "light sunk",
+      "state-ready": {
+        "role": "state",
+        "displayName": "Listo (azul grisáceo)",
+        "purpose": "Estado Listo. Fondo teñido: color-mix 14% sobre surface.",
+        "canonical": "oklch(75.5% 0.0518 226.05)",
         "tonalRamp": [
-          "oklch(0.15 0.0108 158.84)",
-          "oklch(0.26 0.0108 158.84)",
-          "oklch(0.38 0.0108 158.84)",
-          "oklch(0.49 0.0108 158.84)",
-          "oklch(0.61 0.0108 158.84)",
-          "oklch(0.72 0.0108 158.84)",
-          "oklch(0.84 0.0108 158.84)",
-          "oklch(0.95 0.0108 158.84)"
+          "oklch(0.15 0.0518 226.05)",
+          "oklch(0.26 0.0518 226.05)",
+          "oklch(0.38 0.0518 226.05)",
+          "oklch(0.49 0.0518 226.05)",
+          "oklch(0.61 0.0518 226.05)",
+          "oklch(0.72 0.0518 226.05)",
+          "oklch(0.84 0.0518 226.05)",
+          "oklch(0.95 0.0518 226.05)"
         ]
       },
-      "light-line": {
-        "role": "neutral",
-        "displayName": "light line",
+      "state-transit": {
+        "role": "state",
+        "displayName": "En camino (lavanda)",
+        "purpose": "Estado En camino. Fondo teñido: color-mix 14% sobre surface.",
+        "canonical": "oklch(73.7% 0.1018 290.12)",
         "tonalRamp": [
-          "oklch(0.15 0.0178 159.06)",
-          "oklch(0.26 0.0178 159.06)",
-          "oklch(0.38 0.0178 159.06)",
-          "oklch(0.49 0.0178 159.06)",
-          "oklch(0.61 0.0178 159.06)",
-          "oklch(0.72 0.0178 159.06)",
-          "oklch(0.84 0.0178 159.06)",
-          "oklch(0.95 0.0178 159.06)"
+          "oklch(0.15 0.1018 290.12)",
+          "oklch(0.26 0.1018 290.12)",
+          "oklch(0.38 0.1018 290.12)",
+          "oklch(0.49 0.1018 290.12)",
+          "oklch(0.61 0.1018 290.12)",
+          "oklch(0.72 0.1018 290.12)",
+          "oklch(0.84 0.1018 290.12)",
+          "oklch(0.95 0.1018 290.12)"
         ]
       },
-      "light-fg": {
-        "role": "neutral",
-        "displayName": "light fg",
+      "state-done": {
+        "role": "state",
+        "displayName": "Entregado (verde)",
+        "purpose": "Estado Entregado. Fondo teñido: color-mix 14% sobre surface.",
+        "canonical": "oklch(73.1% 0.1077 160.31)",
         "tonalRamp": [
-          "oklch(0.15 0.0369 178.21)",
-          "oklch(0.26 0.0369 178.21)",
-          "oklch(0.38 0.0369 178.21)",
-          "oklch(0.49 0.0369 178.21)",
-          "oklch(0.61 0.0369 178.21)",
-          "oklch(0.72 0.0369 178.21)",
-          "oklch(0.84 0.0369 178.21)",
-          "oklch(0.95 0.0369 178.21)"
+          "oklch(0.15 0.1077 160.31)",
+          "oklch(0.26 0.1077 160.31)",
+          "oklch(0.38 0.1077 160.31)",
+          "oklch(0.49 0.1077 160.31)",
+          "oklch(0.61 0.1077 160.31)",
+          "oklch(0.72 0.1077 160.31)",
+          "oklch(0.84 0.1077 160.31)",
+          "oklch(0.95 0.1077 160.31)"
         ]
       },
-      "light-muted": {
-        "role": "neutral",
-        "displayName": "light muted",
+      "state-fail": {
+        "role": "state",
+        "displayName": "No había nadie (coral)",
+        "purpose": "Estado No había nadie, errores y acción destructiva. Fondo teñido: color-mix 14% sobre surface.",
+        "canonical": "oklch(69.5% 0.1255 20.79)",
         "tonalRamp": [
-          "oklch(0.15 0.0281 166.10)",
-          "oklch(0.26 0.0281 166.10)",
-          "oklch(0.38 0.0281 166.10)",
-          "oklch(0.49 0.0281 166.10)",
-          "oklch(0.61 0.0281 166.10)",
-          "oklch(0.72 0.0281 166.10)",
-          "oklch(0.84 0.0281 166.10)",
-          "oklch(0.95 0.0281 166.10)"
+          "oklch(0.15 0.1255 20.79)",
+          "oklch(0.26 0.1255 20.79)",
+          "oklch(0.38 0.1255 20.79)",
+          "oklch(0.49 0.1255 20.79)",
+          "oklch(0.61 0.1255 20.79)",
+          "oklch(0.72 0.1255 20.79)",
+          "oklch(0.84 0.1255 20.79)",
+          "oklch(0.95 0.1255 20.79)"
         ]
       },
       "channel-shopify": {
-        "role": "secondary",
-        "displayName": "channel shopify",
+        "role": "channel",
+        "displayName": "Shopify",
+        "purpose": "Solo el fondo del logotipo del canal.",
+        "canonical": "oklch(57.3% 0.1163 160.65)",
         "tonalRamp": [
           "oklch(0.15 0.1163 160.65)",
           "oklch(0.26 0.1163 160.65)",
@@ -397,8 +293,10 @@
         ]
       },
       "channel-instagram": {
-        "role": "secondary",
-        "displayName": "channel instagram",
+        "role": "channel",
+        "displayName": "Instagram",
+        "purpose": "Solo el fondo del logotipo del canal.",
+        "canonical": "oklch(55.4% 0.1622 348.12)",
         "tonalRamp": [
           "oklch(0.15 0.1622 348.12)",
           "oklch(0.26 0.1622 348.12)",
@@ -411,401 +309,453 @@
         ]
       },
       "channel-tiktok": {
-        "role": "secondary",
-        "displayName": "channel tiktok",
+        "role": "channel",
+        "displayName": "TikTok",
+        "purpose": "Solo el fondo del logotipo del canal, con borde interior var(--line).",
+        "canonical": "oklch(15.4% 0.0027 248.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0040 228.76)",
-          "oklch(0.26 0.0040 228.76)",
-          "oklch(0.38 0.0040 228.76)",
-          "oklch(0.49 0.0040 228.76)",
-          "oklch(0.61 0.0040 228.76)",
-          "oklch(0.72 0.0040 228.76)",
-          "oklch(0.84 0.0040 228.76)",
-          "oklch(0.95 0.0040 228.76)"
+          "oklch(0.15 0.0027 248.00)",
+          "oklch(0.26 0.0027 248.00)",
+          "oklch(0.38 0.0027 248.00)",
+          "oklch(0.49 0.0027 248.00)",
+          "oklch(0.61 0.0027 248.00)",
+          "oklch(0.72 0.0027 248.00)",
+          "oklch(0.84 0.0027 248.00)",
+          "oklch(0.95 0.0027 248.00)"
         ]
       },
-      "light-action": {
-        "role": "primary",
-        "displayName": "light action",
+      "light-bg": {
+        "role": "neutral",
+        "displayName": "Fondo (claro)",
+        "purpose": "Tema claro: --bg.",
+        "canonical": "oklch(97.6% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0870 285.71)",
-          "oklch(0.26 0.0870 285.71)",
-          "oklch(0.38 0.0870 285.71)",
-          "oklch(0.49 0.0870 285.71)",
-          "oklch(0.61 0.0870 285.71)",
-          "oklch(0.72 0.0870 285.71)",
-          "oklch(0.84 0.0870 285.71)",
-          "oklch(0.95 0.0870 285.71)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-focus": {
-        "role": "secondary",
-        "displayName": "light focus",
+      "light-chrome": {
+        "role": "neutral",
+        "displayName": "Barra superior (claro)",
+        "purpose": "Tema claro: --chrome.",
+        "canonical": "oklch(95.5% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0870 285.71)",
-          "oklch(0.26 0.0870 285.71)",
-          "oklch(0.38 0.0870 285.71)",
-          "oklch(0.49 0.0870 285.71)",
-          "oklch(0.61 0.0870 285.71)",
-          "oklch(0.72 0.0870 285.71)",
-          "oklch(0.84 0.0870 285.71)",
-          "oklch(0.95 0.0870 285.71)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-danger": {
-        "role": "secondary",
-        "displayName": "light danger",
+      "light-surface": {
+        "role": "neutral",
+        "displayName": "Superficie (claro)",
+        "purpose": "Tema claro: --surface; también --on-primary en claro.",
+        "canonical": "oklch(100.0% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.1654 32.83)",
-          "oklch(0.26 0.1654 32.83)",
-          "oklch(0.38 0.1654 32.83)",
-          "oklch(0.49 0.1654 32.83)",
-          "oklch(0.61 0.1654 32.83)",
-          "oklch(0.72 0.1654 32.83)",
-          "oklch(0.84 0.1654 32.83)",
-          "oklch(0.95 0.1654 32.83)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-danger-bg": {
-        "role": "secondary",
-        "displayName": "light danger bg",
+      "light-hover": {
+        "role": "neutral",
+        "displayName": "Hover (claro)",
+        "purpose": "Tema claro: --hover.",
+        "canonical": "oklch(95.8% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0250 39.36)",
-          "oklch(0.26 0.0250 39.36)",
-          "oklch(0.38 0.0250 39.36)",
-          "oklch(0.49 0.0250 39.36)",
-          "oklch(0.61 0.0250 39.36)",
-          "oklch(0.72 0.0250 39.36)",
-          "oklch(0.84 0.0250 39.36)",
-          "oklch(0.95 0.0250 39.36)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-prep": {
-        "role": "secondary",
-        "displayName": "light prep",
+      "light-line": {
+        "role": "neutral",
+        "displayName": "Borde (claro)",
+        "purpose": "Tema claro: --line. --line-soft en claro es #ebebea.",
+        "canonical": "oklch(91.2% 0.0027 106.45)",
         "tonalRamp": [
-          "oklch(0.15 0.0977 59.48)",
-          "oklch(0.26 0.0977 59.48)",
-          "oklch(0.38 0.0977 59.48)",
-          "oklch(0.49 0.0977 59.48)",
-          "oklch(0.61 0.0977 59.48)",
-          "oklch(0.72 0.0977 59.48)",
-          "oklch(0.84 0.0977 59.48)",
-          "oklch(0.95 0.0977 59.48)"
+          "oklch(0.15 0.0027 106.45)",
+          "oklch(0.26 0.0027 106.45)",
+          "oklch(0.38 0.0027 106.45)",
+          "oklch(0.49 0.0027 106.45)",
+          "oklch(0.61 0.0027 106.45)",
+          "oklch(0.72 0.0027 106.45)",
+          "oklch(0.84 0.0027 106.45)",
+          "oklch(0.95 0.0027 106.45)"
         ]
       },
-      "light-prep-bg": {
-        "role": "secondary",
-        "displayName": "light prep bg",
+      "light-fg": {
+        "role": "neutral",
+        "displayName": "Texto (claro)",
+        "purpose": "Tema claro: --fg; también --primary y --focus en claro (hover de primary #000000).",
+        "canonical": "oklch(20.5% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0285 84.59)",
-          "oklch(0.26 0.0285 84.59)",
-          "oklch(0.38 0.0285 84.59)",
-          "oklch(0.49 0.0285 84.59)",
-          "oklch(0.61 0.0285 84.59)",
-          "oklch(0.72 0.0285 84.59)",
-          "oklch(0.84 0.0285 84.59)",
-          "oklch(0.95 0.0285 84.59)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-ready": {
-        "role": "secondary",
-        "displayName": "light ready",
+      "light-muted": {
+        "role": "neutral",
+        "displayName": "Texto atenuado (claro)",
+        "purpose": "Tema claro: --muted.",
+        "canonical": "oklch(47.5% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0691 223.21)",
-          "oklch(0.26 0.0691 223.21)",
-          "oklch(0.38 0.0691 223.21)",
-          "oklch(0.49 0.0691 223.21)",
-          "oklch(0.61 0.0691 223.21)",
-          "oklch(0.72 0.0691 223.21)",
-          "oklch(0.84 0.0691 223.21)",
-          "oklch(0.95 0.0691 223.21)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-ready-bg": {
-        "role": "secondary",
-        "displayName": "light ready bg",
+      "light-faint": {
+        "role": "neutral",
+        "displayName": "Texto tenue (claro)",
+        "purpose": "Tema claro: --faint.",
+        "canonical": "oklch(55.6% 0.0000 0.00)",
         "tonalRamp": [
-          "oklch(0.15 0.0114 217.54)",
-          "oklch(0.26 0.0114 217.54)",
-          "oklch(0.38 0.0114 217.54)",
-          "oklch(0.49 0.0114 217.54)",
-          "oklch(0.61 0.0114 217.54)",
-          "oklch(0.72 0.0114 217.54)",
-          "oklch(0.84 0.0114 217.54)",
-          "oklch(0.95 0.0114 217.54)"
+          "oklch(0.15 0.0000 0.00)",
+          "oklch(0.26 0.0000 0.00)",
+          "oklch(0.38 0.0000 0.00)",
+          "oklch(0.49 0.0000 0.00)",
+          "oklch(0.61 0.0000 0.00)",
+          "oklch(0.72 0.0000 0.00)",
+          "oklch(0.84 0.0000 0.00)",
+          "oklch(0.95 0.0000 0.00)"
         ]
       },
-      "light-transit": {
-        "role": "secondary",
-        "displayName": "light transit",
+      "light-state-prep": {
+        "role": "state",
+        "displayName": "Preparando (claro)",
+        "purpose": "Tema claro: --prep.",
+        "canonical": "oklch(50.9% 0.1017 70.44)",
         "tonalRamp": [
-          "oklch(0.15 0.1164 294.78)",
-          "oklch(0.26 0.1164 294.78)",
-          "oklch(0.38 0.1164 294.78)",
-          "oklch(0.49 0.1164 294.78)",
-          "oklch(0.61 0.1164 294.78)",
-          "oklch(0.72 0.1164 294.78)",
-          "oklch(0.84 0.1164 294.78)",
-          "oklch(0.95 0.1164 294.78)"
+          "oklch(0.15 0.1017 70.44)",
+          "oklch(0.26 0.1017 70.44)",
+          "oklch(0.38 0.1017 70.44)",
+          "oklch(0.49 0.1017 70.44)",
+          "oklch(0.61 0.1017 70.44)",
+          "oklch(0.72 0.1017 70.44)",
+          "oklch(0.84 0.1017 70.44)",
+          "oklch(0.95 0.1017 70.44)"
         ]
       },
-      "light-transit-bg": {
-        "role": "secondary",
-        "displayName": "light transit bg",
+      "light-state-ready": {
+        "role": "state",
+        "displayName": "Listo (claro)",
+        "purpose": "Tema claro: --ready.",
+        "canonical": "oklch(49.4% 0.0708 225.13)",
         "tonalRamp": [
-          "oklch(0.15 0.0220 300.20)",
-          "oklch(0.26 0.0220 300.20)",
-          "oklch(0.38 0.0220 300.20)",
-          "oklch(0.49 0.0220 300.20)",
-          "oklch(0.61 0.0220 300.20)",
-          "oklch(0.72 0.0220 300.20)",
-          "oklch(0.84 0.0220 300.20)",
-          "oklch(0.95 0.0220 300.20)"
+          "oklch(0.15 0.0708 225.13)",
+          "oklch(0.26 0.0708 225.13)",
+          "oklch(0.38 0.0708 225.13)",
+          "oklch(0.49 0.0708 225.13)",
+          "oklch(0.61 0.0708 225.13)",
+          "oklch(0.72 0.0708 225.13)",
+          "oklch(0.84 0.0708 225.13)",
+          "oklch(0.95 0.0708 225.13)"
         ]
       },
-      "light-done": {
-        "role": "secondary",
-        "displayName": "light done",
+      "light-state-transit": {
+        "role": "state",
+        "displayName": "En camino (claro)",
+        "purpose": "Tema claro: --transit.",
+        "canonical": "oklch(47.8% 0.1436 287.60)",
         "tonalRamp": [
-          "oklch(0.15 0.0889 155.69)",
-          "oklch(0.26 0.0889 155.69)",
-          "oklch(0.38 0.0889 155.69)",
-          "oklch(0.49 0.0889 155.69)",
-          "oklch(0.61 0.0889 155.69)",
-          "oklch(0.72 0.0889 155.69)",
-          "oklch(0.84 0.0889 155.69)",
-          "oklch(0.95 0.0889 155.69)"
+          "oklch(0.15 0.1436 287.60)",
+          "oklch(0.26 0.1436 287.60)",
+          "oklch(0.38 0.1436 287.60)",
+          "oklch(0.49 0.1436 287.60)",
+          "oklch(0.61 0.1436 287.60)",
+          "oklch(0.72 0.1436 287.60)",
+          "oklch(0.84 0.1436 287.60)",
+          "oklch(0.95 0.1436 287.60)"
         ]
       },
-      "light-done-bg": {
-        "role": "secondary",
-        "displayName": "light done bg",
+      "light-state-done": {
+        "role": "state",
+        "displayName": "Entregado (claro)",
+        "purpose": "Tema claro: --done.",
+        "canonical": "oklch(53.0% 0.0983 159.20)",
         "tonalRamp": [
-          "oklch(0.15 0.0216 154.11)",
-          "oklch(0.26 0.0216 154.11)",
-          "oklch(0.38 0.0216 154.11)",
-          "oklch(0.49 0.0216 154.11)",
-          "oklch(0.61 0.0216 154.11)",
-          "oklch(0.72 0.0216 154.11)",
-          "oklch(0.84 0.0216 154.11)",
-          "oklch(0.95 0.0216 154.11)"
+          "oklch(0.15 0.0983 159.20)",
+          "oklch(0.26 0.0983 159.20)",
+          "oklch(0.38 0.0983 159.20)",
+          "oklch(0.49 0.0983 159.20)",
+          "oklch(0.61 0.0983 159.20)",
+          "oklch(0.72 0.0983 159.20)",
+          "oklch(0.84 0.0983 159.20)",
+          "oklch(0.95 0.0983 159.20)"
         ]
       },
-      "light-fail": {
-        "role": "secondary",
-        "displayName": "light fail",
+      "light-state-fail": {
+        "role": "state",
+        "displayName": "No había nadie (claro)",
+        "purpose": "Tema claro: --fail.",
+        "canonical": "oklch(53.0% 0.1443 27.72)",
         "tonalRamp": [
-          "oklch(0.15 0.1071 66.49)",
-          "oklch(0.26 0.1071 66.49)",
-          "oklch(0.38 0.1071 66.49)",
-          "oklch(0.49 0.1071 66.49)",
-          "oklch(0.61 0.1071 66.49)",
-          "oklch(0.72 0.1071 66.49)",
-          "oklch(0.84 0.1071 66.49)",
-          "oklch(0.95 0.1071 66.49)"
-        ]
-      },
-      "light-fail-bg": {
-        "role": "secondary",
-        "displayName": "light fail bg",
-        "tonalRamp": [
-          "oklch(0.15 0.0460 86.46)",
-          "oklch(0.26 0.0460 86.46)",
-          "oklch(0.38 0.0460 86.46)",
-          "oklch(0.49 0.0460 86.46)",
-          "oklch(0.61 0.0460 86.46)",
-          "oklch(0.72 0.0460 86.46)",
-          "oklch(0.84 0.0460 86.46)",
-          "oklch(0.95 0.0460 86.46)"
+          "oklch(0.15 0.1443 27.72)",
+          "oklch(0.26 0.1443 27.72)",
+          "oklch(0.38 0.1443 27.72)",
+          "oklch(0.49 0.1443 27.72)",
+          "oklch(0.61 0.1443 27.72)",
+          "oklch(0.72 0.1443 27.72)",
+          "oklch(0.84 0.1443 27.72)",
+          "oklch(0.95 0.1443 27.72)"
         ]
       }
     },
     "typographyMeta": {
-      "display": {
-        "displayName": "Relato de acceso",
-        "purpose": "Titular Geist del acceso."
+      "brand": {
+        "displayName": "Marca",
+        "purpose": "Nombre de la tienda en la barra superior (.brand h1); 1.15rem por debajo de 560px."
       },
       "headline": {
-        "displayName": "Jornada",
-        "purpose": "Fecha o título del listado."
+        "displayName": "Título del día",
+        "purpose": "Título del día sobre la línea temporal (.day-head h2); 1.4rem por debajo de 560px. Otros títulos serif de la misma familia: hoja lateral 1.375rem, tarjeta 1.4rem, seguimiento 1.6rem."
+      },
+      "display": {
+        "displayName": "Display de acceso",
+        "purpose": "Solo el titular de la pantalla de acceso (.login-story h2); 1.9rem por debajo de 900px, 1.6rem por debajo de 560px."
       },
       "title": {
-        "displayName": "Tarjeta",
-        "purpose": "Títulos de tarjeta y editor según contexto."
+        "displayName": "Título de pedido",
+        "purpose": "Nombre del destinatario en la tarjeta de pedido (.o-name) y texto de diálogo."
       },
       "body": {
-        "displayName": "Lectura",
-        "purpose": "Texto operativo compacto."
+        "displayName": "Cuerpo",
+        "purpose": "Texto base (14px / 1.5). Cifras tabulares con .tnum."
       },
       "label": {
-        "displayName": "Campo",
-        "purpose": "Etiqueta visible externa."
+        "displayName": "Etiqueta",
+        "purpose": "Botones, pestañas, etiquetas de campo, filtros y metadatos (13px)."
       },
-      "order-number": {
-        "displayName": "Número de pedido",
-        "purpose": "Identificador en Geist, reemplaza Mono en tarjetas."
+      "small": {
+        "displayName": "Pequeño",
+        "purpose": "Mínimo del sistema (12px): pills, horas secundarias, ejes, pistas."
       }
     },
     "shadows": [
       {
-        "name": "temporal",
-        "value": "0 12px 36px rgb(0 0 0 / .18)",
-        "purpose": "Menú de preferencias y toast."
+        "name": "overlay",
+        "value": "0 16px 40px rgb(0 0 0 / .45), 0 2px 6px rgb(0 0 0 / .3)",
+        "purpose": "--shadow (oscuro): solo lo que flota (menú de ajustes, barra de selección múltiple, diálogos, toast)."
+      },
+      {
+        "name": "overlay-light",
+        "value": "0 16px 40px rgb(0 0 0 / .12), 0 2px 6px rgb(0 0 0 / .06)",
+        "purpose": "--shadow en tema claro."
+      },
+      {
+        "name": "dot-halo",
+        "value": "0 0 0 3px var(--bg)",
+        "purpose": "Separa el punto de estado del hilo de la línea temporal (var(--surface) en el paso activo de la tarjeta)."
+      },
+      {
+        "name": "field-missing",
+        "value": "0 0 0 1px var(--fail)",
+        "purpose": "Refuerzo del borde en un campo obligatorio vacío."
       }
     ],
     "motion": [
       {
-        "name": "sheet-in",
-        "value": ".22s cubic-bezier(.16,1,.3,1)",
-        "purpose": "Entrada desde translateX(40px), solo sin reducción de movimiento."
+        "name": "dur-fast",
+        "value": "150ms",
+        "purpose": "Hover y cambios de color de controles."
       },
       {
-        "name": "toast-duration",
-        "value": "2600ms",
-        "purpose": "Duración del aviso polite."
+        "name": "dur",
+        "value": "200ms",
+        "purpose": "Menús y diálogos (pop), fundidos, subrayado de pestañas, color de los puntos de estado."
+      },
+      {
+        "name": "dur-slow",
+        "value": "260ms",
+        "purpose": "Entrada de la hoja lateral, aparición de tarjetas (rise 4px), crecimiento de barras."
+      },
+      {
+        "name": "ease-out",
+        "value": "cubic-bezier(.16, 1, .3, 1)",
+        "purpose": "Salida exponencial para todas las entradas."
+      },
+      {
+        "name": "ease-in",
+        "value": "cubic-bezier(.4, 0, 1, 1)",
+        "purpose": "Salidas: fadeout 160ms, slideout 170ms, popout 140ms."
+      },
+      {
+        "name": "motion-preference",
+        "value": ":root[data-motion=\"reduced\"]",
+        "purpose": "Animaciones completas por defecto; solo se reducen si la persona elige \"Animaciones: Reducidas\" en Ajustes (cdf-motion, recordado en el navegador). No se consulta prefers-reduced-motion."
       }
     ],
     "breakpoints": [
       {
-        "name": "dense-desktop",
-        "value": "1450px"
+        "name": "wide",
+        "value": "1200px",
+        "purpose": "max-width: indicadores en 3 columnas, tarjeta de pedido en una columna."
       },
       {
-        "name": "order-reflow",
-        "value": "1200px"
-      },
-      {
-        "name": "single-column",
-        "value": "900px"
-      },
-      {
-        "name": "legacy-calendar-spacing",
-        "value": "860px"
+        "name": "tablet",
+        "value": "900px",
+        "purpose": "max-width: pestañas a ancho completo, una columna, calendario plegable."
       },
       {
         "name": "phone",
-        "value": "560px"
+        "value": "560px",
+        "purpose": "max-width: línea temporal sin hilo, formularios en una columna, acciones a ancho completo."
+      },
+      {
+        "name": "touch",
+        "value": "(pointer: coarse)",
+        "purpose": "Controles a 44px."
       }
     ]
   },
   "components": [
     {
-      "name": "Principal lavanda",
+      "name": "Botón principal",
       "kind": "button",
       "refersTo": "button-primary",
-      "description": "Acción principal; --paper cambia a lavanda profunda en Claro.",
-      "html": "<button class=\"ds-primary\">Guardar pedido</button>",
-      "css": ".ds-primary{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;background:var(--paper,#c7c2ff);border:1px solid var(--paper,#c7c2ff);color:var(--paper-ink,#242138)}.ds-primary:hover{filter:brightness(.95)}.ds-primary:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}.ds-primary:disabled{opacity:.6;cursor:default}"
+      "description": "La siguiente acción de cada pedido y el envío de formularios: blanco con texto oscuro.",
+      "html": "<button class=\"ds-btn-primary\">Marcar como listo</button>",
+      "css": ".ds-btn-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid var(--primary, #f1f1f1); background: var(--primary, #f1f1f1); color: var(--on-primary, #171717); } .ds-btn-primary:hover { background: var(--primary-hover, #ffffff); } .ds-btn-primary:active { transform: scale(.98); } .ds-btn-primary:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; }"
     },
     {
-      "name": "Secundario",
+      "name": "Botón secundario",
       "kind": "button",
       "refersTo": "button-secondary",
-      "description": "Acción alternativa transparente con borde.",
-      "html": "<button class=\"ds-secondary\">Cancelar</button>",
-      "css": ".ds-secondary{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;background:transparent;border:1px solid var(--line,#41454f);color:var(--fg,#f4f2ed)}.ds-secondary:hover{background:var(--sunk,#2d3038)}.ds-secondary:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+      "description": "Acciones de apoyo junto a la principal.",
+      "html": "<button class=\"ds-btn-secondary\">Editar</button>",
+      "css": ".ds-btn-secondary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid var(--line, #343434); background: var(--surface, #232323); color: var(--fg, #f1f1f1); } .ds-btn-secondary:hover { background: var(--hover, #2d2d2d); } .ds-btn-secondary:active { transform: scale(.98); } .ds-btn-secondary:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; }"
     },
     {
-      "name": "Destructivo",
+      "name": "Botón fantasma",
       "kind": "button",
-      "refersTo": "button-danger",
-      "description": "Conserva la pareja heredada para eliminar, distinta de intento.",
-      "html": "<button class=\"ds-danger\">Eliminar pedido</button>",
-      "css": ".ds-danger{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;background:var(--danger-bg,#3b2c30);border:1px solid transparent;color:var(--danger,#f2a7a4)}.ds-danger:hover{background:var(--sunk,#2d3038)}.ds-danger:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+      "refersTo": "button-ghost",
+      "description": "Herramientas de la columna lateral y acciones terciarias; la variante peligro usa el coral de estado.",
+      "html": "<button class=\"ds-btn-ghost\">Exportar CSV</button> <button class=\"ds-btn-ghost ds-danger\">Borrar</button>",
+      "css": ".ds-btn-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid transparent; background: transparent; color: var(--muted, #999999); } .ds-btn-ghost:hover { background: var(--hover, #2d2d2d); color: var(--fg, #f1f1f1); } .ds-btn-ghost.ds-danger { color: var(--fail, #e07b7b); } .ds-btn-ghost.ds-danger:hover { background: color-mix(in srgb, var(--fail, #e07b7b) 14%, var(--surface, #232323)); color: var(--fail, #e07b7b); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; }"
     },
     {
-      "name": "Campo de editor",
+      "name": "Campo",
       "kind": "input",
       "refersTo": "field",
-      "description": "Fondo de página, etiqueta externa y borde neutro.",
-      "html": "<label class=\"ds-field\"><span>Dirección de entrega</span><input placeholder=\"Calle, número, ciudad\"></label>",
-      "css": ".ds-field{display:grid;gap:7px;font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);font-size:.8rem;font-weight:550;color:var(--muted,#babcc8)}.ds-field input{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:44px;padding:10px 12px;border:1px solid var(--line,#41454f);border-radius:9px;background:var(--bg,#191a1e);color:var(--fg,#f4f2ed);font-size:.875rem;font-weight:400}.ds-field input::placeholder{color:var(--muted,#babcc8);opacity:1}.ds-field input:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+      "description": "Campo de formulario en hojas laterales: etiqueta atenuada encima, fondo hundido.",
+      "html": "<label class=\"ds-field\"><span>Destinatario</span><input placeholder=\"Nombre y apellidos\"></label>",
+      "css": ".ds-field { display: grid; gap: 6px; font-family: \"Geist\", \"Segoe UI\", system-ui, sans-serif; } .ds-field > span { font-size: .8125rem; font-weight: 500; color: var(--muted, #999999); } .ds-field input { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--line, #343434); border-radius: 8px; background: var(--bg, #171717); color: var(--fg, #f1f1f1); font: 400 .875rem/1.5 \"Geist\", \"Segoe UI\", system-ui, sans-serif; caret-color: var(--fg, #f1f1f1); transition: border-color 150ms; } .ds-field input::placeholder { color: var(--faint, #8a8a8a); opacity: 1; } .ds-field input:hover { border-color: color-mix(in srgb, var(--line, #343434) 50%, var(--muted, #999999)); } .ds-field input:focus { border-color: var(--focus, #d4d4d4); outline: none; }"
     },
     {
       "name": "Pestañas superiores",
       "kind": "nav",
-      "description": "Subrayado lavanda; solo las vistas existentes.",
-      "html": "<nav class=\"ds-nav\" aria-label=\"Vistas\"><button aria-pressed=\"true\">Pedidos</button><button aria-pressed=\"false\">Equipo</button></nav>",
-      "css": ".ds-nav{display:flex;gap:24px;border-bottom:1px solid var(--line,#41454f)}.ds-nav button{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:52px;padding:0 10px;border:0;border-bottom:2px solid transparent;background:transparent;color:var(--muted,#babcc8);font-size:.88rem;cursor:pointer}.ds-nav button[aria-pressed=true]{border-bottom-color:var(--paper,#c7c2ff);color:var(--fg,#f4f2ed)}.ds-nav button:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+      "refersTo": null,
+      "description": "Pedidos / Estadísticas / Equipo en la barra superior; subrayado blanco que se despliega.",
+      "html": "<nav class=\"ds-tabs\"><button aria-current=\"page\">Pedidos</button><button>Estadísticas</button><button>Equipo</button></nav>",
+      "css": ".ds-tabs { display: flex; gap: 4px; min-height: 44px; padding: 0 8px; background: var(--chrome, #1c1c1c); border-bottom: 1px solid var(--line-soft, #282828); font-family: \"Geist\", \"Segoe UI\", system-ui, sans-serif; } .ds-tabs button { position: relative; padding: 0 12px; border: 0; background: none; color: var(--muted, #999999); font: 500 .8125rem/1 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: color 150ms; } .ds-tabs button::after { content: \"\"; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px; background: var(--fg, #f1f1f1); transform: scaleX(0); transition: transform 200ms cubic-bezier(.16, 1, .3, 1); } .ds-tabs button:hover, .ds-tabs button[aria-current=\"page\"] { color: var(--fg, #f1f1f1); } .ds-tabs button[aria-current=\"page\"]::after { transform: none; } .ds-tabs button:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: -2px; border-radius: 6px; }"
     },
     {
-      "name": "Filtro lateral",
+      "name": "Contador-filtro",
       "kind": "chip",
-      "refersTo": "sidebar-filter",
-      "description": "Fila con icono, etiqueta y contador semántico.",
-      "html": "<button class=\"ds-filter\" aria-pressed=\"true\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l4 2\"/></svg><span>Pendientes</span><b>3</b></button>",
-      "css": ".ds-filter{display:grid;grid-template-columns:25px minmax(0,1fr) auto;align-items:center;gap:12px;width:100%;min-height:44px;padding:6px 12px;border:1px solid currentColor;border-left-color:var(--paper,#c7c2ff);border-radius:7px;background:var(--sunk,#2d3038);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);font-size:.82rem;text-align:left;font-weight:400;cursor:pointer}.ds-filter svg{width:20px;height:20px;color:var(--st-prep,#efca88)}.ds-filter b{font-size:.75rem;font-weight:500;min-width:30px;padding:3px 8px;border-radius:14px;text-align:center;background:var(--st-prep-bg,#343028);color:var(--st-prep,#efca88)}.ds-filter:hover{background:var(--sunk,#2d3038)}.ds-filter:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+      "refersTo": "stat-filter",
+      "description": "Contadores sobre la línea temporal que también filtran; En riesgo lleva borde ámbar teñido y texto, nunca solo color.",
+      "html": "<div class=\"ds-stats\"><button class=\"ds-stat ds-on\"><b>12</b> Hoy</button><button class=\"ds-stat\"><b>4</b> Preparando</button><button class=\"ds-stat ds-risk\"><b>2</b> En riesgo</button></div>",
+      "css": ".ds-stats { display: flex; flex-wrap: wrap; gap: 6px; } .ds-stat { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line-soft, #282828); border-radius: 99px; background: transparent; color: var(--muted, #999999); font: 400 .8125rem/1 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms; } .ds-stat b { color: var(--fg, #f1f1f1); font-weight: 600; font-variant-numeric: tabular-nums; } .ds-stat:hover { background: var(--hover, #2d2d2d); color: var(--fg, #f1f1f1); } .ds-stat.ds-on { background: var(--hover, #2d2d2d); border-color: var(--muted, #999999); color: var(--fg, #f1f1f1); } .ds-stat.ds-risk { border-color: color-mix(in srgb, var(--prep, #e6b86a) 50%, var(--line, #343434)); } .ds-stat.ds-risk b { color: var(--prep, #e6b86a); } .ds-stat:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; }"
     },
     {
-      "name": "Tarjeta de pedido",
+      "name": "Pill de estado",
+      "kind": "chip",
+      "refersTo": null,
+      "description": "Estado escrito con su color sobre un fondo teñido al 14%.",
+      "html": "<span class=\"ds-pill ds-prep\">Preparando</span> <span class=\"ds-pill ds-ready\">Listo</span> <span class=\"ds-pill ds-transit\">En camino</span> <span class=\"ds-pill ds-done\">Entregado</span> <span class=\"ds-pill ds-fail\">No había nadie</span>",
+      "css": ".ds-pill { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 99px; font: 500 .75rem/1.5 \"Geist\", \"Segoe UI\", system-ui, sans-serif; white-space: nowrap; } .ds-prep { color: var(--prep, #e6b86a); background: color-mix(in srgb, var(--prep, #e6b86a) 14%, var(--surface, #232323)); } .ds-ready { color: var(--ready, #8db7c9); background: color-mix(in srgb, var(--ready, #8db7c9) 14%, var(--surface, #232323)); } .ds-transit { color: var(--transit, #a99fe6); background: color-mix(in srgb, var(--transit, #a99fe6) 14%, var(--surface, #232323)); } .ds-done { color: var(--done, #65bd91); background: color-mix(in srgb, var(--done, #65bd91) 14%, var(--surface, #232323)); } .ds-fail { color: var(--fail, #e07b7b); background: color-mix(in srgb, var(--fail, #e07b7b) 14%, var(--surface, #232323)); }"
+    },
+    {
+      "name": "Entrada de línea temporal",
       "kind": "card",
       "refersTo": "order",
-      "description": "Fragmento de identidad, selector nativo, progreso y detalle; datos ficticios.",
-      "html": "<article class=\"ds-order\"><div><span class=\"ds-num\">#0124</span><strong>Maria Santos</strong><small>8:00 - 12:00 · Manila</small></div><label class=\"ds-status\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l4 2\"/></svg><select aria-label=\"Estado del pedido\"><option>Preparing</option><option>Ready</option><option>In transit</option><option>Delivered</option><option>Delivery attempted</option></select></label><div class=\"ds-progress\" aria-label=\"Progreso\"><span class=\"ds-current\"><i></i>Preparing</span><span><i></i>Ready</span><span><i></i>In transit</span><span><i></i>Delivered</span></div><button class=\"ds-detail\">Ver detalle<svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 12h14m-6-6 6 6-6 6\"/></svg></button></article>",
-      "css": ".ds-order{display:grid;gap:16px;padding:18px 20px;border:1px solid var(--line,#41454f);border-radius:13px;background:var(--surface,#24262c);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);}.ds-num{font-size:.92rem;font-weight:550}.ds-order strong{display:block;font-size:1.08rem;font-weight:600;margin:4px 0 5px}.ds-order small{font-size:.82rem;color:var(--muted,#babcc8)}.ds-status{display:flex;align-items:center;gap:10px;padding-left:12px;border:1px solid var(--st-prep,#efca88);border-radius:10px;color:var(--st-prep,#efca88);background:var(--st-prep-bg,#343028)}.ds-status svg{width:18px;height:18px}.ds-status select{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:44px;width:100%;border:0;background:transparent;color:inherit;font-size:.75rem;padding:8px 10px 8px 0;cursor:pointer}.ds-status option{background:var(--surface,#24262c);color:var(--fg,#f4f2ed)}.ds-status select:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}.ds-progress{position:relative;display:flex;padding-top:4px}.ds-progress:before{content:\"\";position:absolute;left:0;right:0;top:14px;height:4px;border-radius:3px;background:var(--line,#41454f)}.ds-progress span{position:relative;z-index:1;display:flex;align-items:center;flex-direction:column;flex:1;gap:9px;padding:3px 2px;font-size:.7rem;color:var(--muted,#babcc8);line-height:1.2;text-align:center}.ds-progress i{width:15px;height:15px;border:2px solid #596168;border-radius:50%;background:var(--surface,#24262c)}.ds-progress .ds-current{color:var(--st-prep,#efca88)}.ds-current i{background:var(--st-prep,#efca88);border-color:var(--st-prep,#efca88)}.ds-detail{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:46px;padding:9px 14px;border-radius:9px;font-size:.82rem;font-weight:500;line-height:1.35;cursor:pointer;display:flex;align-items:center;gap:20px;justify-self:end;border:1px solid var(--paper,#c7c2ff);background:var(--paper,#c7c2ff);color:var(--paper-ink,#242138);font-size:.75rem}.ds-detail svg{width:16px;height:16px}.ds-detail:hover{filter:brightness(.95)}.ds-detail:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
+      "description": "Hora con punto del color del estado a la izquierda y tarjeta de pedido; la línea de progreso es el único control de estado y la siguiente acción es el botón principal.",
+      "html": "<div class=\"ds-entry\"><div class=\"ds-time\"><b>10:30</b><span>11:00</span></div><article class=\"ds-order\"><div class=\"ds-id\"><span class=\"ds-num\">#1042</span><span class=\"ds-name\">Lucía Fernández</span><span class=\"ds-sub\">Ramo de temporada</span></div><div class=\"ds-steps\"><span class=\"ds-step ds-past\"><i></i>Preparando</span><span class=\"ds-step ds-cur\"><i></i>Listo</span><span class=\"ds-step\"><i></i>En camino</span><span class=\"ds-step\"><i></i>Entregado</span></div><div><button class=\"ds-next\">Enviar a reparto</button></div></article></div>",
+      "css": ".ds-entry { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 14px; --c: var(--ready, #8db7c9); font-family: \"Geist\", \"Segoe UI\", system-ui, sans-serif; color: var(--fg, #f1f1f1); } .ds-time { position: relative; display: grid; gap: 2px; align-content: start; padding: 12px 0 0 20px; } .ds-time::before { content: \"\"; position: absolute; left: 0; top: 16px; width: 11px; height: 11px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px var(--bg, #171717); transition: background-color 200ms; } .ds-time b { font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-time span { color: var(--faint, #8a8a8a); font-size: .75rem; } .ds-order { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-soft, #282828); border-radius: 12px; background: var(--surface, #232323); transition: border-color 150ms; animation: ds-rise 260ms cubic-bezier(.16, 1, .3, 1); } .ds-order:hover { border-color: var(--line, #343434); } .ds-id { display: grid; gap: 2px; } .ds-num { font-size: .8125rem; font-weight: 600; color: var(--muted, #999999); } .ds-name { font-size: 1rem; font-weight: 600; } .ds-sub { color: var(--muted, #999999); font-size: .8125rem; } .ds-steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); } .ds-steps::before { content: \"\"; position: absolute; left: 12.5%; right: 12.5%; top: 13px; height: 2px; border-radius: 2px; background: var(--line, #343434); } .ds-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; color: var(--faint, #8a8a8a); font-size: .75rem; } .ds-step i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line, #343434); background: var(--surface, #232323); transition: background-color 200ms, border-color 200ms, transform 200ms cubic-bezier(.16, 1, .3, 1); } .ds-step.ds-past i { background: var(--muted, #999999); border-color: var(--muted, #999999); } .ds-step.ds-cur { color: var(--fg, #f1f1f1); font-weight: 600; } .ds-step.ds-cur i { background: var(--c); border-color: var(--c); transform: scale(1.2); box-shadow: 0 0 0 3px var(--surface, #232323); } .ds-next { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid var(--primary, #f1f1f1); background: var(--primary, #f1f1f1); color: var(--on-primary, #171717); } .ds-next:hover { background: var(--primary-hover, #ffffff); } .ds-next:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; } @keyframes ds-rise { from { opacity: 0; transform: translateY(4px); } }"
     },
     {
-      "name": "Resumen de pendientes",
-      "kind": "card",
-      "refersTo": "summary",
-      "description": "Una métrica existente de la jornada.",
-      "html": "<div class=\"ds-summary\"><span class=\"ds-summary-icon\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"M12 7v5l4 2\"/></svg></span><div><b>3</b><span>Pendientes</span><small>Esperando completarse</small></div></div>",
-      "css": ".ds-summary{display:flex;align-items:center;gap:14px;padding:20px 16px;min-height:108px;border:1px solid var(--line,#41454f);border-radius:12px;background:var(--surface,#24262c);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);}.ds-summary-icon{display:grid;place-items:center;width:44px;height:44px;border-radius:50%;background:rgb(255 206 125 / .08);color:var(--summary-pending,#ffce7d)}.ds-summary-icon svg{width:25px;height:25px}.ds-summary>div{display:grid;gap:2px}.ds-summary b{font-size:1.5rem;font-weight:600;line-height:1.1}.ds-summary div>span{font-size:.78rem;line-height:1.3}.ds-summary small{font-size:.65rem;line-height:1.3;color:var(--muted,#babcc8);margin-top:4px}@media(max-width:560px){.ds-summary{width:142px;min-height:76px;padding:10px;gap:9px}.ds-summary-icon{width:30px;height:30px}.ds-summary-icon svg{width:22px;height:22px}.ds-summary b{font-size:1.25rem}.ds-summary div>span{font-size:.7rem}.ds-summary small{display:none}}"
-    },
-    {
-      "name": "Días del calendario",
+      "name": "Diálogo de confirmación",
       "kind": "custom",
-      "description": "Fragmento de selección lavanda; el calendario completo usa siete columnas.",
-      "html": "<div class=\"ds-days\" role=\"group\" aria-label=\"Días\"><button>26</button><button aria-pressed=\"true\">27</button><button>28</button></div>",
-      "css": ".ds-days{display:flex;gap:0;background:var(--surface,#24262c);padding:8px}.ds-days button{min-width:44px;min-height:44px;height:47px;padding:2px;border:1px solid transparent;border-radius:11px;background:transparent;color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);font-size:.85rem;font-variant-numeric:tabular-nums;cursor:pointer}.ds-days button:hover{background:var(--sunk,#2d3038)}.ds-days button[aria-pressed=true]{background:var(--paper,#c7c2ff);color:var(--paper-ink,#242138);border-color:var(--paper,#c7c2ff)}.ds-days button:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}"
-    },
-    {
-      "name": "Tarjeta de trabajo",
-      "kind": "card",
-      "refersTo": "work-card",
-      "description": "Agenda accionable de florista/repartidor; ejemplo visual de preparación.",
-      "html": "<article class=\"ds-work\"><div class=\"ds-work-main\"><div class=\"ds-work-image\"></div><div><div class=\"ds-work-meta\">8:00 - 12:00 · #0124</div><span class=\"ds-work-pill\">Preparing</span><h3>Maria Santos</h3><p>Salcedo Village, Makati</p><div class=\"ds-work-note\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><path d=\"M5 3h14v18H5V3Zm3 5h8m-8 4h8m-8 4h5\"/></svg>Happy birthday, Maria!</div></div></div><div class=\"ds-work-actions\"><button class=\"ds-work-primary\"><svg viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"1.7\" stroke-linecap=\"round\" stroke-linejoin=\"round\" aria-hidden=\"true\"><circle cx=\"12\" cy=\"12\" r=\"9\"/><path d=\"m7 12 3 3 7-7\"/></svg>Marcar listo</button><button>Llamar</button><button>WhatsApp</button><button>Mapa</button></div></article>",
-      "css": ".ds-work{display:grid;gap:18px;padding:20px;border:1px solid var(--line,#41454f);border-radius:13px;background:var(--surface,#24262c);color:var(--fg,#f4f2ed);font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);}.ds-work-main{display:grid;grid-template-columns:76px minmax(0,1fr);gap:18px}.ds-work-image{width:76px;height:84px;border:1px solid var(--line,#41454f);border-radius:6px;background:var(--sunk,#2d3038)}.ds-work-meta{font-size:.85rem}.ds-work-pill{display:inline-block;margin-top:5px;padding:5px 9px;border-radius:6px;font-size:.7rem;font-weight:600;background:var(--st-prep-bg,#343028);color:var(--st-prep,#efca88)}.ds-work h3{font-size:1.15rem;font-weight:600;margin:5px 0}.ds-work p{font-size:.82rem;margin:5px 0 0;color:var(--muted,#babcc8)}.ds-work-note{font-size:.8rem;padding:8px 10px;margin-top:8px;border-radius:6px;background:var(--bg,#191a1e)}.ds-work-actions{display:flex;flex-wrap:wrap;gap:10px}.ds-work-actions button{font-family:var(--f-body,\"Geist\",\"Segoe UI\",sans-serif);min-height:44px;padding:9px 14px;border:1px solid var(--line,#41454f);border-radius:9px;background:transparent;color:var(--fg,#f4f2ed);font-size:.82rem;cursor:pointer}.ds-work-actions .ds-work-primary{min-height:48px;background:var(--paper,#c7c2ff);color:var(--paper-ink,#242138);border-color:var(--paper,#c7c2ff)}.ds-work-actions button:hover{background:var(--sunk,#2d3038)}.ds-work-actions .ds-work-primary:hover{background:var(--paper,#c7c2ff);filter:brightness(.95)}.ds-work-actions button:focus-visible{outline:3px solid var(--petal,#d8d3ff);outline-offset:3px}@media(max-width:560px){.ds-work{padding:16px;gap:14px}.ds-work-main{grid-template-columns:54px minmax(0,1fr);gap:12px}.ds-work-image{width:54px;height:66px}.ds-work h3{font-size:1rem}.ds-work-actions{gap:8px}.ds-work-actions .ds-work-primary{flex-basis:100%}.ds-work-actions button:not(.ds-work-primary){flex:1}}.ds-work svg{display:inline-block;width:18px;height:18px;flex-shrink:0}.ds-work-actions button{display:inline-flex;align-items:center;justify-content:center;gap:8px}"
+      "refersTo": "dialog",
+      "description": "Diálogo centrado y breve para lo que tiene consecuencias; aparece con una ligera escala.",
+      "html": "<div class=\"ds-dialog\" role=\"dialog\"><p class=\"ds-dialog-text\">¿Enviar el correo de entrega al cliente?</p><div class=\"ds-dialog-foot\"><button class=\"ds-d-ghost\">Cancelar</button><button class=\"ds-d-primary\">Enviar</button></div></div>",
+      "css": ".ds-dialog { width: min(420px, 100%); display: grid; gap: 14px; padding: 22px; border: 1px solid var(--line, #343434); border-radius: 12px; background: var(--surface, #232323); color: var(--fg, #f1f1f1); box-shadow: var(--shadow, 0 16px 40px rgb(0 0 0 / .45), 0 2px 6px rgb(0 0 0 / .3)); font-family: \"Geist\", \"Segoe UI\", system-ui, sans-serif; animation: ds-pop 200ms cubic-bezier(.16, 1, .3, 1); } .ds-dialog-text { margin: 0; font-size: 1rem; font-weight: 500; line-height: 1.4; } .ds-dialog-foot { display: flex; justify-content: flex-end; gap: 8px; } .ds-d-ghost { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid transparent; background: transparent; color: var(--muted, #999999); } .ds-d-ghost:hover { background: var(--hover, #2d2d2d); color: var(--fg, #f1f1f1); } .ds-d-primary { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid var(--primary, #f1f1f1); background: var(--primary, #f1f1f1); color: var(--on-primary, #171717); } .ds-d-primary:hover { background: var(--primary-hover, #ffffff); } .ds-d-ghost:focus-visible, .ds-d-primary:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; } @keyframes ds-pop { from { opacity: 0; transform: scale(.96) translateY(-4px); } }"
     }
   ],
   "narrative": {
-    "northStar": "Despacho floral sobre una línea temporal",
-    "overview": "La referencia aprobada se adapta a las funciones reales: calendario y filtros laterales, resumen del día, horario en un margen propio y tarjetas con identidad, contacto, estado y detalle. El grafito neutro y las acciones lavanda mantienen una lectura tranquila; emblema y logotipos florales existentes aportan identidad.\n\nEste registro sigue la cascada `styles.css` → `reference.css` → `integration.css`, los flujos de `app.js`, el adaptador `ui.js` y las capturas de revisión del repositorio actualizado desde origin/main f5ff388. Conserva acceso, equipo, editor, agendas accionables de florista/repartidor y mensajes florales del seguimiento. No incorpora secciones ni datos inexistentes, ni raster nuevos. Las marcas de canal incorporan SVG locales con procedencia registrada.",
+    "northStar": "Un despacho floral tranquilo, donde solo el estado tiene color.",
+    "overview": "Fondo gris casi negro (#171717), barra superior un punto más clara (#1C1C1C), superficies #232323 y bordes finos #343434. Las acciones principales son blancas con texto oscuro; el color se reserva para el estado de cada pedido (Preparando ámbar, Listo azul grisáceo, En camino lavanda, Entregado verde, No había nadie coral) y para los logotipos de cada canal. La marca vive en la serif Newsreader (nombre de la tienda, títulos del día y de cada pedido) y en el emblema floral existente; todo lo funcional va en Geist.\n\nUna sola hoja de estilos (`styles.css`) sirve al panel y a la página pública de seguimiento. Los tokens están arriba del archivo y todo lo demás los usa; el tema claro redefine los mismos tokens.",
     "keyCharacteristics": [
-      "Fondo grafito, tarjetas oscuras y bordes finos.",
-      "Acción principal lavanda y progreso con estado escrito.",
-      "Tiempo separado de identidad, contacto y acciones.",
-      "Densidad Timeline/Compact y adaptación móvil."
+      "Barra superior: emblema + \"Casa de Flores\" en serif, pestañas Pedidos / Estadísticas / Equipo (solo admin), ajustes y cuenta.",
+      "Pedidos (oficina): columna izquierda con calendario (el fondo de cada día se aclara en tres niveles según los pedidos), \"Nuevo pedido\", filtros por estado y herramientas (archivar entregados, ver archivados, exportar CSV). A la derecha: búsqueda en todas las fechas, contadores que también filtran (incluido \"En riesgo\"), título del día en serif y la línea temporal: hora a la izquierda con un punto del color del estado y la tarjeta del pedido.",
+      "Tarjeta de pedido: identidad (foto, nº, canal, destinatario), contacto (teléfono, dirección, nota, florista editable en la propia tarjeta), la línea de progreso como único control de estado y la siguiente acción como botón principal. La vista compacta oculta la línea de progreso y la nota.",
+      "Florista y repartidor: una columna de tarjetas grandes por día (atrasados, hoy, mañana, próximos), un botón grande por paso y llamar / WhatsApp / mapa.",
+      "Hojas laterales para editar y para los pasos con formulario (listo con foto, entrega con prueba, no había nadie con nueva fecha). Diálogos centrados y breves para confirmar lo que tiene consecuencias (correo al cliente, volver atrás, borrar, descartar cambios).",
+      "Estadísticas: una franja de seis indicadores, pedidos por día (barras verticales con tabla equivalente para lectores de pantalla) y barras horizontales por canal, florista y franja. Un solo color neutro por gráfico, valores siempre escritos.",
+      "Seguimiento público: logotipo, tarjeta con el pedido, foto del ramo, mensaje de la tarjeta y pasos con iconos; mensajes florales aprobados."
     ],
     "rules": [
       {
-        "name": "The Oscuro inicial Rule",
-        "body": "Sin preferencia guardada se aplica Oscuro. Claro y Oscuro son elecciones explícitas; Auto sigue el sistema operativo.",
+        "name": "Tamaños",
+        "body": "Texto mínimo 12px (.75rem); cuerpo 14px; controles de 40px, 44px en pantallas táctiles.",
+        "section": "typography"
+      },
+      {
+        "name": "Sin adornos",
+        "body": "Sin bordes laterales de color, sin tarjetas anidadas, sin degradados de texto. El riesgo se marca con un borde fino teñido y una etiqueta, nunca solo con color.",
         "section": "colors"
       },
       {
-        "name": "The Estado con palabras Rule",
-        "body": "Color, icono y etiqueta acompañan el estado; un intento no se presenta como entrega completada.",
-        "section": "colors"
+        "name": "Cifras y sistema",
+        "body": "Números en cifras tabulares; selección, cursor, foco y barras de desplazamiento con los colores del sistema.",
+        "section": "typography"
       },
       {
-        "name": "The Profundidad funcional Rule",
-        "body": "Separar contenido cotidiano con tono y línea; reservar elevación para capas temporales.",
-        "section": "elevation"
+        "name": "Movimiento",
+        "body": "Movimiento: 150–260 ms, salida exponencial, sin rebotes. Hoja lateral que entra desde la derecha, diálogos que aparecen con una ligera escala, tarjetas que suben 4px al aparecer, puntos de estado que cambian de color. Siempre activas; solo se reducen si la persona elige \"Animaciones: Reducidas\" en Ajustes (no se usa el ajuste del sistema operativo).",
+        "section": "motion"
+      },
+      {
+        "name": "Preferencias",
+        "body": "Claro / oscuro / auto, tamaño de letra normal o grande, idioma ES / EN: preferencias del visitante, recordadas en su navegador.",
+        "section": "preferences"
       }
     ],
-    "dos": [
-      "**Do** iniciar en grafito y ofrecer Claro, Oscuro y Auto como preferencias.",
-      "**Do** conservar acciones lavanda, horario lateral y estados escritos en las superficies adaptadas.",
-      "**Do** respetar los cuatro roles actuales y conservar sus acciones de preparación, entrega y reprogramación.",
-      "**Do** conservar mensajes florales públicos, imágenes originales y errores recuperables."
-    ],
+    "dos": [],
     "donts": [
-      "**Don't** recuperar el verde como fondo oscuro ni los botones verdes como principal oscuro.",
-      "**Don't** extender la cabecera serif a todos los títulos ni recuperar números Mono en las tarjetas adaptadas.",
-      "**Don't** añadir productos, clientes, analítica, mapa agregado o fotos de ramos inexistentes.",
-      "**Don't** usar el coral administrativo para sustituir el intento público ámbar."
+      "Sin bordes laterales de color, sin tarjetas anidadas, sin degradados de texto."
     ]
   }
 }
