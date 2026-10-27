@@ -69,7 +69,7 @@
           <button class="btn primary" id="newBtn" hidden data-i18n="newOrder">+ Nuevo pedido</button>
         </div>
         <div class="legend" id="adminTools" hidden>
-          <div data-i18n="flowHint">Preparing → Ready → In transit → Delivered. Un toque en el paso lo marca.</div>
+          <div data-i18n="flowHint">Preparando → Listo → En camino → Entregado. El cliente recibe un correo automático cuando sale.</div>
           <button class="btn" id="purgeBtn">Borrar entregados</button>
           <div class="confirm" id="purgeConfirm" hidden>
             <span id="purgeTxt"></span>
@@ -79,7 +79,6 @@
       </aside>
       <main>
         <div class="day-head"><div><h2 id="dLabel"></h2><p id="dSub"></p></div></div>
-        <div class="tally" id="tally"></div>
         <div id="list"></div>
       </main>
     </div>
@@ -91,14 +90,14 @@
         <h2 style="margin:0;font-size:.95rem;font-weight:600" data-i18n="addPerson">Añadir persona</h2>
         <label class="field"><span data-i18n="name">Nombre</span><input id="aName" required placeholder="Usuario 1"></label>
         <label class="field"><span data-i18n="email">Email</span><input id="aEmail" type="email" required></label>
-        <label class="field"><span data-i18n="role">Rol</span><select id="aRole"><option value="vendor" data-i18n="role_vendor">Vendedor</option><option value="carrier" data-i18n="role_carrier">Conductor</option><option value="moderator" data-i18n="role_moderator">Moderador</option><option value="admin" data-i18n="role_admin">Admin</option></select></label>
+        <label class="field"><span data-i18n="role">Rol</span><select id="aRole"><option value="vendor" data-i18n="role_vendor">Florista</option><option value="carrier" data-i18n="role_carrier">Repartidor</option><option value="admin" data-i18n="role_admin">Admin</option></select></label>
         <label class="field"><span data-i18n="initialPass">Contraseña inicial</span><input id="aPass" minlength="8" required placeholder="Mínimo 8 caracteres" data-i18n-ph="passPh"></label>
         <div class="hint" data-i18n="addHint">Pásale el email y esta contraseña. Si ya tenía cuenta en este proyecto, conserva la suya.</div>
         <div class="err" id="aErr" role="alert"></div>
         <button class="btn primary" type="submit" id="aBtn" data-i18n="add">Añadir</button>
       </form>
       <main>
-        <div class="day-head"><div><h2 data-i18n="team">Equipo</h2><p data-i18n="teamSub">Los vendedores solo ven los pedidos que tienen asignados.</p></div></div>
+        <div class="day-head"><div><h2 data-i18n="team">Equipo</h2><p data-i18n="teamSub"></p></div></div>
         <div class="team" id="team"></div>
       </main>
     </div>
