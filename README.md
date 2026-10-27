@@ -25,7 +25,7 @@ cd pedidos-cdf
 npx serve .            # o: python -m http.server 8000
 ```
 
-Abre la dirección que te indique (por ejemplo http://localhost:3000). En local, el enlace del cliente usa `/seguimiento.html?c=<código>`.
+Abre la dirección que te indique (por ejemplo http://localhost:3000). `serve.json` hace que `/p/<código>` funcione también en local con `npx serve`.
 Ojo: en local te conectas a la misma base de datos de Supabase que la web publicada.
 
 ## Publicar
