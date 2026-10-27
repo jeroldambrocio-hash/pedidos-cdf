@@ -1,36 +1,33 @@
 <!doctype html>
-<html lang="en" data-default-lang="en">
+<html lang="en" data-default-lang="en" data-motion="full">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Tu pedido · Casa de Flores</title>
+<title data-i18n="trackTitle">Your order · Casa de Flores</title>
 <meta name="robots" content="noindex">
-<meta name="theme-color" content="#13302a" media="(prefers-color-scheme: light)">
-<meta name="theme-color" content="#18191b" media="(prefers-color-scheme: dark)">
+<meta name="theme-color" content="#171717">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap">
 <link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/reference.css">
-<link rel="stylesheet" href="/integration.css">
 <link rel="icon" type="image/png" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/emblem.png">
 </head>
-<body>
+<body class="tracking-page">
 <main class="tracking">
-  <div class="prefs" style="justify-content:flex-end">
-      <div class="settings">
-        <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-label="Ajustes" data-i18n-aria="settings" title="Ajustes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3"/><circle cx="15" cy="17" r="3"/></svg></button>
-        <div class="menu" hidden>
-          <div class="mrow"><span data-i18n="language">Idioma</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
-          <div class="mrow"><span data-i18n="textSize">Tamaño de letra</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Grande</button></div></div>
-          <div class="mrow"><span data-i18n="theme">Modo</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Claro</button><button type="button" data-theme-set="dark" data-i18n="dark">Oscuro</button></div></div>
-        </div>
-      </div>
+  <div class="settings">
+    <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-haspopup="true" data-i18n-aria="settings" aria-label="Settings"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="var(--bg)"/><circle cx="15" cy="17" r="2.5" fill="var(--bg)"/></svg></span></button>
+    <div class="menu" hidden>
+      <div class="mrow"><span data-i18n="language">Language</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
+      <div class="mrow"><span data-i18n="textSize">Text size</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Large</button></div></div>
+      <div class="mrow"><span data-i18n="theme">Mode</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Light</button><button type="button" data-theme-set="dark" data-i18n="dark">Dark</button></div></div>
+      <div class="mrow"><span data-i18n="motion">Animations</span><div class="seg"><button type="button" data-motion-set="full" data-i18n="motionFull">Full</button><button type="button" data-motion-set="reduced" data-i18n="motionReduced">Reduced</button></div></div>
     </div>
-  <div class="logo"><img class="on-light" src="/img/logo.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
-  <p class="meta" style="margin:0;text-align:center" data-i18n="trackSub">Seguimiento de tu pedido</p>
-  <div class="card" id="card"><h2 data-i18n="loadingOrder">Cargando tu pedido…</h2></div>
-  <p class="meta" style="text-align:center;margin:0" data-i18n="autoRefresh">Esta página se actualiza sola cuando cambia el estado.</p>
+  </div>
+  <div class="logo"><img class="on-light" src="/img/logo.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
+  <p class="meta center-text" data-i18n="trackSub">Your order tracking</p>
+  <div class="card" id="card" aria-live="polite"><h2 data-i18n="loadingOrder">Loading your order…</h2></div>
+  <p class="meta center-text" id="autoRefresh" data-i18n="autoRefresh" hidden>This page updates by itself when the status changes.</p>
 </main>
 <script src="/config.js"></script>
 <script src="/i18n.js"></script>

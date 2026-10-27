@@ -1,0 +1,20 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "design-system-font",
+        "value": "roboto",
+        "createdAt": "2026-10-27T23:04:55.880Z",
+        "reason": "Claude: Roboto is only a fallback in the system font stack of transactional email HTML (cdf-notify), where web fonts don't load"
+      },
+      {
+        "rule": "overused-font",
+        "value": "geist",
+        "createdAt": "2026-10-27T23:39:28.168Z",
+        "reason": "Claude: Geist is the app's existing UI font, kept on purpose and declared in DESIGN.md (refinement keeps the incumbent type)"
+      }
+    ]
+  }
+}

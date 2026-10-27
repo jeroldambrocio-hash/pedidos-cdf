@@ -1,128 +1,140 @@
 <!doctype html>
-<html lang="en" data-default-lang="en">
+<html lang="en" data-default-lang="en" data-motion="full">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Pedidos · Casa de Flores</title>
-<meta name="theme-color" content="#18191b">
-<meta name="theme-color" content="#18191b" media="(prefers-color-scheme: dark)">
+<title data-i18n="appTitle">Pedidos · Casa de Flores</title>
+<meta name="theme-color" content="#171717">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@500&display=swap">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap">
 <link rel="stylesheet" href="/styles.css">
-<link rel="stylesheet" href="/reference.css">
-<link rel="stylesheet" href="/integration.css">
 <link rel="icon" type="image/png" href="/img/favicon.png">
 <link rel="apple-touch-icon" href="/img/emblem.png">
 </head>
 <body>
 <a class="skip-link" href="#workspace" data-i18n="skipContent">Skip to orders</a>
+<header class="topbar">
+  <div class="brand">
+    <img src="/img/emblem.webp" alt="" width="36" height="36" class="emblem">
+    <div><h1>Casa de Flores</h1><small id="sub" data-i18n="signIn">Sign in</small></div>
+  </div>
+  <nav class="tabs" id="tabs" hidden data-i18n-aria="sections">
+    <button id="tabOrders" type="button" aria-current="page"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6m-6 4h6"/></svg></span><span data-i18n="tabOrders">Orders</span></button>
+    <button id="tabStats" type="button" aria-current="false"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10m6 10V4m6 16v-7m4 7H2"/></svg></span><span data-i18n="tabStats">Statistics</span></button>
+    <button id="tabTeam" type="button" aria-current="false"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m2 4c2 1 3 2 3 5v2"/></svg></span><span data-i18n="tabTeam">Team</span></button>
+  </nav>
+  <div class="hright">
+    <div class="settings">
+      <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-haspopup="true" data-i18n-aria="settings" aria-label="Settings"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="var(--bg)"/><circle cx="15" cy="17" r="2.5" fill="var(--bg)"/></svg></span></button>
+      <div class="menu" hidden>
+        <div class="mrow"><span data-i18n="language">Language</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
+        <div class="mrow"><span data-i18n="textSize">Text size</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Large</button></div></div>
+        <div class="mrow"><span data-i18n="theme">Mode</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Light</button><button type="button" data-theme-set="dark" data-i18n="dark">Dark</button></div></div>
+        <div class="mrow"><span data-i18n="motion">Animations</span><div class="seg"><button type="button" data-motion-set="full" data-i18n="motionFull">Full</button><button type="button" data-motion-set="reduced" data-i18n="motionReduced">Reduced</button></div></div>
+      </div>
+    </div>
+    <div class="account" id="hright" hidden>
+      <span class="avatar" id="userAvatar" aria-hidden="true"></span>
+      <button class="btn ghost" id="logout" type="button" data-i18n="logout">Sign out</button>
+    </div>
+  </div>
+</header>
+<p id="connection" class="connection" role="status" hidden></p>
+
 <div class="wrap">
-  <header>
-    <div class="brand">
-      <img src="/img/emblem.png" alt="" width="34" height="34" class="emblem">
-      <div><h1>Casa de Flores</h1><small id="sub" data-i18n="signIn">Inicia sesión</small></div>
-    </div>
-    <div class="top-nav" id="tabs" hidden>
-        <button id="tabOrders" aria-pressed="true" data-i18n="tabOrders">Pedidos</button>
-        <button id="tabTeam" aria-pressed="false" data-i18n="tabTeam">Equipo</button>
-      </div>
-    <div class="hright">
-      <div class="prefs">
-      <div class="settings">
-        <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-label="Ajustes" data-i18n-aria="settings" title="Ajustes"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="3" fill="var(--surface)"/><circle cx="15" cy="17" r="3" fill="var(--surface)"/></svg></button>
-        <div class="menu" hidden>
-          <div class="mrow"><span data-i18n="language">Idioma</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
-          <div class="mrow"><span data-i18n="textSize">Tamaño de letra</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Grande</button></div></div>
-          <div class="mrow"><span data-i18n="theme">Modo</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Claro</button><button type="button" data-theme-set="dark" data-i18n="dark">Oscuro</button></div></div>
-        </div>
-      </div>
-    </div>
-      <div class="hright" id="hright" hidden>
-
-      <span class="user-avatar" id="userAvatar" aria-hidden="true"></span>
-      <button class="btn ghost" id="logout" data-i18n="logout">Salir</button>
-      </div>
-    </div>
-  </header>
-
   <section id="login" class="login-layout" hidden>
-    <div class="login-story"><img src="/img/emblem.png" width="92" height="92" alt=""><h2 data-i18n="studioTitle">A little care.<br>Every delivery.</h2><p data-i18n="studioIntro">Your flowers, from our studio to their doorstep. Keep every order in hand.</p><span data-i18n="manilaTime">All delivery times · Manila (PHT)</span></div>
-    <form class="card" id="loginForm">
-      <div class="logo"><img class="on-light" src="/img/logo.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.png" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
+    <div class="login-story"><img src="/img/emblem.webp" width="76" height="76" alt=""><h2 data-i18n="studioTitle">Every delivery deserves care.</h2><p data-i18n="studioIntro">From our studio to their doorstep. Keep every order in hand.</p><span data-i18n="manilaTime">Delivery times · Manila (PHT)</span></div>
+    <form class="login-form" id="loginForm">
+      <div class="logo"><img class="on-light" src="/img/logo.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
       <h2 data-i18n="signInTitle">Sign in to Orders</h2><p class="meta" data-i18n="loginHelp">For the Casa de Flores team.</p>
       <label class="field"><span data-i18n="email">Email</span><input id="lEmail" type="email" autocomplete="email" required></label>
-      <label class="field"><span data-i18n="password">Contraseña</span><input id="lPass" type="password" autocomplete="current-password" required></label>
+      <label class="field"><span data-i18n="password">Password</span><input id="lPass" type="password" autocomplete="current-password" required></label>
       <div class="err" id="lErr" role="alert"></div>
-      <button class="btn primary" type="submit" id="lBtn" data-i18n="enter">Entrar</button>
+      <button class="btn primary big" type="submit" id="lBtn" data-i18n="enter">Sign in</button>
     </form>
   </section>
 
   <section id="noaccess" class="center" hidden>
-    <div class="card"><h2 data-i18n="noAccess">Sin acceso</h2><p class="meta" id="noaccessTxt"></p></div>
+    <div class="card"><h2 data-i18n="noAccess">No access</h2><p class="meta" id="noaccessTxt"></p></div>
   </section>
 
   <section id="ordersView" hidden>
     <div class="grid">
       <aside class="panel calendar-panel">
-        <button id="calendarToggle" class="btn calendar-toggle" aria-expanded="false" aria-controls="calendarBody" data-i18n="chooseDate">Choose date</button>
+        <button id="calendarToggle" class="btn calendar-toggle" type="button" aria-expanded="false" aria-controls="calendarBody"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><span data-i18n="chooseDate">Choose date</span></button>
         <div id="calendarBody">
-        <div class="cal-head">
-          <button class="iconbtn" id="prevM" aria-label="Mes anterior" data-i18n-aria="prevMonth"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg></button>
-          <h2 id="mLabel"></h2>
-          <button class="iconbtn" id="nextM" aria-label="Mes siguiente" data-i18n-aria="nextMonth"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></button>
-        </div>
-        <div class="cal" id="cal"></div>
-        <div class="cal-foot">
-          <button class="btn" id="todayBtn" data-i18n="today">Hoy</button>
-          <button class="btn primary" id="newBtn" hidden data-i18n="newOrder">+ Nuevo pedido</button>
-        </div>
-        <section class="quick-filters"><h3 data-i18n="quickFilters">Quick filters</h3><div class="tally" id="tally"></div></section>
-        <div class="legend" id="adminTools" hidden>
-          <div data-i18n="flowHint">Preparing → Ready → In transit → Delivered. Un toque en el paso lo marca.</div>
-          <button class="btn" id="purgeBtn">Borrar entregados</button>
-          <div class="confirm" id="purgeConfirm" hidden>
-            <span id="purgeTxt"></span>
-            <div><button class="btn danger" id="purgeYes" data-i18n="yesDelete">Sí, borrar</button><button class="btn" id="purgeNo" data-i18n="cancel">Cancelar</button></div>
+          <div class="cal-head">
+            <h2 id="mLabel"></h2>
+            <button class="btn ghost small" id="todayBtn" type="button" data-i18n="today">Today</button>
+            <button class="iconbtn" id="prevM" type="button" data-i18n-aria="prevMonth" aria-label="Previous month"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m15 6-6 6 6 6"/></svg></span></button>
+            <button class="iconbtn" id="nextM" type="button" data-i18n-aria="nextMonth" aria-label="Next month"><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="m9 6 6 6-6 6"/></svg></span></button>
           </div>
-        </div>
+          <div class="cal" id="cal"></div>
+          <button class="btn primary new-btn" id="newBtn" type="button" hidden><span data-i18n="newOrder">New order</span><kbd>N</kbd></button>
+          <section class="quick-filters"><h3 data-i18n="quickFilters">Quick filters</h3><div class="tally" id="tally"></div></section>
+          <div class="tools" id="adminTools" hidden></div>
         </div>
       </aside>
       <main id="workspace" tabindex="-1">
-        <div class="workspace-tools" id="workspaceTools"><label class="search-field"><span data-i18n="searchAll">Search all dates</span><input id="q" type="search" data-i18n-ph="searchPh" placeholder="Order, name or phone" autocomplete="off"></label><label class="status-filter"><span class="sr-only" data-i18n="status">Status</span><select id="statusFilter"></select></label><button class="btn" id="clearSearch" hidden data-i18n="clearSearch">Clear search</button></div>
-        <p id="connection" class="connection" role="status" hidden></p>
-        <div id="summary" class="day-summary"></div>
-        <div class="day-head"><div><h2 id="dLabel"></h2><p id="dSub"></p></div><div class="view-controls" id="viewControls" role="group" data-i18n-aria="viewMode"><button class="btn" id="timelineView" aria-pressed="true" data-i18n="timelineView">Timeline</button><button class="btn" id="compactView" aria-pressed="false" data-i18n="compactView">Compact</button></div></div>
-
-        <div id="list" aria-busy="false"></div>
+        <div class="workspace-tools">
+          <label class="search-field"><span class="sr-only" data-i18n="searchAll">Search all dates</span><span class="icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 6 6"/></svg></span><input id="q" type="search" data-i18n-ph="searchPh" placeholder="Order, name, phone or address" autocomplete="off"><kbd class="kbd-hint">Ctrl K</kbd></label>
+          <button class="btn" id="clearSearch" type="button" hidden data-i18n="clearSearch">Clear search</button>
+        </div>
+        <div id="summary" class="summary"></div>
+        <div class="day-head">
+          <div><h2 id="dLabel"></h2><p id="dSub"></p></div>
+          <div class="day-controls">
+            <button class="btn ghost" id="selectBtn" type="button" aria-pressed="false" hidden><span data-i18n="select">Select</span></button>
+            <div class="seg" id="viewControls" role="group" data-i18n-aria="viewMode"><button type="button" id="timelineView" aria-pressed="true" data-i18n="timelineView">Timeline</button><button type="button" id="compactView" aria-pressed="false" data-i18n="compactView">Compact</button></div>
+          </div>
+        </div>
+        <div class="bulk" id="bulk" hidden role="toolbar" data-i18n-aria="bulkActions"></div>
+        <div id="list" aria-busy="true"></div>
       </main>
     </div>
   </section>
 
+  <section id="statsView" hidden>
+    <div class="day-head"><div><h2 data-i18n="tabStats">Statistics</h2><p data-i18n="statsSub">How the last days went, archived orders included.</p></div>
+      <div class="seg" id="statsPeriod" role="group" data-i18n-aria="period"><button type="button" data-days="7">7 d</button><button type="button" data-days="30" aria-pressed="true">30 d</button><button type="button" data-days="90">90 d</button></div></div>
+    <div id="statsBody"></div>
+  </section>
+
   <section id="teamView" hidden>
     <div class="grid">
-      <form class="panel" id="addForm" style="display:grid;gap:10px">
-        <h2 style="margin:0;font-size:.95rem;font-weight:600" data-i18n="addPerson">Añadir persona</h2>
-        <label class="field"><span data-i18n="name">Nombre</span><input id="aName" required placeholder="Usuario 1"></label>
-        <label class="field"><span data-i18n="email">Email</span><input id="aEmail" type="email" required></label>
-        <label class="field"><span data-i18n="role">Rol</span><select id="aRole"><option value="vendor" data-i18n="role_vendor">Florista</option><option value="carrier" data-i18n="role_carrier">Repartidor</option><option value="admin" data-i18n="role_admin">Admin</option></select></label>
-        <label class="field"><span data-i18n="initialPass">Contraseña inicial</span><input id="aPass" type="password" autocomplete="new-password" minlength="8" required placeholder="Mínimo 8 caracteres" data-i18n-ph="passPh"></label>
-        <div class="hint" data-i18n="addHint">Pásale el email y esta contraseña. Si ya tenía cuenta en este proyecto, conserva la suya.</div>
+      <form class="panel" id="addForm">
+        <h2 data-i18n="addPerson">Add person</h2>
+        <label class="field"><span data-i18n="name">Name</span><input id="aName" required autocomplete="off"></label>
+        <label class="field"><span data-i18n="email">Email</span><input id="aEmail" type="email" required autocomplete="off"></label>
+        <label class="field"><span data-i18n="role">Role</span><select id="aRole"><option value="vendor" data-i18n="role_vendor">Florist</option><option value="carrier" data-i18n="role_carrier">Driver</option><option value="moderator" data-i18n="role_moderator">Moderator</option><option value="admin" data-i18n="role_admin">Admin</option></select></label>
+        <div class="hint" data-i18n="roleHint">Florist: their own orders. Driver: deliveries. Moderator: every order, no team or deleting. Admin: everything.</div>
+        <label class="field"><span data-i18n="initialPass">Initial password</span><input id="aPass" type="password" autocomplete="new-password" minlength="8" required data-i18n-ph="passPh" placeholder="At least 8 characters"></label>
+        <div class="hint" data-i18n="addHint">Give them the email and this password.</div>
         <div class="err" id="aErr" role="alert"></div>
-        <button class="btn primary" type="submit" id="aBtn" data-i18n="add">Añadir</button>
+        <button class="btn primary" type="submit" id="aBtn" data-i18n="add">Add</button>
       </form>
       <main>
-        <div class="day-head"><div><h2 data-i18n="team">Equipo</h2><p data-i18n="teamSub">Los vendedores solo ven los pedidos que tienen asignados.</p></div></div>
+        <div class="day-head"><div><h2 data-i18n="team">Team</h2><p data-i18n="teamSub">Florists only see the orders assigned to them.</p></div></div>
         <div class="team" id="team"></div>
       </main>
     </div>
   </section>
 </div>
 <div id="sheetRoot"></div>
+<div id="dialogRoot"></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.min.js" integrity="sha384-GFr3yTh5lJznCbZfpTtXnwboFsxqtTQoeTZCRHhE0579KrRmlCzen5AA8ohaB5ug" crossorigin="anonymous"></script>
 <script src="/config.js"></script>
 <script src="/i18n.js"></script>
-<script src="/app.js"></script>
-<script src="/ui.js"></script>
+<script src="/js/core.js"></script>
+<script src="/js/icons.js"></script>
+<script src="/js/photos.js"></script>
+<script src="/js/sheets.js"></script>
+<script src="/js/orders.js"></script>
+<script src="/js/agenda.js"></script>
+<script src="/js/team.js"></script>
+<script src="/js/stats.js"></script>
+<script src="/js/main.js"></script>
 </body>
 </html>
