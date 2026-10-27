@@ -1,7 +1,6 @@
 const { url, anonKey, bucket } = window.CDF_CONFIG;
 const sb = supabase.createClient(url, anonKey);
 
-const SLOTS = ["8:00 - 12:00", "12:00 - 16:00", "16:00 - 20:00"];
 // Any "H:MM - H:MM" is allowed; orders are grouped and sorted by start time.
 const slotStart = (s) => { const m = /(\d{1,2}):(\d{2})/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : 9999; };
 const CHANNELS = [["Shopify", "--ch-shopify"], ["TikTok", "--ch-tiktok"], ["Instagram", "--ch-instagram"], ["Web", "--ch-web"]];
@@ -307,8 +306,8 @@ function intlPhone(raw) {
   return d;
 }
 const CH_LABEL = { email: "Email", whatsapp: "WhatsApp", telegram: "Telegram", viber: "Viber", copy: "Copy" };
-async function logOpened(o, channel, recipient, label) {
-  await sb.from("cdf_notifications").insert({ order_id: o.id, audience: "customer", channel, recipient, detail: label, by_email: S.me.email });
+async function logOpened(o, channel, recipient, label, message) {
+  await sb.from("cdf_notifications").insert({ order_id: o.id, audience: "customer", channel, recipient, detail: label, subject: label, message, by_email: S.me.email });
 }
 function historyBlock(o) {
   const box = el("div", { class: "hist" });
@@ -319,10 +318,17 @@ function historyBlock(o) {
     for (const n of data) {
       const when = new Date(n.created_at).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
       const state = n.channel !== "email" ? t("histOpened") : n.ok ? t("histSent") : t("histFailed");
-      box.append(el("div", { class: "hrow" + (n.ok ? "" : " bad") },
-        el("span", { class: "hwhen" }, when),
-        el("span", {}, (n.audience === "vendor" ? t("histVendor") : t("histCustomer")) + " · " + CH_LABEL[n.channel] + (n.recipient ? " · " + n.recipient : "")),
-        el("span", { class: "hstate", title: n.detail || "" }, state)));
+      // What was notified: the subject (or status) on the line, the full text when opened
+      const label = n.ok ? n.detail.replace(/^\w+:\s*/, "") : "";
+      const what = n.audience === "vendor" ? n.subject : label ? label.replace(/^automatic, /, t("histAuto") + " · ") : n.subject;
+      const err = n.ok ? "" : n.detail;
+      box.append(el("details", { class: "hrow" + (n.ok ? "" : " bad") },
+        el("summary", {},
+          el("span", { class: "hwhen" }, when),
+          el("span", { class: "hwho" }, (n.audience === "vendor" ? t("histVendor") : t("histCustomer")) + " · " + CH_LABEL[n.channel] + (n.recipient ? " · " + n.recipient : ""),
+            what ? el("b", { class: "hwhat" }, what) : null),
+          el("span", { class: "hstate" }, state)),
+        el("div", { class: "hmsg" }, n.message || err || t("histNoText"))));
     }
   };
   load();
@@ -334,7 +340,7 @@ function notifyRow(o, iName, iPhone, iEmail, iStatus, hist) {
   const msg = () => notifyMsg(o, iName.value.trim(), iStatus.value, lang());
   const open = (href) => window.open(href, "_blank", "noopener");
   const b = (label, fn) => el("button", { class: "btn", type: "button", onclick: fn }, label);
-  const via = (channel, recipient, go) => () => { go(); logOpened(o, channel, recipient, iStatus.value).then(() => hist.reload()); };
+  const via = (channel, recipient, go) => () => { go(); logOpened(o, channel, recipient, iStatus.value, msg()).then(() => hist.reload()); };
   const mailBtn = b("Email", async () => {
     const to = iEmail.value.trim();
     if (!to) { toast(t("needEmail")); return; }
@@ -393,24 +399,23 @@ function proofPicker(current, onErr) {
   };
 }
 
-// Fixed slots plus "custom": two time inputs, stored as "H:MM - H:MM"
+// Free time slot: hour + minutes for start and end (minutes default to :00), stored as "H:MM - H:MM"
 function slotPicker(val) {
-  const custom = !SLOTS.includes(val);
-  const m = /(\d{1,2}:\d{2})\s*-\s*(\d{1,2}:\d{2})/.exec(val || "");
-  const hhmm = (x) => (x ? x.padStart(5, "0") : "");
-  const s = el("select", { id: "f-slot" }, ...SLOTS.map((x) => el("option", { value: x, selected: x === val }, x)),
-    el("option", { value: "custom", selected: custom }, t("slotCustom")));
-  const from = el("input", { type: "time", value: custom && m ? hhmm(m[1]) : "", "aria-label": t("slotFrom"), step: 300 });
-  const to = el("input", { type: "time", value: custom && m ? hhmm(m[2]) : "", "aria-label": t("slotTo"), step: 300 });
-  const times = el("div", { class: "slot-custom" }, from, el("span", {}, "–"), to);
-  const sync = () => { times.hidden = s.value !== "custom"; };
-  s.addEventListener("change", () => { sync(); if (s.value === "custom") from.focus(); }); sync();
-  const box = el("div", { class: "slot-pick" }, s, times);
-  const short = (x) => x.replace(/^0(\d)/, "$1");
+  const m = /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/.exec(val || "");
+  const hours = Array.from({ length: 24 }, (_, h) => String(h));
+  const part = (h, mm, label) => {
+    const hs = el("select", { "aria-label": label }, el("option", { value: "" }, "--"), ...hours.map((x) => el("option", { value: x, selected: x === h }, x.padStart(2, "0"))));
+    const ms = el("select", { "aria-label": label }, ...["00", "15", "30", "45"].map((x) => el("option", { value: x, selected: x === (mm || "00") }, x)));
+    return { node: el("div", { class: "hm" }, hs, el("span", {}, ":"), ms), get: () => (hs.value === "" ? null : { h: +hs.value, m: +ms.value }) };
+  };
+  const from = part(m && String(+m[1]), m?.[2], t("slotFrom"));
+  const to = part(m && String(+m[3]), m?.[4], t("slotTo"));
+  const box = el("div", { class: "slot-custom" }, from.node, el("span", {}, "–"), to.node);
   box.value = () => {
-    if (s.value !== "custom") return s.value;
-    if (!from.value || !to.value || to.value <= from.value) return "";
-    return short(from.value) + " - " + short(to.value);
+    const a = from.get(), z = to.get();
+    if (!a || !z || z.h * 60 + z.m <= a.h * 60 + a.m) return "";
+    const f = (x) => x.h + ":" + String(x.m).padStart(2, "0");
+    return f(a) + " - " + f(z);
   };
   return box;
 }
@@ -486,7 +491,7 @@ function openSheet(o) {
 
   const isNew = !o;
   const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
-  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: SLOTS[0], channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", customer_phone: "", customer_email: "", delivery_note: "", proof_path: null, notes: "", status: "Preparing", delivery: "-", photo_path: null };
+  const f = o ? { ...o } : { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: S.members.find((m) => m.role === "vendor")?.email || "", customer_name: "", address: "", customer_phone: "", customer_email: "", delivery_note: "", proof_path: null, notes: "", status: "Preparing", delivery: "-", photo_path: null };
   let photoBlob = null, photoRemoved = false;
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
@@ -579,7 +584,7 @@ function openSheet(o) {
     closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
   } },
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t("newOrderTitle") : t("editOrder", { num: f.num })), closeBtn()),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("div", { class: "field" }, el("span", {}, t("slot")), iSlot)),
+    el("div", { class: "f-row f-when" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("div", { class: "field" }, el("span", {}, t("slot")), iSlot)),
     el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("channel")), iChan)),
     el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
     el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),

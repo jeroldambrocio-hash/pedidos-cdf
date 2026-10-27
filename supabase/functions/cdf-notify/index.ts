@@ -85,7 +85,7 @@ Deno.serve(async (req) => {
     const subject = String(payload.subject || "Casa de Flores").slice(0, 200);
     const text = String(payload.text || "").slice(0, 4000);
     const sent = await sendMail(to, subject, plainHtml(text), text);
-    await log({ order_id: orderId, audience: "customer", channel: "email", recipient: to, ok: sent.ok, by_email: me,
+    await log({ order_id: orderId, audience: "customer", channel: "email", recipient: to, ok: sent.ok, by_email: me, subject, message: text,
       detail: sent.ok ? `${sent.via}: ${String(payload.label || "")}` : `${sent.via}: ${sent.error}` });
     return json(sent, sent.ok ? 200 : 502);
   }
@@ -102,8 +102,9 @@ Deno.serve(async (req) => {
     if (!to) return json({ skipped: "no customer email" });
     const link = `${APP_URL}/p/${o.code}`;
     const text = `Hi${o.customer_name ? " " + o.customer_name : ""}, your Casa de Flores order #${o.num} is on its way. Track it here: ${link}`;
-    const sent = await sendMail(to, `Your order #${o.num} is on its way · Casa de Flores`, plainHtml(text), text);
-    await log({ order_id: o.id, audience: "customer", channel: "email", recipient: to, ok: sent.ok,
+    const subject = `Your order #${o.num} is on its way · Casa de Flores`;
+    const sent = await sendMail(to, subject, plainHtml(text), text);
+    await log({ order_id: o.id, audience: "customer", channel: "email", recipient: to, ok: sent.ok, subject, message: text,
       detail: sent.ok ? `${sent.via}: automatic, In transit` : `${sent.via}: ${sent.error}` });
     return json(sent, sent.ok ? 200 : 502);
   }
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
 
   const subject = `New delivery: Order #${o.num} · ${when}`;
   const sent = await sendMail(m.email, subject, html, text);
-  await log({ order_id: o.id, audience: "vendor", channel: "email", recipient: m.email, ok: sent.ok,
+  await log({ order_id: o.id, audience: "vendor", channel: "email", recipient: m.email, ok: sent.ok, subject, message: text,
     detail: sent.ok ? `${sent.via}: assigned` : `${sent.via}: ${sent.error}` });
   return json(sent, sent.ok ? 200 : 502);
 });
