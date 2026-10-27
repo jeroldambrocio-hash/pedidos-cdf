@@ -7,3 +7,10 @@
 .tracking .card>div:first-child h2{font-size:1.4rem;margin-bottom:8px}.tracking .card>div:first-child .meta{line-height:1.7}.tracking .card>img{width:100%;max-height:360px;object-fit:contain!important;background:var(--bg)}.tracking .card .tl{margin-top:8px}.tracking .card .note{white-space:pre-wrap}
 .sheet[role="dialog"]{outline:none}.sheet-head{position:relative}.sheet .iconbtn{flex-shrink:0}.sheet .slot-custom{max-width:100%}.sheet .f-row>div{min-width:0}.sheet .field>label{font-size:.8rem;color:var(--muted)}
 @media(max-width:560px){.wcard{padding:16px;gap:14px}.w-main{grid-template-columns:54px minmax(0,1fr);gap:12px}.thumb.lg{width:54px;height:66px}.w-name{font-size:1rem}.wcard .o-sub{font-size:.78rem}.wcard .o-top{gap:6px}.wcard .chan{display:inline-flex}.w-acts{gap:8px}.w-acts .btn.big{flex-basis:100%}.w-acts .btn:not(.big){flex:1;justify-content:center}.f-row.f-when{grid-template-columns:1fr}.slot-custom .hm select{max-width:64px;min-width:52px}.hrow summary{grid-template-columns:1fr auto}.hrow .hwhen{grid-column:1/-1}.tracking .card{gap:20px}}
+/* required fields and the half-hour time picker */
+.field.req>span::after,.field.req-or>span::after{content:" *";color:var(--st-fail)}
+.field.missing input,.field.missing select,.field.missing textarea{border-color:var(--st-fail);box-shadow:0 0 0 1px var(--st-fail)}
+.slot-pick{display:flex;align-items:center;gap:8px}
+.slot-pick select{flex:1;min-width:0;min-height:44px;font-family:var(--f-mono)}
+.check{display:flex;gap:8px;align-items:center;font-size:.85rem;cursor:pointer}
+.check input{width:18px;height:18px;accent-color:var(--accent)}

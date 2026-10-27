@@ -555,23 +555,31 @@ function proofPicker(current, onErr, hint = t("proofHint")) {
   };
 }
 
-// Free time slot: hour + minutes for start and end (minutes default to :00), stored as "H:MM - H:MM"
+// Time slot: pick "From" (every half hour, on the hour by default); "To" fills itself one hour later.
+// Stored as "H:MM - H:MM".
 function slotPicker(val) {
   const m = /(\d{1,2}):(\d{2})\s*-\s*(\d{1,2}):(\d{2})/.exec(val || "");
-  const hours = Array.from({ length: 24 }, (_, h) => String(h));
-  const part = (h, mm, label) => {
-    const hs = el("select", { "aria-label": label }, el("option", { value: "" }, "--"), ...hours.map((x) => el("option", { value: x, selected: x === h }, x.padStart(2, "0"))));
-    const ms = el("select", { "aria-label": label }, ...["00", "15", "30", "45"].map((x) => el("option", { value: x, selected: x === (mm || "00") }, x)));
-    return { node: el("div", { class: "hm" }, hs, el("span", {}, ":"), ms), get: () => (hs.value === "" ? null : { h: +hs.value, m: +ms.value }) };
+  const mins = (h, mm) => +h * 60 + +mm;
+  const fmt = (n) => Math.floor(n / 60) + ":" + String(n % 60).padStart(2, "0");
+  const opts = (sel, from = 0, last = 23 * 60 + 30) => {
+    const list = Array.from({ length: 49 }, (_, i) => i * 30).filter((n) => n >= from && n <= last);
+    // keep an old value that is not on the half-hour grid
+    if (sel != null && !list.includes(sel)) list.push(sel), list.sort((x, y) => x - y);
+    return list.map((n) => el("option", { value: String(n), selected: n === sel }, fmt(n).padStart(5, "0")));
   };
-  const from = part(m && String(+m[1]), m?.[2], t("slotFrom"));
-  const to = part(m && String(+m[3]), m?.[4], t("slotTo"));
-  const box = el("div", { class: "slot-custom" }, from.node, el("span", {}, "–"), to.node);
+  const a0 = m ? mins(m[1], m[2]) : null, z0 = m ? mins(m[3], m[4]) : null;
+  const from = el("select", { "aria-label": t("slotFrom") }, el("option", { value: "" }, "--:--"), ...opts(a0));
+  const to = el("select", { "aria-label": t("slotTo") }, el("option", { value: "" }, "--:--"), ...opts(z0, 30, 24 * 60));
+  from.addEventListener("change", () => {
+    if (from.value === "") return;
+    const a = +from.value, z = to.value === "" ? -1 : +to.value;
+    if (z <= a) to.replaceChildren(el("option", { value: "" }, "--:--"), ...opts(Math.min(a + 60, 24 * 60), 30, 24 * 60));
+  });
+  const box = el("div", { class: "slot-pick" }, from, el("span", {}, "→"), to);
+  box.first = from;
   box.value = () => {
-    const a = from.get(), z = to.get();
-    if (!a || !z || z.h * 60 + z.m <= a.h * 60 + a.m) return "";
-    const f = (x) => x.h + ":" + String(x.m).padStart(2, "0");
-    return f(a) + " - " + f(z);
+    if (from.value === "" || to.value === "" || +to.value <= +from.value) return "";
+    return fmt(+from.value) + " - " + fmt(+to.value);
   };
   return box;
 }
@@ -640,6 +648,10 @@ function openSheet(o) {
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email || "", placeholder: "cliente@email.com", autocomplete: "off" });
   const iBName = el("input", { id: "f-bname", value: f.buyer_name || "", placeholder: t("buyerNamePh"), autocomplete: "off" });
   const iBPhone = el("input", { id: "f-bphone", type: "tel", value: f.buyer_phone || "", placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
+  // Not a gift: the buyer is the recipient, so their name and phone are only asked once
+  const same = !isNew && (!f.buyer_name || (f.buyer_name === f.customer_name && (f.buyer_phone || "") === (f.customer_phone || "")));
+  if (same && !f.buyer_name) { iBName.value = f.customer_name || ""; iBPhone.value = f.customer_phone || ""; }
+  const iSame = el("input", { type: "checkbox", id: "f-same", checked: same });
   const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), style: "min-height:56px" }, f.card_message || "");
   const bouquet = proofPicker(f.bouquet_path, (m) => (err.textContent = m), t("bouquetHint"));
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), style: "min-height:60px" }, f.delivery_note || "");
@@ -695,9 +707,24 @@ function openSheet(o) {
       } }, t("yesDelete")),
       el("button", { class: "btn", type: "button", onclick: () => (confirmBox.hidden = true) }, t("cancel"))));
 
+  const syncSame = () => { const r = sheet.querySelector(".recip"); if (r) r.hidden = iSame.checked; };
+  iSame.addEventListener("change", syncSame);
   const form = el("form", { style: "display:contents", onsubmit: async (e) => {
     e.preventDefault(); err.textContent = "";
-    if (!iSlot.value()) { err.textContent = t("slotInvalid"); return; }
+    // Required: number, date, time, buyer name + (phone or email), recipient name, phone and address
+    for (const x of sheet.querySelectorAll(".missing")) x.classList.remove("missing");
+    const need = [[iNum, iNum.value.trim()], [iDate, iDate.value], [iSlot, iSlot.value()], [iBName, iBName.value.trim()],
+      // not a gift: the driver calls the buyer, so the phone is needed
+      [iBPhone, iSame.checked ? iBPhone.value.trim() : iBPhone.value.trim() || iEmail.value.trim()], [iAddr, iAddr.value.trim()]];
+    if (!iSame.checked) need.push([iName, iName.value.trim()], [iPhone, iPhone.value.trim()]);
+    const miss = need.filter(([, v]) => !v).map(([x]) => x.closest(".field"));
+    if (miss.length) {
+      miss.forEach((x) => x.classList.add("missing"));
+      miss[0].scrollIntoView({ block: "center", behavior: "smooth" });
+      err.textContent = iSlot.closest(".field").classList.contains("missing") && iSlot.first.value ? t("slotInvalid") : t("fillRequired");
+      return;
+    }
+    if (iSame.checked) { iName.value = iBName.value.trim(); iPhone.value = iBPhone.value.trim(); }
     const st = STEPS.find((s) => s.k === iStatus.value);
     const row = { num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel: iChan.value, vendor_email: iVend.value || null,
  customer_name: iName.value.trim(), address: iAddr.value.trim(),
@@ -726,17 +753,18 @@ function openSheet(o) {
     closeSheet(); toast(t(isNew ? "created" : "saved")); loadOrders();
   } },
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t("newOrderTitle") : t("editOrder", { num: f.num })), closeBtn()),
-    el("div", { class: "f-row f-when" }, el("label", { class: "field" }, el("span", {}, t("date")), iDate), el("div", { class: "field" }, el("span", {}, t("slot")), iSlot)),
-    el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("vendor")), iVend)),
-    el("div", { class: "group" }, el("h3", {}, t("recipientH")),
-      el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("customerName")), iName),
-        el("label", { class: "field" }, el("span", {}, t("phone")), iPhone)),
-      el("div", { class: "field" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
-      el("label", { class: "field" }, el("span", {}, t("cardMsg")), iCard)),
+    el("div", { class: "f-row f-when" }, el("label", { class: "field req" }, el("span", {}, t("date")), iDate), el("div", { class: "field req" }, el("span", {}, t("slot")), iSlot)),
+    el("div", { class: "f-row" }, el("label", { class: "field req" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("vendor")), iVend)),
     el("div", { class: "group" }, el("h3", {}, t("buyerH")), el("div", { class: "hint" }, t("buyerHint")),
-      el("div", { class: "f-row" }, el("label", { class: "field" }, el("span", {}, t("name")), iBName),
-        el("label", { class: "field" }, el("span", {}, t("phone")), iBPhone)),
-      el("label", { class: "field" }, el("span", {}, t("emailOpt")), iEmail)),
+      el("div", { class: "f-row" }, el("label", { class: "field req" }, el("span", {}, t("name")), iBName),
+        el("label", { class: "field req-or" }, el("span", {}, t("phone")), iBPhone)),
+      el("label", { class: "field req-or" }, el("span", {}, t("email")), iEmail)),
+    el("div", { class: "group" }, el("h3", {}, t("recipientH")),
+      el("label", { class: "check" }, iSame, el("span", {}, t("sameAsBuyer"))),
+      el("div", { class: "f-row recip" }, el("label", { class: "field req" }, el("span", {}, t("customerName")), iName),
+        el("label", { class: "field req" }, el("span", {}, t("phone")), iPhone)),
+      el("div", { class: "field req" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
+      el("label", { class: "field" }, el("span", {}, t("cardMsg")), iCard)),
     el("div", { class: "field" }, el("span", {}, t("photo")), drop, fileIn),
     isNew ? null : el("label", { class: "field" }, el("span", {}, t("status")), iStatus),
     isNew ? null : el("div", { class: "field" }, el("span", {}, t("customerLink")), linkBlock,
@@ -752,6 +780,10 @@ function openSheet(o) {
     err, confirmBox,
     el("div", { class: "sheet-foot" }, isNew || !isAdmin() ? el("span") : el("button", { class: "btn danger", type: "button", onclick: () => (confirmBox.hidden = false) }, t("delete")), saveBtn));
   sheet.append(form);
+  syncSame();
+  // A filled field clears its red mark
+  sheet.addEventListener("input", (e) => e.target.closest(".field")?.classList.remove("missing"));
+  sheet.addEventListener("change", (e) => e.target.closest(".field")?.classList.remove("missing"));
 }
 
 // ---------- team ----------
