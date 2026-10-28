@@ -21,21 +21,23 @@ window.__orders = [
   { ...base, id: "44444444-4444-4444-4444-444444444444", num: "0127", slot: "23:00 - 23:59", status: "Ready", customer_name: "Ready Rita", customer_email: "" },
   { ...base, id: "55555555-5555-5555-5555-555555555555", num: "0128", date: past, status: "Ready", delivery: "Delivered", customer_name: "Old Delivered" },
 ];
+window.__prices = window.__orders.map(o=>({order_id:o.id,amount:2500}));
 window.__calls = []; window.__events = [];
 window.__notifications = [{ order_id: "33333333-3333-3333-3333-333333333333", created_at: "2026-10-27T02:15:00Z", channel: "email", audience: "customer", recipient: "buyer@example.com", ok: true, detail: "gmail: automatic, In transit", subject: "Order", message: "On its way." }];
 const members = [{ email: "admin@example.com", name: "Jerold", role: "admin" }, { email: "ana@example.com", name: "Ana", role: "vendor" }, { email: "driver@example.com", name: "Luis", role: "carrier" }, { email: "moderator@example.com", name: "Mika", role: "moderator" }];
 const email = { vendor: "ana@example.com", carrier: "driver@example.com", moderator: "moderator@example.com" };
-const tables = () => ({ cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events });
+const tables = () => ({ cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
-  let action = "read", row = null, filters = [], lim = null, cols = "*";
+  let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*";
   const q = {
-    select(c) { if (action === "read") cols = c || "*"; return q; }, order() { return q; }, limit(n) { lim = n; return q; },
+    select(c) { if (action === "read") cols = c || "*"; return q; }, order() { return q; }, limit(n) { lim = n; return q; }, range(a,b) { offset=a; lim=b-a+1; return q; },
     eq(k, v) { filters.push((o) => o[k] === v); return q; }, neq(k, v) { filters.push((o) => o[k] !== v); return q; },
     gte(k, v) { filters.push((o) => o[k] >= v); return q; }, lte(k, v) { filters.push((o) => o[k] <= v); return q; }, lt(k, v) { filters.push((o) => o[k] < v); return q; },
     is(k, v) { filters.push((o) => (o[k] ?? null) === v); return q; }, not(k, op, v) { filters.push((o) => (o[k] ?? null) !== v); return q; },
     in(k, v) { filters.push((o) => v.includes(o[k])); return q; },
     or(s) { window.__calls.push({ table, or: s }); const parts = s.split(",").map((p) => p.split(".ilike.")); filters.push((o) => parts.some(([k, pat]) => like(o[k], pat))); return q; },
+    upsert(v) { action = "upsert"; row=v; return q; },
     insert(v) { action = "insert"; row = v; return q; }, update(v) { action = "update"; row = v; return q; }, delete() { action = "delete"; return q; },
     maybeSingle() { return q.then((r) => ({ ...r, data: r.data?.[0] || null })); }, single() { return q.then((r) => ({ ...r, data: r.data?.[0] || null })); },
     then(resolve, reject) {
@@ -45,13 +47,17 @@ function query(table) {
       if (table === "cdf_orders" && window.__role === "vendor") data = data.filter((o) => o.vendor_email === "ana@example.com");
       if (table === "cdf_orders" && window.__role === "carrier") data = data.filter((o) => o.status === "Ready" && o.delivery !== "Delivered");
       data = data.filter((o) => filters.every((f) => f(o)));
+      if(action === "upsert" && table === "cdf_order_prices") {
+        if(window.__role && window.__role !== "admin")return Promise.resolve({data:null,error:{message:"denied"}}).then(resolve,reject);
+        const existing=window.__prices.find(p=>p.order_id===row.order_id);if(existing)Object.assign(existing,row);else window.__prices.push({...row});data=[row];
+      }
       if (action !== "read") {
         window.__calls.push({ table, action, row, ids: data.map((o) => o.id) });
         if (action === "insert") { const item = table === "cdf_orders" ? { ...base, ...row, id: "99999999-9999-9999-9999-" + String(Date.now()).slice(-12), code: "newcode1234", updated_at: new Date().toISOString() } : { ...row, ok: true, created_at: new Date().toISOString() }; tables()[table].push(item); data = [item]; }
         if (action === "update") data.forEach((o) => Object.assign(o, row, { updated_at: new Date().toISOString() }));
         if (action === "delete") window.__orders = window.__orders.filter((o) => !data.includes(o));
       }
-      if (lim) data = data.slice(0, lim);
+      if (lim) data = data.slice(offset, offset+lim);
       return Promise.resolve({ data: JSON.parse(JSON.stringify(data)), error: null }).then(resolve, reject);
     },
   };
@@ -65,10 +71,18 @@ window.supabase = { createClient: () => ({
   storage: { from: (b) => ({ createSignedUrl: async (p) => ({ data: { signedUrl: "/img/emblem.webp" } }),
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
-  channel: () => ({ on(_a, _b, cb) { window.__realtime = cb; return this; }, subscribe() { return this; } }), removeChannel() {},
+  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else window.__realtime = cb; return this; }, subscribe() { return this; } }), removeChannel() {},
   functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args }); return { data: { ok: true }, error: null }; } },
   rpc: async (name, args) => {
     window.__calls.push({ rpc: name, args });
+    if(name === "cdf_search_orders") {
+      const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();const q=norm(args.p_query),digits=q.replace(/\D/g,"").slice(-9);
+      return {data:window.__orders.filter(o=>[o.num,o.customer_name,o.buyer_name,o.address,o.customer_email].some(v=>norm(v).includes(q)) || (digits.length>=3 && [o.customer_phone,o.buyer_phone].some(v=>String(v||"").replace(/\D/g,"").includes(digits)))),error:null};
+    }
+    if(name === "cdf_buyer_history") {
+      const digits=p=>String(p||"").replace(/\D/g,"").slice(-9);const os=window.__orders.filter(o=>o.id!==args.p_exclude&&digits(o.buyer_phone||o.customer_phone)===digits(args.p_phone));
+      return {data:[{n:os.length,total:window.__role==="admin"?os.reduce((n,o)=>n+(window.__prices.find(p=>p.order_id===o.id)?.amount||0),0):0}],error:null};
+    }
     const o = window.__orders.find((x) => x.id === args.p_id); if (!o) return { error: { message: "missing" } };
     if (name === "cdf_progress") { [o.status, o.delivery] = steps[args.p_step]; if (args.p_note) o.delivery_note = args.p_note; if (args.p_set_proof) o.proof_path = args.p_proof; }
     if (name === "cdf_set_bouquet") o.bouquet_path = args.p_path;
@@ -120,7 +134,8 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
   }
   const calls = (p) => p.evaluate(() => window.__calls);
   async function capture(p, name) {
-    await p.screenshot({ path: path.join(out, name + ".png"), fullPage: (await p.locator(".scrim").count()) === 0 });
+    await p.waitForTimeout(400);
+    await p.screenshot({ path: path.join(out, name + ".png"), animations: "disabled", fullPage: (await p.locator(".scrim").count()) === 0 });
     assert(!(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), "Horizontal overflow on " + name);
   }
   // A failed step reports the action and what blocked it, then closes any open layer so the next step starts clean
@@ -250,7 +265,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Server search across dates (phones by their last digits)", async () => {
       await p.locator("#q").fill("9171234567"); await p.waitForTimeout(500);
-      assert((await calls(p)).some((c) => c.or && c.or.includes("customer_phone.ilike.%171234567%")));
+      assert((await calls(p)).some((c) => c.rpc === "cdf_search_orders" && c.args.p_query === "9171234567"));
       assert(await p.locator(".order").count() >= 1);
       await p.locator("#clearSearch").click();
     });
@@ -386,6 +401,35 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Sign-in screens", async () => {
       const q = await open("login"); await capture(q, "login-desktop"); await q.close();
       const m = await open("login", { width: 390 }); await capture(m, "login-mobile"); await m.close();
+    });
+    await step("Integration: one tracking logo in every theme, animated current state, Reduced disables loops", async () => {
+      const q=await open("track",{width:390});
+      for(const theme of ["dark","light","auto"]){await q.evaluate(v=>{savePref("cdf-theme",v);applyPrefs()},theme);await q.waitForTimeout(250);assert.equal(await q.locator(".logo img:visible").count(),1)}
+      for(const [delivery,status,animation] of [["-","Preparing","snip"],["-","Ready","sway"],["In transit","Ready","drive"],["Delivered","Ready","beat"],["Failed","Ready","blink"]]){
+       await q.evaluate(([d,s])=>{last.o.delivery=d;last.o.status=s;render()},[delivery,status]);
+       assert.equal(await q.locator(".tl li.cur svg,.tl li.fail svg").evaluate(n=>getComputedStyle(n).animationName),animation);
+      }
+      await q.evaluate(()=>{savePref("cdf-motion","reduced");applyPrefs()});assert.equal(await q.locator(".tl .fail svg").evaluate(n=>getComputedStyle(n).animationIterationCount),"1");await q.close();
+    });
+    await step("Integration: Large grows body, buttons, fields and tracking descriptions",async()=>{
+      const q=await open("admin");const before=await q.locator(".o-sub").first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize));
+      await q.evaluate(()=>{savePref("cdf-size","lg");applyPrefs()});assert((await q.locator(".o-sub").first().evaluate(n=>parseFloat(getComputedStyle(n).fontSize)))>before);
+      await q.locator("#newBtn").click();
+      const bad=await q.locator(".sheet input:not([type=file]),.sheet textarea,.sheet select").evaluateAll(ns=>ns.filter(n=>n.getClientRects().length&&!n.labels?.length&&!n.hasAttribute("aria-label")&&!n.hasAttribute("aria-labelledby")).length);assert.equal(bad,0);await q.close();
+    });
+    await step("Integration: mobile password is above the closed drawer",async()=>{
+      const q=await open("admin",{width:390});await q.locator("#navOpen").click();await q.locator("#accountBtn").click();await q.locator("#pwBtn").click();await q.waitForTimeout(300);
+      assert.equal(await q.locator("#rail.drawer-open").count(),0);await q.locator(".sheet input").first().fill("safe-test-password");await q.close();
+    });
+    await step("Integration: complete statistics, live invalidation, historic customers and weekly buckets",async()=>{
+      const q=await open("admin");await q.locator("#tabStats").click();await q.locator("table.top").waitFor();
+      assert(await q.getByRole("heading",{name:"Ideas to grow"}).isVisible());assert(await q.getByRole("heading",{name:"Top customers"}).isVisible());
+      const before=await q.locator(".kpi b").first().innerText();await q.evaluate(()=>{const row={...window.__orders[0],id:"new-stats",num:"9999"};window.__orders.push(row);window.__realtime({eventType:"INSERT",new:row})});await q.waitForTimeout(500);assert.notEqual(await q.locator(".kpi b").first().innerText(),before);
+      await q.locator('#statsPeriod [data-days="90"]').click();await q.waitForTimeout(350);assert(await q.getByRole("heading",{name:"Orders per week"}).isVisible());await q.close();
+    });
+    await step("Integration: moderator CSV never includes prices",async()=>{
+      const q=await open("moderator");await q.evaluate(()=>exportDialog());const [dl]=await Promise.all([q.waitForEvent("download"),q.locator(".sheet").getByRole("button",{name:"Download",exact:true}).click()]);
+      const stream=await dl.createReadStream(),chunks=[];for await(const c of stream)chunks.push(c);assert(!Buffer.concat(chunks).toString().includes("Amount"));await q.close();
     });
     await step("No uncaught JavaScript errors", async () => { assert.deepEqual(errors, []); });
   } finally { await browser.close(); server.close(); }

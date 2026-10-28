@@ -10,7 +10,7 @@ colors:
   line-soft: "#282828"
   fg: "#f1f1f1"
   muted: "#999999"
-  faint: "#8a8a8a"
+  faint: "#959595"
   primary: "#f1f1f1"
   primary-hover: "#ffffff"
   on-primary: "#171717"
@@ -31,7 +31,7 @@ colors:
   light-line-soft: "#ebebea"
   light-fg: "#171717"
   light-muted: "#5c5c5c"
-  light-faint: "#737373"
+  light-faint: "#686868"
   light-primary: "#171717"
   light-primary-hover: "#000000"
   light-on-primary: "#ffffff"
@@ -136,24 +136,45 @@ components:
 
 **Norte creativo: "Un despacho floral tranquilo, donde solo el estado tiene color."**
 
-Fondo gris casi negro (#171717), barra superior un punto más clara (#1C1C1C), superficies #232323 y bordes finos #343434. Las acciones principales son blancas con texto oscuro; el color se reserva para el estado de cada pedido (Preparando ámbar, Listo azul grisáceo, En camino lavanda, Entregado verde, No había nadie coral) y para los logotipos de cada canal. La marca vive en la serif Newsreader (nombre de la tienda, título del día, cabecera de cada hoja, acceso y seguimiento); los nombres en las tarjetas y todo lo funcional van en Geist y en el emblema floral existente.
+Se conserva la dirección aprobada: superficies neutras, marca floral existente, serif Newsreader en los títulos y Geist en el trabajo diario. El panel coordina la preparación y entrega con una línea temporal; no se convierte en un tablero de columnas.
 
-Una sola hoja de estilos (`styles.css`) sirve al panel y a la página pública de seguimiento. Los tokens están arriba del archivo y todo lo demás los usa; el tema claro redefine los mismos tokens.
+## Colors
 
-## Estructura
+Los tokens del frontmatter describen la paleta. El fondo, las superficies y los bordes son neutros; estado y logotipos de canal aportan color. La variante clara cambia los mismos papeles. Los textos secundarios y las etiquetas de reintento tienen pares de contraste revisados en ambos temas.
 
-- **Barra superior**: emblema + "Casa de Flores" en serif, pestañas Pedidos / Estadísticas / Equipo (solo admin), ajustes y cuenta.
-- **Pedidos (oficina)**: columna izquierda con calendario (el fondo de cada día se aclara en tres niveles según los pedidos), "Nuevo pedido", filtros por estado y herramientas (archivar entregados, ver archivados, exportar CSV). A la derecha: búsqueda en todas las fechas, contadores que también filtran (incluido "En riesgo"), título del día en serif y la línea temporal: hora a la izquierda con un punto del color del estado y la tarjeta del pedido.
-- **Tarjeta de pedido**: identidad (foto, nº, canal, destinatario), contacto (teléfono, dirección, nota, florista editable en la propia tarjeta), la línea de progreso como único control de estado y la siguiente acción como botón principal. La vista compacta oculta la línea de progreso y la nota.
-- **Florista y repartidor**: una columna de tarjetas grandes por día (atrasados, hoy, mañana, próximos), un botón grande por paso y llamar / WhatsApp / mapa.
-- **Hojas laterales** para editar y para los pasos con formulario (listo con foto, entrega con prueba, no había nadie con nueva fecha). **Diálogos** centrados y breves para confirmar lo que tiene consecuencias (correo al cliente, volver atrás, borrar, descartar cambios).
-- **Estadísticas**: una franja de seis indicadores, pedidos por día (barras verticales con tabla equivalente para lectores de pantalla) y barras horizontales por canal, florista y franja. Un solo color neutro por gráfico, valores siempre escritos.
-- **Seguimiento público**: logotipo, tarjeta con el pedido, foto del ramo, mensaje de la tarjeta y pasos con iconos; mensajes florales aprobados.
+## Typography
 
-## Reglas
+Newsreader identifica la marca y las cabeceras; Geist sirve para nombres, controles y datos. La escala funcional usa rem y herencia: «Texto grande» aumenta también campos, filtros, teléfonos y descripciones, no solo títulos. Los campos táctiles parten de 1rem para evitar el zoom automático de iOS. Las cifras usan alineación tabular.
 
-- Texto mínimo 12px (.75rem); cuerpo 14px; controles de 40px, 44px en pantallas táctiles.
-- Sin bordes laterales de color, sin tarjetas anidadas, sin degradados de texto. El riesgo se marca con un borde fino teñido y una etiqueta, nunca solo con color.
-- Números en cifras tabulares; selección, cursor, foco y barras de desplazamiento con los colores del sistema.
-- Movimiento (duraciones en `.impeccable/design.json`): 150–260 ms, salida exponencial, sin rebotes. Hoja lateral que entra desde la derecha, diálogos que aparecen con una ligera escala, tarjetas que suben 4px al aparecer, puntos de estado que cambian de color. **Siempre activas**; solo se reducen si la persona elige "Animaciones: Reducidas" en Ajustes (no se usa el ajuste del sistema operativo).
-- Claro / oscuro / auto, tamaño de letra normal o grande, idioma ES / EN: preferencias del visitante, recordadas en su navegador.
+## Layout
+
+La navegación de escritorio ocupa 56px plegada o 200px desplegada, y el contenido reserva exactamente ese espacio. Hasta 860px se convierte en un cajón temporal: el fondo queda inactivo, el foco permanece dentro y se devuelve al botón de apertura. El cajón se cierra antes de abrir un formulario de cuenta.
+
+La oficina tiene calendario y filtros a la izquierda; búsqueda, resumen de lectura y tarjetas a la derecha. La rejilla responde al espacio que queda tras la navegación. Hasta 560px los pasos mantienen sus nombres accesibles y muestran nodos sin etiquetas repetidas para caber en 320px. La tarjeta conserva estado escrito y siguiente acción. La vista compacta reduce contenido secundario.
+
+## Elevation & Depth
+
+Las superficies se separan con cambios tonales y bordes finos. Los menús y formularios temporales añaden sombra. Sus velos y capas se coordinan con la navegación móvil para que un menú no tape el formulario que acaba de abrir.
+
+## Shapes
+
+Los radios del frontmatter se mantienen: controles pequeños, tarjetas con curva moderada y etiquetas de estado en píldora. Los iconos usan un trazo SVG coherente. No se añaden franjas decorativas de color al borde de las tarjetas.
+
+## Components
+
+- **Navegación:** Pedidos, Estadísticas y Equipo; los dos últimos son del administrador. Menú de cuenta con preferencias, contraseña, sugerencias y salida.
+- **Filtros:** estado y canal con contadores interactivos en la columna izquierda. El resumen junto al día es informativo.
+- **Tarjetas:** hora, foto, número, canal, destinatario, contacto, florista y siguiente acción. El estado se puede elegir en la etiqueta o en la línea de pasos, siempre por el mismo flujo de confirmaciones.
+- **Formularios:** hojas laterales con etiquetas asociadas, errores, guardado en curso y borrador. Las secciones de destinatario e historial abren con movimiento breve; la interacción sigue disponible.
+- **Estadísticas:** seis indicadores, comparación con el periodo anterior, gráficos por canal, día/semana, hora y florista, mejores clientes e ideas derivadas de datos. Los importes solo se consultan con permiso real de administrador.
+- **Seguimiento:** una variante del logo según tema; tarjeta, foto del ramo, mensaje, pasos y prueba. Solo el estado actual anima su icono: corte, balanceo, conducción, latido o aviso intermitente.
+- **Movimiento:** transiciones de pantalla, menús, hojas, filtros y listas; realce de altas/cambios; salida de borrados; crecimiento de gráficos. Las preferencias completas se conservan por defecto y Reducidas desactiva los bucles y sustituye entradas por fundidos breves. No se usa la preferencia del sistema para anular la decisión explícita aprobada.
+
+## Do's and Don'ts
+
+- Mantener el lenguaje visual y los recursos de identidad existentes.
+- Comprobar escritorio, móvil estrecho, tema claro, texto grande y movimiento reducido.
+- Asociar las etiquetas visibles con sus controles y conservar foco y nombres accesibles.
+- Coordinar cada cambio de estado con su efecto real, incluido correo y prueba de entrega.
+- No dar por incorporado un comportamiento porque su CSS exista: verificar el elemento y el activador real.
+- No mostrar ni exportar importes por el simple hecho de que una columna exista.
