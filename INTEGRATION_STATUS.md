@@ -10,11 +10,11 @@ Validación: 35 comprobaciones de navegador con datos ficticios, 15 comprobacion
 
 Se verificaron la columna y reglas de la 013 y `cdf-notify` v9. No se volvió a desplegar esa función ni se sustituyeron esas reglas como parte de esta entrega. `main` sigue en `1629959` durante la preparación.
 
-## Pendiente de aprobación
+## Migración aplicada y verificada
 
-La revisión automática rechazó la nueva escritura de producción y señaló que era necesaria autorización explícita para reanudarla después de la preocupación del propietario. No se ejecutó la migración nueva y no se publicó este cliente.
+El propietario autorizó continuar. Migración aplicada y registrada como 20261028101734_secure_prices_and_search. Verificados: dos pedidos conservados, copia protegida de ambos, cero diferencias de importes y permisos de administrador. Cliente listo para integrar y publicar.
 
-El paso exacto pendiente es `supabase/migrations/20261028012537_secure_prices_and_search.sql`:
+La migración aplicada es `supabase/migrations/20261028012537_secure_prices_and_search.sql`:
 
 1. Crear una copia protegida de los importes existentes y copiarlos a `cdf_order_prices`, con políticas de administrador.
 2. Comprobar que todos los importes se conservaron; dejar vacía y protegida la columna antigua para que los precios no se filtren al consultar pedidos. No borrar esa columna, tablas ni pedidos.
@@ -29,10 +29,11 @@ Después: verificar el servidor, integrar la rama y publicar el cliente en el si
 | Hallazgo | Estado de esta entrega |
 |---|---|
 | 01 · 013 y 02 · cdf-notify | Completados externamente y verificados; no duplicados. |
-| 03 · permisos de precios y 17 · historial de importes | Código y migración probados localmente; pendientes de aplicar en servidor. |
+| 03 · permisos de precios y 17 · historial de importes | Código y migración probados localmente; aplicados y verificados en servidor. |
 | 04–08 · menú, etiquetas, tamaño, logo e iconos | Corregidos y comprobados en navegador. |
-| 09–13 · estadísticas, caché, historial y búsqueda | Cliente corregido; búsqueda/historial requieren las RPC pendientes. |
+| 09–13 · estadísticas, caché, historial y búsqueda | Cliente corregido; búsqueda/historial usan las RPC ya aplicadas. |
 | 14–16 · adaptación, foco y movimiento | Corregidos y comprobados en los tamaños revisados. |
 | 18 · contraste | Sin fallos en las muestras de panel y seguimiento, claro y oscuro. |
 | 19 · documentación | Actualizados DESIGN.md, sidecar, PRODUCT.md y README.md. |
 | 20 · cobertura | Suite ampliada a 35 pruebas de navegador y 15 SQL locales. |
+
