@@ -1232,7 +1232,7 @@ button.rail-item { font: inherit; font-size: 13.5px; font-weight: 500; text-alig
 @media (max-width: 860px) { .team-grid { grid-template-columns: 1fr; } }
 
 /* Acceso y sin acceso */
-.login form .logo img { width: 210px; }
+.login form .logo img, .tracking .logo img { width: 210px; height: auto; }
 .center { min-height: calc(100vh - 80px); display: grid; place-items: center; padding: 24px; }
 .card { display: grid; gap: 10px; max-width: 460px; padding: 28px; background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-lg); }
 .card h2 { margin: 0; font: 500 1.5rem var(--serif); }
