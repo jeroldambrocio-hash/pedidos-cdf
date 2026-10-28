@@ -38,6 +38,7 @@ sb.auth.onAuthStateChange((_ev, session) => {
 });
 
 function stop() {
+  invalidateStats(); S.prices = {};
   S.me = null; S.email = null; S.orders = []; S.photoUrls = {}; S.filter = null; S.chan = null; S.query = ""; S.hits = null; S.loaded = false; S.range = null;
   $("q").value = ""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
@@ -55,6 +56,7 @@ async function start(user) {
     renderSub(); show("noaccess"); return;
   }
   S.me = data;
+  invalidateStats();
   document.body.dataset.role = data.role;
   $("tabStats").hidden = $("tabTeam").hidden = !isAdmin();
   $("newBtn").hidden = !isStaff();
@@ -112,6 +114,9 @@ function setDrawer(open, focus = true) {
   if (!mobileNav.matches) open = false;
   if (rail.classList.contains("drawer-open") === open) return;
   rail.classList.toggle("drawer-open", open);
+  $("root").inert = open; $("header").inert = open;
+  if (open) { rail.setAttribute("role","dialog"); rail.setAttribute("aria-modal","true"); rail.setAttribute("aria-label",t("sections")); }
+  else { rail.removeAttribute("role"); rail.removeAttribute("aria-modal"); rail.removeAttribute("aria-label"); }
   $("railVeil").classList.toggle("on", open);
   $("navOpen").setAttribute("aria-expanded", String(open));
   if (mobileNav.matches) $("railToggle").setAttribute("aria-label", t("closeNav"));
@@ -122,7 +127,16 @@ $("railToggle").onclick = () => (mobileNav.matches ? setDrawer(false) : setRail(
 $("navOpen").onclick = () => setDrawer(true);
 $("railVeil").onclick = () => setDrawer(false);
 $("rail").addEventListener("click", (e) => { if (e.target.closest(".rail-item")) setDrawer(false, false); });
-document.addEventListener("keydown", (e) => { if (e.key === "Escape" && $("rail").classList.contains("drawer-open")) setDrawer(false); });
+document.addEventListener("keydown", (e) => {
+ if (!$("rail").classList.contains("drawer-open")) return;
+ if (e.key === "Escape") { e.preventDefault(); setDrawer(false); return; }
+ if (e.key === "Tab") {
+  const items = [...$("rail").querySelectorAll("button,a[href],input,select")].filter(n=>!n.disabled && n.getClientRects().length && getComputedStyle(n).visibility!=="hidden");
+  const first=items[0], last=items.at(-1);
+  if (e.shiftKey && document.activeElement===first) {e.preventDefault();last.focus()}
+  else if (!e.shiftKey && document.activeElement===last) {e.preventDefault();first.focus()}
+ }
+});
 mobileNav.addEventListener("change", () => { setDrawer(false, false); setRail(pref("cdf-rail") === "open", false); });
 setRail(pref("cdf-rail") === "open", false);
 // Collapsed: each section's name shows beside it on hover or keyboard focus
@@ -172,7 +186,7 @@ $("fbBtn").onclick = () => {
   }, { dirty: () => !!msg.value.trim() });
   requestAnimationFrame(() => placePill(kinds));
 };
-document.addEventListener("priceschange", () => render());
+document.addEventListener("priceschange", async () => { invalidateStats(); await attachPrices(S.orders); render(); });
 
 // ---------- calendar and the day's controls ----------
 $("prevM").onclick = () => shiftMonth(-1);

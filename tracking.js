@@ -68,6 +68,7 @@ function render() {
     // A failed attempt replaces the last step: in transit is done, delivery didn't happen.
     const isFail = isFailed && i === 3;
     const li = h("li", isFail ? "fail" : i < cur ? "past" : i === cur ? "cur" : "");
+    li.dataset.s = isFail ? "fail" : label;
     const body = h("div"); body.append(h("b", null, isFail ? t("failedTitle") : t("st_" + label)), h("small", null, isFail ? t("failedTxt") : t("stepTxt")[i]));
     if (i === cur) li.setAttribute("aria-current", "step");
     li.append(glyph(i, isFail), body); tl.append(li);

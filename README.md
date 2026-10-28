@@ -19,14 +19,17 @@ Todo lleva el prefijo `cdf_`:
 - Buckets privados `cdf-fotos` (captura del pedido, `<id>.jpg`) y `cdf-entregas` (ramo y prueba, `<id>/<aleatorio>.jpg`).
 - Edge functions: `cdf-users` (alta/baja del equipo), `cdf-notify` (correos), `cdf-track` (seguimiento público), `cdf-shopify` (importa pedidos nuevos de Shopify).
 
-### Pasar esta versión a producción (en este orden, cuando se autorice)
+### Publicar la corrección de integración
 
-1. Migraciones `supabase/migrations/012_cdf_archive_history.sql`, luego `013_cdf_carrier_rules.sql` y, para los precios, `014_cdf_amount.sql`.
-2. Volver a desplegar `cdf-notify` (ahora solo admin/moderador pueden enviar correos de texto libre).
-3. Opcional, Shopify: desplegar `cdf-shopify` con `--no-verify-jwt`, guardar el secreto `SHOPIFY_WEBHOOK_SECRET` y crear en Shopify el webhook "Order creation" apuntando a `https://<proyecto>.supabase.co/functions/v1/cdf-shopify`.
-4. Publicar el sitio en Netlify.
+012 (archivo/historial), 013 (repartidor/flujo), 014 (precios) y cdf-notify v9 ya están en el servidor, comprobados el 28/10/2026. No repetirlos.
 
-El panel nuevo también funciona sin las migraciones 012/013/014 (sin archivo, sin historial de cambios, sin repartidor asignado y sin precios), así que el orden protege pero no rompe.
+Antes de publicar este cliente, aplicar `20261028012537_secure_prices_and_search.sql`. Conserva copia de los importes, los traslada a `cdf_order_prices` (RLS de administrador), vacía y protege la columna antigua sin borrarla, registra los cambios de precio de forma privada y añade búsqueda sin acentos e historial completo del comprador. También refuerza la comprobación de asignación sobre la fila bloqueada. No elimina pedidos, tablas ni columnas.
+
+La migración debe aprobarse y verificarse antes de publicar el cliente: el buscador y la etiqueta de cliente recurrente usan sus RPC. Revisar `INTEGRATION_STATUS.md` para el estado de esta entrega.
+
+Shopify sigue siendo opcional: requiere desplegar `cdf-shopify`, configurar `SHOPIFY_WEBHOOK_SECRET` y dar de alta el webhook en Shopify. No se activa como efecto secundario de las correcciones.
+
+Estadísticas: fechas de entrega de Manila, archivados incluidos. «A la primera» = entregados sin reintento / entregados, fallidos o con intentos. «Clientes que repiten» = compradores del periodo con más de un pedido en todo su historial hasta hoy. Con precios, el ticket medio usa pedidos con importe conocido. El gráfico de 90 días agrupa por semanas.
 
 ## Probar en local
 
@@ -53,3 +56,13 @@ Usan un Supabase falso dentro del navegador y Google Chrome. Las capturas quedan
 ## Publicar
 
 Es un sitio estático sin build. Netlify publica la raíz del repo (`netlify.toml`), y `_redirects` envía `/p/*` a `seguimiento.html`.
+
+
+### Comprobar permisos y migraciones sin producción
+
+```bash
+npm i --prefix .test-tools @electric-sql/pglite@0.5.12
+NODE_PATH=.test-tools/node_modules node tests/db-regression.cjs
+```
+
+Ejecuta PostgreSQL temporal con pedidos ficticios. Comprueba conservación de importes, permisos por rol, historial privado, búsqueda con acentos y flujo de reparto. No se conecta al proyecto real. Los resultados se guardan en `.impeccable/review/sql-verification.json`.

@@ -159,7 +159,9 @@ function renderDay() {
   if (!day.length) { empty(t(searching ? "emptySearch" : "noOrdersDay"), searching ? null : t("emptyAdmin")); renderBulk(); return; }
   const list = day.filter(filterMatch);
   if (!list.length) { empty(t("noneFiltered"), null, el("button", { class: "btn", type: "button", onclick: () => { S.filter = null; S.chan = null; flipDay(); } }, t("showAll"))); renderBulk(); return; }
+  const firstDraw=!box.dataset.entered;
   for (const o of list) box.append(timelineEntry(o, searching || o.date !== S.sel));
+  if(firstDraw){stagger(box);box.dataset.entered="true";}
   renderBulk();
 }
 
@@ -281,26 +283,13 @@ function onSearchInput() {
   searchT = setTimeout(runSearch, 250);
 }
 async function runSearch() {
-  const q = S.query;
-  if (!q) return;
-  const safe = q.replace(/^#/, "").replace(/[,()%*\\"]/g, " ").trim(), digits = q.replace(/\D/g, "");
-  const ors = safe ? ["num", "customer_name", "buyer_name", "address", "customer_email"].map((c) => `${c}.ilike.%${safe}%`) : [];
-  // Phones are matched on their last 9 digits, so 0917…, 917… and +63917… all find each other
-  if (digits.length >= 3) { const tail = digits.slice(-9); ors.push(`customer_phone.ilike.%${tail}%`, `buyer_phone.ilike.%${tail}%`); }
-  // Loaded orders are searched without accents too ("Sofia" finds "Sofía"); the server adds the rest
-  const nq = norm(safe);
-  const local = S.orders.filter((o) => (nq && [o.num, o.customer_name, o.buyer_name, o.address, o.customer_email].some((v) => norm(v).includes(nq)))
-    || (digits.length >= 3 && [o.customer_phone, o.buyer_phone].some((p) => String(p || "").replace(/\D/g, "").includes(digits.slice(-9)))));
-  let remote = [];
-  if (ors.length) {
-    const { data } = await sb.from("cdf_orders").select("*").or(ors.join(",")).order("date", { ascending: false }).limit(100);
-    remote = data || [];
-  }
-  if (q !== S.query) return; // a newer search is running
-  const seen = new Set();
-  S.hits = [...local, ...remote].filter((o) => !seen.has(o.id) && seen.add(o.id));
-  S.hitsTitle = t("searchTitle", { q });
-  flipDay();
+ const q=S.query;if(!q)return;
+ const {data,error}=await sb.rpc("cdf_search_orders",{p_query:q.replace(/^#/,"")});
+ if(q!==S.query)return;
+ if(error){toast(t("searchFailed"),{type:"error"});S.hits=[];S.hitsTitle=t("searchFailed");flipDay();return;}
+ S.hits=(data||[]).slice(0,200);await attachPrices(S.hits);
+ if(q!==S.query)return;
+ S.hitsTitle=t("searchTitle",{q});if((data||[]).length>200)toast(t("searchLimit"),{type:"info"});flipDay();
 }
 function clearSearch(draw = true) {
   clearTimeout(searchT);
@@ -352,6 +341,7 @@ function exportDialog() {
     if (S.cap.archive && !iArch.checked) q = q.is("archived_at", null);
     const { data, error } = await q;
     if (error) return t("loadFail");
+    await attachPrices(data);
     downloadCsv(data.sort(byTime), `pedidos-cdf_${iFrom.value}_${iTo.value}.csv`);
     await closeSheet(true);
     toast(t("exported", { n: data.length }));
@@ -361,8 +351,8 @@ function downloadCsv(rows, name) {
   const cols = [["num", "orderNum"], ["date", "date"], ["slot", "slot"], ["channel", "channel"], [(o) => stepName(stepOf(o)), "status"],
     [(o) => memberName(o.vendor_email || ""), "vendor"], ["buyer_name", "buyerName"], ["buyer_phone", "buyerPhone"], ["customer_email", "email"],
     ["customer_name", "customerName"], ["customer_phone", "phone"], ["address", "deliveryAddr"], ["card_message", "cardMsg"], ["notes", "note"],
-    ["attempts", "attempts"], ...(S.cap.amount ? [["amount", "amount"]] : []), [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];
-  const cell = (v) => { const s = String(v ?? ""); return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+    ["attempts", "attempts"], ...(pricesOn() ? [["amount", "amount"]] : []), [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];
+  const cell = (v) => { const raw = String(v ?? ""); const s = /^[=+@-]/.test(raw) ? "\'" + raw : raw; return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [cols.map(([, h]) => cell(t(h))).join(","), ...rows.map((o) => cols.map(([c]) => cell(typeof c === "function" ? c(o) : o[c])).join(","))];
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = el("a", { href: URL.createObjectURL(blob), download: name });

@@ -1,6 +1,8 @@
 // Core: Supabase client, shared state, helpers and order loading. Loaded first; every other script uses these.
 const { url, anonKey, bucket } = window.CDF_CONFIG;
-const sb = supabase.createClient(url, anonKey);
+const sb = supabase.createClient(url, anonKey, {global:{fetch:async (...args)=>{
+ beginRequest();try{return await fetch(...args)}finally{endRequest()}
+}}});
 // Private buckets: order screenshots (bucket) and bouquet / delivery photos (ENTREGAS)
 const ENTREGAS = "cdf-entregas";
 // The shop works on Philippine time, wherever the viewer happens to be
@@ -149,9 +151,9 @@ async function detectSchema() {
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
-    sb.from("cdf_orders").select("amount").limit(1),
+    sb.from("cdf_order_prices").select("order_id").limit(1),
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: !m.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
@@ -167,6 +169,7 @@ const inScope = (o) => !(S.cap.archive && o.archived_at) && (inRange(o.date) || 
 
 let loading = null;
 async function loadOrders() {
+  invalidateStats();
   if (loading) return loading;
   loading = (async () => {
     const [from, to] = wantedRange();
@@ -183,12 +186,13 @@ async function loadOrders() {
     }
     const seen = new Set();
     S.orders = [...a.data, ...b.data].filter((o) => !seen.has(o.id) && seen.add(o.id));
+    await attachPrices(S.orders);
     S.range = [from, to]; S.loaded = true; S.loadError = false;
     setConnection(null);
     render();
     return true;
   })();
-  try { return await loading; } finally { loading = null; }
+  try { return await loading; } catch(e) { S.loadError=true;setConnection("error");render();return false; } finally { loading = null; }
 }
 async function loadMembers() {
   const { data } = await sb.from("cdf_members").select("email,name,role").order("name");
@@ -196,6 +200,7 @@ async function loadMembers() {
 }
 // Realtime: apply the one row that changed instead of reloading everything
 function applyChange(p) {
+  invalidateStats();
   const row = p.new && p.new.id ? p.new : null, id = row?.id || p.old?.id;
   if (!id) return;
   const i = S.orders.findIndex((o) => o.id === id);
@@ -209,15 +214,20 @@ function subscribe() {
   if (S.channel) sb.removeChannel(S.channel);
   S.channel = sb.channel("cdf-orders")
     .on("postgres_changes", { event: "*", schema: "public", table: "cdf_orders" }, applyChange)
+    .on("postgres_changes", { event: "*", schema: "public", table: "cdf_order_prices" }, async () => {
+      const account=S.me?.email;invalidateStats();
+      try { await attachPrices(S.orders);if(S.me?.email===account)render(); } catch(e) { toast(e.message,{type:"error"}); }
+    })
     .subscribe();
 }
 const byId = (id) => S.orders.find((o) => o.id === id);
 // Merge a row the server just returned (after a save) without waiting for realtime
 function upsertLocal(row) {
+  invalidateStats();
   if (!row?.id) return;
   const i = S.orders.findIndex((o) => o.id === row.id);
   if (!inScope(row)) { if (i >= 0) S.orders.splice(i, 1); }
-  else if (i >= 0) S.orders[i] = row; else S.orders.push(row);
+  else if (i >= 0) S.orders[i] = { ...S.orders[i], ...row }; else S.orders.push(row);
 }
 
 // ---------- the date in Manila moves on by itself ----------
@@ -239,4 +249,53 @@ function render() {
   if (S.tab === "team") renderTeam();
   else if (S.tab === "stats") renderStats();
   else renderOrders();
+}
+
+let requests = 0;
+const beginRequest = () => { requests++; $("progress")?.classList.add("on"); };
+const endRequest = () => { requests=Math.max(0,requests-1); $("progress")?.classList.toggle("on",requests>0); };
+document.addEventListener("click", e => {
+ const summary=e.target.closest("details > summary"); if (!summary || prefersReducedMotion()) return;
+ const details=summary.parentElement; if(details.dataset.animating) {e.preventDefault();return;}
+ e.preventDefault();const opening=!details.open,start=details.getBoundingClientRect().height;
+ if(opening) details.open=true;
+ const end=opening?details.getBoundingClientRect().height:summary.getBoundingClientRect().height;
+ details.dataset.animating="true"; details.style.overflow="hidden";
+ const animation=details.animate([{height:start+"px"},{height:end+"px"}],{duration:opening?300:220,easing:"cubic-bezier(.16,1,.3,1)"});
+ const finish=()=>{details.open=opening;details.style.overflow="";delete details.dataset.animating};
+ animation.onfinish=finish;animation.oncancel=finish;
+});
+document.addEventListener("submit",e=>{
+ const button=e.submitter;if(!button)return;beginRequest();
+ const observer=new MutationObserver(()=>{if(!button.disabled){observer.disconnect();endRequest();if(!e.target.querySelector(".err:not(:empty)")){button.classList.add("is-done");setTimeout(()=>button.classList.remove("is-done"),900)}}});
+ observer.observe(button,{attributes:true,attributeFilter:["disabled"]});
+ queueMicrotask(()=>{if(!button.disabled){observer.disconnect();endRequest()}});
+},true);
+
+// Prices live behind their own administrator-only row policies, never in the shared order row.
+async function attachPrices(rows) {
+ if (!isAdmin() || !S.cap.amount || !rows?.length) return rows;
+ for(let offset=0;offset<rows.length;offset+=200){
+  const part=rows.slice(offset,offset+200), {data,error}=await sb.from("cdf_order_prices").select("order_id,amount").in("order_id",part.map(o=>o.id));
+  if(error) throw new Error(t("priceLoadFail"));
+  const amounts=new Map((data||[]).map(p=>[p.order_id,p.amount]));part.forEach(o=>o.amount=amounts.get(o.id)??null);
+ }
+ return rows;
+}
+async function savePrice(id,amount) {
+ if(!pricesOn()) return;
+ const {error}=await sb.from("cdf_order_prices").upsert({order_id:id,amount},{onConflict:"order_id"});
+ if(error) throw new Error(t("priceSaveFail"));
+ invalidateStats();
+}
+// Exhaust the paginated, RLS-protected history. Never silently accept the API's default row cap.
+async function historyRows() {
+ const rows=[], cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone";
+ for(let offset=0;;offset+=1000){
+  let query=sb.from("cdf_orders").select(cols).order("id");
+  const paged=typeof query.range==="function";if(paged)query=query.range(offset,offset+999);
+  const {data,error}=await query;if(error)throw new Error(t("loadFail"));rows.push(...(data||[]));
+  if(!paged || !data || data.length<1000)break;
+ }
+ await attachPrices(rows);return rows;
 }

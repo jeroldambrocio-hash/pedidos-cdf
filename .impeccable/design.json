@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-27T23:42:30.008Z",
+  "generatedAt": "2026-10-28T09:56:06.809142+00:00",
   "title": "Design System: Pedidos · Casa de Flores",
   "extensions": {
     "colorMeta": {
@@ -136,7 +136,7 @@
         "role": "neutral",
         "displayName": "Texto tenue",
         "purpose": "Metadatos, iconos de apoyo, placeholders.",
-        "canonical": "oklch(63.3% 0.0000 0.00)",
+        "canonical": "#959595",
         "tonalRamp": [
           "oklch(0.15 0.0000 0.00)",
           "oklch(0.26 0.0000 0.00)",
@@ -440,7 +440,7 @@
         "role": "neutral",
         "displayName": "Texto tenue (claro)",
         "purpose": "Tema claro: --faint.",
-        "canonical": "oklch(55.6% 0.0000 0.00)",
+        "canonical": "#686868",
         "tonalRamp": [
           "oklch(0.15 0.0000 0.00)",
           "oklch(0.26 0.0000 0.00)",
@@ -619,24 +619,24 @@
     ],
     "breakpoints": [
       {
-        "name": "wide",
+        "name": "compact-content",
         "value": "1200px",
-        "purpose": "max-width: indicadores en 3 columnas, tarjeta de pedido en una columna."
+        "purpose": "Los pasos ocultan texto repetido para conservar el espacio de trabajo."
       },
       {
-        "name": "tablet",
-        "value": "900px",
-        "purpose": "max-width: pestañas a ancho completo, una columna, calendario plegable."
+        "name": "drawer",
+        "value": "860px",
+        "purpose": "Navegación como cajón temporal y calendario plegable."
       },
       {
         "name": "phone",
         "value": "560px",
-        "purpose": "max-width: línea temporal sin hilo, formularios en una columna, acciones a ancho completo."
+        "purpose": "Formularios en una columna y pasos compactos."
       },
       {
         "name": "touch",
         "value": "(pointer: coarse)",
-        "purpose": "Controles a 44px."
+        "purpose": "Controles táctiles y campos con texto de al menos 1rem."
       }
     ]
   },
@@ -682,12 +682,12 @@
       "css": ".ds-tabs { display: flex; gap: 4px; min-height: 44px; padding: 0 8px; background: var(--chrome, #1c1c1c); border-bottom: 1px solid var(--line-soft, #282828); font-family: \"Geist\", \"Segoe UI\", system-ui, sans-serif; } .ds-tabs button { position: relative; padding: 0 12px; border: 0; background: none; color: var(--muted, #999999); font: 500 .8125rem/1 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: color 150ms; } .ds-tabs button::after { content: \"\"; position: absolute; left: 12px; right: 12px; bottom: 0; height: 2px; border-radius: 2px; background: var(--fg, #f1f1f1); transform: scaleX(0); transition: transform 200ms cubic-bezier(.16, 1, .3, 1); } .ds-tabs button:hover, .ds-tabs button[aria-current=\"page\"] { color: var(--fg, #f1f1f1); } .ds-tabs button[aria-current=\"page\"]::after { transform: none; } .ds-tabs button:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: -2px; border-radius: 6px; }"
     },
     {
-      "name": "Contador-filtro",
+      "name": "Resumen de lectura",
       "kind": "chip",
       "refersTo": "stat-filter",
-      "description": "Contadores sobre la línea temporal que también filtran; En riesgo lleva borde ámbar teñido y texto, nunca solo color.",
-      "html": "<div class=\"ds-stats\"><button class=\"ds-stat ds-on\"><b>12</b> Hoy</button><button class=\"ds-stat\"><b>4</b> Preparando</button><button class=\"ds-stat ds-risk\"><b>2</b> En riesgo</button></div>",
-      "css": ".ds-stats { display: flex; flex-wrap: wrap; gap: 6px; } .ds-stat { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; padding: 0 12px; border: 1px solid var(--line-soft, #282828); border-radius: 99px; background: transparent; color: var(--muted, #999999); font: 400 .8125rem/1 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms; } .ds-stat b { color: var(--fg, #f1f1f1); font-weight: 600; font-variant-numeric: tabular-nums; } .ds-stat:hover { background: var(--hover, #2d2d2d); color: var(--fg, #f1f1f1); } .ds-stat.ds-on { background: var(--hover, #2d2d2d); border-color: var(--muted, #999999); color: var(--fg, #f1f1f1); } .ds-stat.ds-risk { border-color: color-mix(in srgb, var(--prep, #e6b86a) 50%, var(--line, #343434)); } .ds-stat.ds-risk b { color: var(--prep, #e6b86a); } .ds-stat:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; }"
+      "description": "Resumen informativo del día; los filtros interactivos están en la columna izquierda.",
+      "html": "<p class=\"ds-summary\">3 por preparar · 2 listos · 1 en reparto</p>",
+      "css": ".ds-summary { color:var(--muted,#999); font:400 .8125rem/1.5 Geist,system-ui,sans-serif; }"
     },
     {
       "name": "Pill de estado",
@@ -701,7 +701,7 @@
       "name": "Entrada de línea temporal",
       "kind": "card",
       "refersTo": "order",
-      "description": "Hora con punto del color del estado a la izquierda y tarjeta de pedido; la línea de progreso es el único control de estado y la siguiente acción es el botón principal.",
+      "description": "Tarjeta con selector de estado, línea de pasos y siguiente acción; todos los controles usan el mismo flujo de confirmaciones.",
       "html": "<div class=\"ds-entry\"><div class=\"ds-time\"><b>10:30</b><span>11:00</span></div><article class=\"ds-order\"><div class=\"ds-id\"><span class=\"ds-num\">#1042</span><span class=\"ds-name\">Lucía Fernández</span><span class=\"ds-sub\">Ramo de temporada</span></div><div class=\"ds-steps\"><span class=\"ds-step ds-past\"><i></i>Preparando</span><span class=\"ds-step ds-cur\"><i></i>Listo</span><span class=\"ds-step\"><i></i>En camino</span><span class=\"ds-step\"><i></i>Entregado</span></div><div><button class=\"ds-next\">Enviar a reparto</button></div></article></div>",
       "css": ".ds-entry { display: grid; grid-template-columns: 60px minmax(0, 1fr); gap: 14px; --c: var(--ready, #8db7c9); font-family: \"Geist\", \"Segoe UI\", system-ui, sans-serif; color: var(--fg, #f1f1f1); } .ds-time { position: relative; display: grid; gap: 2px; align-content: start; padding: 12px 0 0 20px; } .ds-time::before { content: \"\"; position: absolute; left: 0; top: 16px; width: 11px; height: 11px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 3px var(--bg, #171717); transition: background-color 200ms; } .ds-time b { font-size: .875rem; font-weight: 600; font-variant-numeric: tabular-nums; } .ds-time span { color: var(--faint, #8a8a8a); font-size: .75rem; } .ds-order { display: grid; gap: 12px; padding: 14px 16px; border: 1px solid var(--line-soft, #282828); border-radius: 12px; background: var(--surface, #232323); transition: border-color 150ms; animation: ds-rise 260ms cubic-bezier(.16, 1, .3, 1); } .ds-order:hover { border-color: var(--line, #343434); } .ds-id { display: grid; gap: 2px; } .ds-num { font-size: .8125rem; font-weight: 600; color: var(--muted, #999999); } .ds-name { font-size: 1rem; font-weight: 600; } .ds-sub { color: var(--muted, #999999); font-size: .8125rem; } .ds-steps { position: relative; display: grid; grid-template-columns: repeat(4, 1fr); } .ds-steps::before { content: \"\"; position: absolute; left: 12.5%; right: 12.5%; top: 13px; height: 2px; border-radius: 2px; background: var(--line, #343434); } .ds-step { position: relative; display: flex; flex-direction: column; align-items: center; gap: 6px; padding: 6px 2px; color: var(--faint, #8a8a8a); font-size: .75rem; } .ds-step i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--line, #343434); background: var(--surface, #232323); transition: background-color 200ms, border-color 200ms, transform 200ms cubic-bezier(.16, 1, .3, 1); } .ds-step.ds-past i { background: var(--muted, #999999); border-color: var(--muted, #999999); } .ds-step.ds-cur { color: var(--fg, #f1f1f1); font-weight: 600; } .ds-step.ds-cur i { background: var(--c); border-color: var(--c); transform: scale(1.2); box-shadow: 0 0 0 3px var(--surface, #232323); } .ds-next { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 8px; font: 500 .8125rem/1.2 \"Geist\", \"Segoe UI\", system-ui, sans-serif; cursor: pointer; transition: background-color 150ms, border-color 150ms, color 150ms, transform 100ms; border: 1px solid var(--primary, #f1f1f1); background: var(--primary, #f1f1f1); color: var(--on-primary, #171717); } .ds-next:hover { background: var(--primary-hover, #ffffff); } .ds-next:focus-visible { outline: 2px solid var(--focus, #d4d4d4); outline-offset: 2px; } @keyframes ds-rise { from { opacity: 0; transform: translateY(4px); } }"
     },
@@ -716,20 +716,20 @@
   ],
   "narrative": {
     "northStar": "Un despacho floral tranquilo, donde solo el estado tiene color.",
-    "overview": "Fondo gris casi negro (#171717), barra superior un punto más clara (#1C1C1C), superficies #232323 y bordes finos #343434. Las acciones principales son blancas con texto oscuro; el color se reserva para el estado de cada pedido (Preparando ámbar, Listo azul grisáceo, En camino lavanda, Entregado verde, No había nadie coral) y para los logotipos de cada canal. La marca vive en la serif Newsreader (nombre de la tienda, títulos del día y de cada pedido) y en el emblema floral existente; todo lo funcional va en Geist.\n\nUna sola hoja de estilos (`styles.css`) sirve al panel y a la página pública de seguimiento. Los tokens están arriba del archivo y todo lo demás los usa; el tema claro redefine los mismos tokens.",
+    "overview": "Se conserva el despacho floral neutro aprobado, con navegación lateral plegable, editor accesible, estadísticas completas y seguimiento con un solo logo y movimiento por estado.",
     "keyCharacteristics": [
-      "Barra superior: emblema + \"Casa de Flores\" en serif, pestañas Pedidos / Estadísticas / Equipo (solo admin), ajustes y cuenta.",
-      "Pedidos (oficina): columna izquierda con calendario (el fondo de cada día se aclara en tres niveles según los pedidos), \"Nuevo pedido\", filtros por estado y herramientas (archivar entregados, ver archivados, exportar CSV). A la derecha: búsqueda en todas las fechas, contadores que también filtran (incluido \"En riesgo\"), título del día en serif y la línea temporal: hora a la izquierda con un punto del color del estado y la tarjeta del pedido.",
-      "Tarjeta de pedido: identidad (foto, nº, canal, destinatario), contacto (teléfono, dirección, nota, florista editable en la propia tarjeta), la línea de progreso como único control de estado y la siguiente acción como botón principal. La vista compacta oculta la línea de progreso y la nota.",
-      "Florista y repartidor: una columna de tarjetas grandes por día (atrasados, hoy, mañana, próximos), un botón grande por paso y llamar / WhatsApp / mapa.",
-      "Hojas laterales para editar y para los pasos con formulario (listo con foto, entrega con prueba, no había nadie con nueva fecha). Diálogos centrados y breves para confirmar lo que tiene consecuencias (correo al cliente, volver atrás, borrar, descartar cambios).",
-      "Estadísticas: una franja de seis indicadores, pedidos por día (barras verticales con tabla equivalente para lectores de pantalla) y barras horizontales por canal, florista y franja. Un solo color neutro por gráfico, valores siempre escritos.",
-      "Seguimiento público: logotipo, tarjeta con el pedido, foto del ramo, mensaje de la tarjeta y pasos con iconos; mensajes florales aprobados."
+      "**Navegación:** Pedidos, Estadísticas y Equipo; los dos últimos son del administrador. Menú de cuenta con preferencias, contraseña, sugerencias y salida.",
+      "**Filtros:** estado y canal con contadores interactivos en la columna izquierda. El resumen junto al día es informativo.",
+      "**Tarjetas:** hora, foto, número, canal, destinatario, contacto, florista y siguiente acción. El estado se puede elegir en la etiqueta o en la línea de pasos, siempre por el mismo flujo de confirmaciones.",
+      "**Formularios:** hojas laterales con etiquetas asociadas, errores, guardado en curso y borrador. Las secciones de destinatario e historial abren con movimiento breve; la interacción sigue disponible.",
+      "**Estadísticas:** seis indicadores, comparación con el periodo anterior, gráficos por canal, día/semana, hora y florista, mejores clientes e ideas derivadas de datos. Los importes solo se consultan con permiso real de administrador.",
+      "**Seguimiento:** una variante del logo según tema; tarjeta, foto del ramo, mensaje, pasos y prueba. Solo el estado actual anima su icono: corte, balanceo, conducción, latido o aviso intermitente.",
+      "**Movimiento:** transiciones de pantalla, menús, hojas, filtros y listas; realce de altas/cambios; salida de borrados; crecimiento de gráficos. Las preferencias completas se conservan por defecto y Reducidas desactiva los bucles y sustituye entradas por fundidos breves. No se usa la preferencia del sistema para anular la decisión explícita aprobada."
     ],
     "rules": [
       {
         "name": "Tamaños",
-        "body": "Texto mínimo 12px (.75rem); cuerpo 14px; controles de 40px, 44px en pantallas táctiles.",
+        "body": "Escala funcional en rem; Texto grande amplía controles, campos y descripciones además de títulos.",
         "section": "typography"
       },
       {

@@ -44,6 +44,7 @@ function askConfirm(text, okLabel, { danger = false, detail } = {}) {
 
 // Open a sheet; `dirty` says whether closing would lose something the person typed.
 function openLayer(node, { dirty = () => false, dispose = () => {} } = {}) {
+  setDrawer(false, false);
   closeSheet(true);
   const back = document.activeElement;
   const scrim = el("div", { class: "scrim" });
@@ -53,6 +54,7 @@ function openLayer(node, { dirty = () => false, dispose = () => {} } = {}) {
   $("sheetRoot").append(scrim);
   document.body.classList.add("locked");
   node.tabIndex = -1;
+  const content = node.querySelector(".sheet-body"); if (content) stagger(content);
   sheet = { node, scrim, dirty, dispose, back };
   const title = node.querySelector("h2");
   if (title) { title.id = "sheetTitle"; node.setAttribute("aria-labelledby", "sheetTitle"); }
@@ -74,9 +76,19 @@ async function closeSheet(force = false) {
   return true;
 }
 
-const field = (label, ...kids) => el("div", { class: "field" }, el("span", {}, label), ...kids);
+let fieldId = 0;
+const field = (label, ...kids) => {
+ const caption = el("span", { id: "field-label-" + (++fieldId) }, label);
+ const box = el("div", { class: "field" }, caption, ...kids);
+ box.querySelectorAll("input:not([type=file]),textarea,select").forEach(input => {
+   if (!input.hasAttribute("aria-label")) input.setAttribute("aria-labelledby", caption.id);
+ });
+ return box;
+};
 // Required fields carry a red asterisk; the whole field shakes and turns red when left empty
-const reqField = (label, ...kids) => el("div", { class: "field" }, el("span", {}, label, el("b", { class: "req", "aria-hidden": "true" }, " *")), ...kids);
+const reqField = (label, ...kids) => {
+ const box = field(label, ...kids); box.firstElementChild.append(el("b", {class:"req","aria-hidden":"true"}," *")); return box;
+};
 const checkRow = (input, label) => el("label", { class: "check" }, input, el("span", { class: "box", "aria-hidden": "true" }, icon("tick")), el("span", {}, label));
 const closeBtn = () => el("button", { class: "btn icon ghost", type: "button", "aria-label": t("close"), onclick: () => closeSheet() }, icon("close"));
 
@@ -118,7 +130,10 @@ async function advance(o, i) {
     if (data) Object.assign(o, data);
     if (step.k === "transit") watchMail(o);
   } catch (e) { Object.assign(o, prev); toast(t("statusFail") + (e?.message ? " · " + e.message : "")); }
-  finally { S.pending.delete(o.id); render(); }
+  finally {
+    S.pending.delete(o.id); render();
+    if (!prefersReducedMotion()) requestAnimationFrame(() => document.querySelector(`#list .entry[data-id="${o.id}"] .step.cur`)?.classList.add("pop"));
+  }
 }
 // A tap on a step. Steps with consequences ask first or open their form:
 // On the way emails the customer, Delivered asks for the proof, Nobody home asks for a new date,
@@ -276,11 +291,12 @@ function historyBlock(o) {
 const EV_FIELDS = { num: "orderNum", date: "date", slot: "slot", channel: "channel", vendor_email: "vendor", carrier_email: "carrier",
   customer_name: "customerName", customer_phone: "phone", customer_email: "email", buyer_name: "buyerName", buyer_phone: "buyerPhone",
   address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery",
-  photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto" };
+  photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", amount: "amount" };
 const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
   if (typeof v === "boolean") return v ? t("evPhotoYes") : t("evPhotoNo");
   if (k === "vendor_email" || k === "carrier_email") return memberName(v);
+  if (k === "amount") return peso(v);
   if (k === "date") return shortDate(v);
   if (k === "status" || k === "delivery") return t("db_" + String(v).replace(/\W/g, "")) || v;
   return String(v);
@@ -365,7 +381,7 @@ function phoneBox(input) {
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",
   "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
 function openEditor(o, { copyFrom, draft } = {}) {
-  const isNew = !o;
+  let isNew = !o;
   const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
@@ -413,11 +429,19 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   // Returning customer: the same buyer phone on other orders already loaded
   const repeatTag = el("div", { class: "repeat-tag collapse is-collapsed", role: "status" });
+  let repeatTimer, repeatGeneration=0;
   const syncRepeat = () => {
-    const d = intlPhone(phFull(iBPhone.value)), prev = d.length >= 9 ? S.orders.filter((x) => x.id !== o?.id && intlPhone(x.buyer_phone) === d) : [];
-    const sum = pricesOn() ? t("repeatSum", { sum: peso(prev.reduce((a, x) => a + (+x.amount || 0), 0)) }) : "";
-    repeatTag.replaceChildren(icon("star"), el("span", {}, prev.length ? (prev.length === 1 ? t("repeatOne") : t("repeatMany", { n: prev.length })) + sum : ""));
-    repeatTag.classList.toggle("is-collapsed", !prev.length);
+   clearTimeout(repeatTimer);const generation=++repeatGeneration,d=intlPhone(phFull(iBPhone.value));
+   repeatTag.classList.add("is-collapsed");if(d.length<9)return;
+   repeatTimer=setTimeout(async()=>{
+    const {data,error}=await sb.rpc("cdf_buyer_history",{p_phone:d,p_exclude:o?.id||null});
+    if(generation!==repeatGeneration || !repeatTag.isConnected)return;
+    if(error){repeatTag.replaceChildren(el("span",{},t("repeatUnavailable")));repeatTag.classList.remove("is-collapsed");return;}
+    const info=Array.isArray(data)?data[0]:data, n=Number(info?.n||0);
+    const total=pricesOn()?t("repeatSum",{sum:peso(info?.total||0)}):"";
+    repeatTag.replaceChildren(icon("star"),el("span",{},(n===1?t("repeatOne"):t("repeatMany",{n}))+total));
+    repeatTag.classList.toggle("is-collapsed",!n);
+   },250);
   };
   iBPhone.addEventListener("input", syncRepeat);
 
@@ -432,7 +456,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       buyer_name: iBName.value.trim(), buyer_phone: phFull(iBPhone.value),
       card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(), notes: iNotes.value.trim(),
     };
-    if (S.cap.amount) row.amount = pricesOn() ? (iAmount.value === "" ? null : Math.max(0, +iAmount.value)) : (f.amount === "" ? null : f.amount);
+    if (pricesOn()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
     return row;
   };
   let initial = null;
@@ -475,6 +499,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
+    delete dbRow.amount;
 
     let saved, error;
     if (isNew) ({ data: saved, error } = await sb.from("cdf_orders").insert(dbRow).select().single());
@@ -487,11 +512,15 @@ function openEditor(o, { copyFrom, draft } = {}) {
         const clash = Object.keys(changed).filter((k) => JSON.stringify(server[k] ?? "") !== JSON.stringify(o[k] ?? ""));
         if (clash.length && !(await askConfirm(t("conflictAsk"), t("conflictKeepMine"), { detail: clash.map((k) => t(EV_FIELDS[k] || k)).join(", ") }))) return;
       }
-      if (!Object.keys(changed).length && !shot.dirty && !bouquet.dirty && !proof.dirty) { await closeSheet(true); return; }
+      if (!Object.keys(changed).length && !shot.dirty && !bouquet.dirty && !proof.dirty && (!pricesOn() || row.amount === initial.amount)) { await closeSheet(true); return; }
       ({ data: saved, error } = Object.keys(changed).length ? await sb.from("cdf_orders").update(changed).eq("id", o.id).select().single() : { data: server, error: null });
     }
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
+    if (pricesOn()) {
+      try { await savePrice(saved.id,row.amount); saved.amount=row.amount; }
+      catch(e) { upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined};} setErr(e.message); return e.message; }
+    }
     // Photos after the row exists; the old files go only once the row points at the new ones.
     const pics = {};
     let photoTrouble = false;
@@ -510,6 +539,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (!row.channel) setTimeout(() => toast(t("savedNoChannel"), { type: "info" }), 350);
     if (!inRange(row.date)) loadOrders(); else render();
     // The new order glows for a moment where it landed
+    if (!isNew) requestAnimationFrame(()=>{const card=document.querySelector(`#list .entry[data-id="${saved.id}"]`);card?.classList.add("flash")});
     if (isNew) requestAnimationFrame(() => { const e = document.querySelector(`#list .entry[data-id="${saved.id}"]`); e?.classList.add("is-new"); e?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" }); });
   };
 
@@ -523,7 +553,10 @@ function openEditor(o, { copyFrom, draft } = {}) {
       if (error) { toast(t("deleteFail"), { type: "error" }); return; }
       await removeFiles([o]);
       S.orders = S.orders.filter((x) => x.id !== o.id);
-      await closeSheet(true); toast(t("deleted")); render();
+      await closeSheet(true);
+      const entry=document.querySelector(`#list .entry[data-id="${o.id}"]`);
+      if(entry&&!prefersReducedMotion()) await entry.animate([{opacity:1},{opacity:0,transform:"scale(.98)"}],{duration:180}).finished;
+      invalidateStats(); toast(t("deleted")); flip($("list"),render);
     } }, icon("trash"), t("delete")) : null);
 
   const cur = o ? stepOf(o) : 0;
@@ -575,7 +608,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   function keepDraft() { if (!isNew || !initial) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); }
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
-  openLayer(node, { dirty, dispose: () => { [shot, bouquet, proof].forEach((p) => p.dispose()); clearTimeout(draftT); } });
+  openLayer(node, { dirty, dispose: () => { [shot, bouquet, proof].forEach((p) => p.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
   syncSame(false); syncChan(); syncRepeat();
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.

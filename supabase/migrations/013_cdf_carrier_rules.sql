@@ -59,6 +59,11 @@ begin
   if not public.cdf_can_progress(p_id) then raise exception 'not allowed' using errcode = '42501'; end if;
   select * into r from public.cdf_orders where id = p_id for update;
   if r.id is null then raise exception 'order not found' using errcode = 'P0002'; end if;
+  if not public.cdf_is_staff() and (r.archived_at is not null
+    or (public.cdf_my_role()='carrier' and r.carrier_email is not null and r.carrier_email<>lower(coalesce(auth.jwt()->>'email','')))
+    or (public.cdf_my_role()='vendor' and r.vendor_email is distinct from lower(coalesce(auth.jwt()->>'email','')))) then
+    raise exception 'order is no longer assigned to this user' using errcode='42501';
+  end if;
   case p_step
     when 'prep' then v_status := 'Preparing'; v_delivery := '-';
     when 'ready' then v_status := 'Ready'; v_delivery := '-';
@@ -96,6 +101,11 @@ begin
   end if;
   select * into r from public.cdf_orders where id = p_id for update;
   if r.id is null then raise exception 'order not found' using errcode = 'P0002'; end if;
+  if not public.cdf_is_staff() and (r.archived_at is not null
+    or (public.cdf_my_role()='carrier' and r.carrier_email is not null and r.carrier_email<>lower(coalesce(auth.jwt()->>'email','')))
+    or (public.cdf_my_role()='vendor' and r.vendor_email is distinct from lower(coalesce(auth.jwt()->>'email','')))) then
+    raise exception 'order is no longer assigned to this user' using errcode='42501';
+  end if;
   if not public.cdf_is_staff() and public.cdf_step_of(r.status, r.delivery) not in ('transit', 'fail') then
     raise exception 'only an order out for delivery can be rescheduled' using errcode = '22023';
   end if;
