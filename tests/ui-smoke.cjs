@@ -78,6 +78,8 @@ window.supabase = { createClient: () => ({
   },
 }) };
 })();`;
+// EXPORT_MOCK=file writes the fake Supabase out, to look at the panel with it in a normal browser
+if (process.env.EXPORT_MOCK) { fs.writeFileSync(process.env.EXPORT_MOCK, mock); process.exit(0); }
 
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp" };
 const server = http.createServer((req, res) => {
@@ -135,16 +137,16 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Neutral palette, one stylesheet, timeline (no board), channel logos", async () => {
       assert.equal(await p.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(23, 23, 23)");
       assert.equal(await p.locator("link[rel=stylesheet][href^='/']").count(), 1);
-      assert(await p.locator(".timeline-entry").count() >= 4);
+      assert(await p.locator(".entry").count() >= 4);
       assert.equal(await p.locator(".board").count(), 0);
-      assert(await p.locator(".channel-logo img").count() >= 2);
+      assert(await p.locator(".chan img").count() >= 2);
       await capture(p, "desktop");
     });
     await step("Animations full by default even with OS reduce; Settings turns them down and remembers", async () => {
       assert.equal(await p.evaluate(() => document.documentElement.dataset.motion), "full");
-      await p.locator("[data-settings]").click(); await p.locator("[data-motion-set=reduced]").click();
+      await p.locator("#accountBtn").click(); await p.locator("#account [data-motion-set=reduced]").click();
       assert.equal(await p.evaluate(() => [document.documentElement.dataset.motion, localStorage.getItem("cdf-motion")].join()), "reduced,reduced");
-      await p.locator("[data-motion-set=full]").click(); await p.keyboard.press("Escape");
+      await p.locator("#account [data-motion-set=full]").click(); await p.keyboard.press("Escape");
     });
     await step("B2 · On the way asks first, says who gets the email, and cancel changes nothing", async () => {
       const card = p.locator(".order", { hasText: "#0127" });
@@ -164,7 +166,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator(".order", { hasText: "#0126" }).getByRole("button", { name: "Delivered" }).first().click();
       await p.locator(".sheet h2", { hasText: "Deliver #0126" }).waitFor();
       await p.keyboard.press("Escape"); await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
-      await p.locator(".order", { hasText: "#0126" }).locator(".order-actions").getByRole("button", { name: "Nobody home" }).click();
+      await p.locator(".order", { hasText: "#0126" }).locator(".actions").getByRole("button", { name: "Nobody home" }).click();
       await p.locator(".sheet h2", { hasText: "Nobody home · #0126" }).waitFor();
       await p.keyboard.press("Escape"); await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       assert.equal((await calls(p)).length, before);
@@ -208,7 +210,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
     });
     await step("B1 · Saving an edit sends only what changed (a status set meanwhile is kept)", async () => {
-      await p.locator(".order", { hasText: "#0125" }).locator(".order-open").click();
+      await p.locator(".order", { hasText: "#0125" }).locator(".o-name").click();
       await p.evaluate(() => { const o = window.__orders.find((x) => x.num === "0125"); o.notes = "changed by florist"; o.updated_at = "2030-01-01T00:00:00Z"; });
       await p.locator("#f-addr").fill("New address 5");
       await p.locator(".sheet button[type=submit]").click();
@@ -217,7 +219,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.deepEqual(Object.keys(up.row), ["address"]);
     });
     await step("B1 · A real clash asks before overwriting", async () => {
-      await p.locator(".order", { hasText: "#0125" }).locator(".order-open").click();
+      await p.locator(".order", { hasText: "#0125" }).locator(".o-name").click();
       await p.evaluate(() => { const o = window.__orders.find((x) => x.num === "0125"); o.address = "Changed elsewhere"; o.updated_at = "2031-01-01T00:00:00Z"; });
       await p.locator("#f-addr").fill("Mine");
       await p.locator(".sheet button[type=submit]").click();
@@ -228,8 +230,8 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("B5 · Replacing a photo deletes the old file only after the order points at the new one", async () => {
       await p.evaluate(() => (window.__calls = []));
-      await p.locator(".order", { hasText: "#0124" }).locator(".order-open").click();
-      await p.locator(".deliv summary", { hasText: "More details" }).click();
+      await p.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
+      await p.locator(".hist summary", { hasText: "More details" }).click();
       await p.locator(".sheet input[type=file]").nth(2).setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: png });
       await p.waitForTimeout(400);
       await p.locator(".sheet button[type=submit]").click();
@@ -238,13 +240,13 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert(up >= 0 && rm > up, "remove must come after the update");
     });
     await step("Florist on the card: change with undo", async () => {
-      await p.locator(".order", { hasText: "#0125" }).locator(".inline-select").selectOption("ana@example.com");
+      await p.locator(".order", { hasText: "#0125" }).locator(".o-vendor select").selectOption("ana@example.com");
       await p.waitForTimeout(200);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.vendor_email === "ana@example.com"));
-      assert(await p.locator(".toast").innerText().then((s) => s.includes("Undo")));
+      assert(await p.locator(".toast").last().innerText().then((s) => s.includes("Undo")));
     });
     await step("At-risk orders are flagged and filterable", async () => {
-      assert(await p.locator(".stat", { hasText: "At risk" }).isVisible());
+      assert(await p.locator("#filters .filter", { hasText: "At risk" }).isVisible());
     });
     await step("Server search across dates (phones by their last digits)", async () => {
       await p.locator("#q").fill("9171234567"); await p.waitForTimeout(500);
@@ -272,10 +274,10 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert(dl.suggestedFilename().endsWith(".csv"));
     });
     await step("Change history and notices in the order sheet", async () => {
-      await p.locator(".order", { hasText: "#0126" }).locator(".order-open").click();
-      assert(await p.locator(".deliv summary", { hasText: "Change history" }).isVisible());
-      await p.locator(".deliv summary", { hasText: "Notification history" }).click();
-      assert(await p.locator(".hist").first().innerText().then((s) => s.includes("Customer")));
+      await p.locator(".order", { hasText: "#0126" }).locator(".o-name").click();
+      assert(await p.locator(".hist summary", { hasText: "Change history" }).isVisible());
+      await p.locator(".hist summary", { hasText: "Notification history" }).click();
+      assert(await p.locator(".hist", { hasText: "Notification history" }).innerText().then((s) => s.includes("Customer")));
       await capture(p, "editor-desktop");
       await p.keyboard.press("Escape"); await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
     });
@@ -290,7 +292,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#tabStats").click();
       await p.locator(".kpis").waitFor();
       assert.equal(await p.locator(".kpi").count(), 6);
-      assert(await p.locator(".vb").count() >= 30);
+      assert(await p.locator(".col").count() >= 30);
       await capture(p, "stats-desktop");
     });
     await step("B6 · Team can add a moderator", async () => {
@@ -322,14 +324,14 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Works before migrations 012/013 (no archive column, no change log)", async () => {
       const q = await open("admin", { before: { __noMigration: true } });
-      assert(await q.locator(".timeline-entry").count() >= 3);
+      assert(await q.locator(".entry").count() >= 3);
       assert.equal(await q.locator("#adminTools").getByRole("button", { name: /Archive/ }).count(), 0);
       await q.close();
     });
     await step("Moderator: orders, no team tab and no delete", async () => {
       const q = await open("moderator");
-      assert(!(await q.locator("#tabs").isVisible()));
-      await q.locator(".order-open").first().click();
+      assert(!(await q.locator("#tabTeam").isVisible()));
+      await q.locator(".o-name").first().click();
       assert.equal(await q.locator(".sheet").getByRole("button", { name: "Delete", exact: true }).count(), 0);
       await q.close();
     });
@@ -342,7 +344,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Florist: ready with bouquet, then head out asks first (RPCs)", async () => {
       const q = await open("vendor", { width: 390 });
-      await q.locator(".wcard").first().waitFor(); await capture(q, "florist-mobile");
+      await q.locator(".work").first().waitFor(); await capture(q, "florist-mobile");
       await q.getByRole("button", { name: "Mark ready" }).first().click();
       await q.locator(".sheet").getByRole("button", { name: "Mark ready", exact: true }).click();
       await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
@@ -351,13 +353,13 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator(".dialog").getByRole("button", { name: "Yes, on the way" }).click();
       await q.waitForTimeout(300);
       assert((await calls(q)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "transit"));
-      await q.locator("#q").fill("Maria"); assert(await q.locator(".wcard").count() >= 1);
-      await q.locator("#q").fill("zzzz"); assert.equal(await q.locator(".wcard").count(), 0);
+      await q.locator("#q").fill("Maria"); assert(await q.locator(".work").count() >= 1);
+      await q.locator("#q").fill("zzzz"); assert.equal(await q.locator(".work").count(), 0);
       await q.close();
     });
     await step("Driver: nobody home reschedules, delivered confirms (RPCs)", async () => {
       const q = await open("carrier", { width: 390 });
-      await q.locator(".wcard").first().waitFor(); await capture(q, "driver-mobile");
+      await q.locator(".work").first().waitFor(); await capture(q, "driver-mobile");
       await q.getByRole("button", { name: "Nobody home" }).first().click();
       await q.locator(".sheet").getByRole("button", { name: "Reschedule" }).click();
       await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });

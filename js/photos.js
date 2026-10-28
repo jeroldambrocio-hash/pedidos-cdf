@@ -18,7 +18,7 @@ const imgOf = (path, bkt, alt) => {
 // The bouquet once it exists, otherwise the reference photo, otherwise the emblem
 function thumb(o, cls = "thumb") {
   const photo = o.bouquet_path || o.photo_path;
-  const th = el("div", { class: cls }, photo ? "" : el("img", { src: "/img/emblem.webp", alt: "", class: "placeholder-emblem" }));
+  const th = el("div", { class: cls + (photo ? " has-photo" : "") }, photo ? "" : el("img", { src: "/img/emblem.webp", alt: "", class: "placeholder-emblem" }));
   if (photo) photoUrl(photo, o.bouquet_path ? ENTREGAS : bucket).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "", loading: "lazy" })); });
   return th;
 }
@@ -73,7 +73,7 @@ function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = f
     if (preview) { URL.revokeObjectURL(preview); preview = null; }
     if (blob) preview = URL.createObjectURL(blob);
     const src = preview || (!removed && current ? await photoUrl(current, bkt) : null);
-    box.replaceChildren(
+    fill(box, 
       src ? el("img", { src, alt }) : el("div", {}, hint),
       el("div", { class: "drop-acts" },
         el("button", { class: "btn", type: "button", onclick: () => input.click() }, src ? t("changePhoto") : t("uploadPhoto")),

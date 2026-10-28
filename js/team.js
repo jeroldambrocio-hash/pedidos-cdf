@@ -8,17 +8,19 @@ function renderTeam() {
     const load = m.role === "carrier" ? open.filter((o) => o.carrier_email === m.email).length : open.filter((o) => o.vendor_email === m.email).length;
     box.append(el("div", { class: "member" },
       el("span", { class: "avatar", "aria-hidden": "true" }, m.name.trim().charAt(0).toUpperCase()),
-      el("div", {}, el("b", {}, m.name, el("span", { class: "role-tag" }, t("role_" + m.role))), el("small", {}, m.email),
+      el("div", {}, el("b", {}, m.name), el("small", {}, m.email),
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null),
-      self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn ghost", type: "button", onclick: async (e) => {
+      el("span", { class: "role-tag role-" + m.role }, t("role_" + m.role)),
+      self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn danger", type: "button", onclick: async (e) => {
         const b = e.currentTarget;
         if (!(await askConfirm(t("removeAsk", { name: m.name }), t("remove"), { danger: true, detail: t("removeHint") }))) return;
         b.disabled = true;
         const { data, error } = await sb.functions.invoke("cdf-users", { body: { action: "remove", email: m.email } });
-        if (error || data?.error) { b.disabled = false; toast(data?.error || t("removeFail")); return; }
+        if (error || data?.error) { b.disabled = false; toast(data?.error || t("removeFail"), { type: "error" }); return; }
         toast(t("removed", { name: m.name })); await loadMembers(); renderTeam();
       } }, t("remove"))));
   }
+  stagger(box);
 }
 $("addForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("aErr").textContent = ""; $("aBtn").disabled = true;

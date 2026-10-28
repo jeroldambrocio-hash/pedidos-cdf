@@ -32,9 +32,8 @@ function askConfirm(text, okLabel, { danger = false, detail } = {}) {
     };
     const ok = el("button", { class: "btn " + (danger ? "danger-solid" : "primary"), type: "button", onclick: () => done(true) }, okLabel);
     const box = el("div", { class: "dialog", role: "alertdialog", "aria-modal": "true", tabindex: "-1", "aria-labelledby": "askText" },
-      el("p", { id: "askText", class: "dialog-text" }, text),
-      detail ? el("div", { class: "hint" }, detail) : null,
-      el("div", { class: "dialog-foot" }, el("button", { class: "btn", type: "button", onclick: () => done(false) }, t("cancel")), ok));
+      el("div", { class: "sheet-body" }, el("p", { id: "askText", class: "dialog-text" }, text), detail ? el("div", { class: "hint" }, detail) : null),
+      el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: () => done(false) }, t("cancel")), ok));
     scrim.append(box);
     scrim.addEventListener("click", (e) => { if (e.target === scrim) done(false); });
     scrim.addEventListener("dismiss", () => done(false));
@@ -76,12 +75,15 @@ async function closeSheet(force = false) {
 }
 
 const field = (label, ...kids) => el("div", { class: "field" }, el("span", {}, label), ...kids);
-const closeBtn = () => el("button", { class: "iconbtn", type: "button", "aria-label": t("close"), onclick: () => closeSheet() }, icon("close"));
+// Required fields carry a red asterisk; the whole field shakes and turns red when left empty
+const reqField = (label, ...kids) => el("div", { class: "field" }, el("span", {}, label, el("b", { class: "req", "aria-hidden": "true" }, " *")), ...kids);
+const checkRow = (input, label) => el("label", { class: "check" }, input, el("span", { class: "box", "aria-hidden": "true" }, icon("tick")), el("span", {}, label));
+const closeBtn = () => el("button", { class: "btn icon ghost", type: "button", "aria-label": t("close"), onclick: () => closeSheet() }, icon("close"));
 
 // A small sheet with a form and one confirm button; onConfirm returns an error message or nothing.
 function miniSheet(title, nodes, confirmLabel, onConfirm, { dirty, dispose } = {}) {
   const err = el("div", { class: "err", role: "alert" });
-  const ok = el("button", { class: "btn primary big", type: "submit" }, confirmLabel);
+  const ok = el("button", { class: "btn primary", type: "submit" }, confirmLabel);
   const form = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", onsubmit: async (e) => {
     e.preventDefault(); err.textContent = ""; ok.disabled = true; ok.classList.add("busy");
     let msg;
@@ -89,9 +91,9 @@ function miniSheet(title, nodes, confirmLabel, onConfirm, { dirty, dispose } = {
     ok.disabled = false; ok.classList.remove("busy");
     if (msg) err.textContent = msg;
   } },
-    el("div", { class: "sheet-head" }, el("h2", {}, title), closeBtn()),
-    ...nodes, err,
-    el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: () => closeSheet() }, t("cancel")), ok));
+    el("div", { class: "sheet-head" }, el("h2", {}, title), el("span", { class: "spacer" }), closeBtn()),
+    el("div", { class: "sheet-body" }, el("section", {}, ...nodes, err)),
+    el("div", { class: "sheet-foot" }, el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => closeSheet() }, t("cancel")), ok));
   openLayer(form, { dirty, dispose });
   return form;
 }
@@ -193,9 +195,9 @@ function missedDialog(o) {
   const iSlot = slotPicker(o.slot);
   const note = el("textarea", { placeholder: t("missedNotePh"), rows: 2 });
   miniSheet(t("missedTitle", { num: o.num }), [
-    el("div", { class: "hint" }, t("missedHint")),
+    el("p", { class: "note", style: "margin:0" }, t("missedHint")),
     field(t("proofPhoto"), proof.node),
-    el("div", { class: "f-row f-when" }, field(t("newDate"), iDate), field(t("newSlot"), iSlot)),
+    el("div", { class: "row2 when-row" }, field(t("newDate"), iDate), field(t("newSlot"), iSlot)),
     field(t("noteOpt"), note)], t("confirmMissed"), async (se) => {
     setErr = se;
     const slot = iSlot.value();
@@ -231,7 +233,7 @@ function slotPicker(val) {
     const a = +from.value, z = to.value === "" ? -1 : +to.value;
     if (z <= a) to.replaceChildren(el("option", { value: "" }, "--:--"), ...opts(Math.min(a + 60, 24 * 60), 30, 24 * 60));
   });
-  const box = el("div", { class: "slot-pick" }, from, el("span", { "aria-hidden": "true" }, "→"), to);
+  const box = el("div", { class: "slot-pick" }, from, el("span", { class: "slot-arrow", "aria-hidden": "true" }, "→"), to);
   box.first = from;
   box.value = () => (from.value === "" || to.value === "" || +to.value <= +from.value ? "" : fmt(+from.value) + " - " + fmt(+to.value));
   return box;
@@ -248,7 +250,7 @@ async function logOpened(o, channel, recipient, label, message) {
 }
 const when = (ts) => new Date(ts).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 function historyBlock(o) {
-  const box = el("div", { class: "hist" });
+  const box = el("div", { class: "hist-list" });
   const load = async () => {
     const { data } = await sb.from("cdf_notifications").select("*").eq("order_id", o.id).order("created_at", { ascending: false }).limit(30);
     box.replaceChildren();
@@ -284,7 +286,7 @@ const evValue = (k, v) => {
   return String(v);
 };
 function eventsBlock(o) {
-  const box = el("div", { class: "hist" });
+  const box = el("div", { class: "hist-list" });
   (async () => {
     const { data, error } = await sb.from("cdf_order_events").select("*").eq("order_id", o.id).order("at", { ascending: false }).limit(50);
     if (error || !data?.length) { box.append(el("div", { class: "hint" }, t("evEmpty"))); return; }
@@ -304,38 +306,38 @@ function notifyRow(o, name, phone, stepK, hist) {
   const msg = () => notifyMsg(o, name(), stepK());
   const label = () => tIn("en", "st_" + stepK());
   const log = (channel, recipient) => logOpened(o, channel, recipient, label(), msg()).then(() => hist.reload());
-  return el("div", { class: "btn-row" },
+  return el("div", { class: "notify-row" },
     el("button", { class: "btn", type: "button", onclick: () => {
-      if (!phone()) { toast(t("needPhone")); return; }
+      if (!phone()) { toast(t("needPhone"), { type: "error" }); return; }
       window.open("https://wa.me/" + intlPhone(phone()) + "?text=" + encodeURIComponent(msg()), "_blank", "noopener");
       log("whatsapp", phone());
     } }, icon("message"), "WhatsApp"),
     el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(msg()).then(() => { toast(t("msgCopied")); log("copy", ""); }, () => toast(t("selectCopy"))) }, t("copyMsg")));
 }
-const mapLink = (a) => el("a", { href: mapsUrl(a), target: "_blank", rel: "noopener", class: "plain-link" }, a + " ↗");
+const mapLink = (a) => el("a", { href: mapsUrl(a), target: "_blank", rel: "noopener", class: "link-out" }, a + " ↗");
 
 // ---------- an order, read-only (florists and drivers) ----------
 function openOrderView(o) {
   const hist = historyBlock(o), cur = stepOf(o);
   const node = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" },
-    el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), closeBtn()),
-    el("dl", { class: "ro" },
-      el("dt", {}, t("status")), el("dd", {}, el("span", { class: "pill s-" + STEPS[cur].k }, stepName(cur))),
-      el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
-      el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
-      el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
-      o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "plain-link" }, o.customer_phone))] : null,
-      o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "note" }, o.card_message)] : null,
-      el("dt", {}, t("note")), el("dd", { class: "note" }, o.notes || t("noNotes")),
-      el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? imgOf(o.photo_path, bucket, t("photoAlt")) : t("noPhoto")),
-      o.bouquet_path ? [el("dt", {}, t("bouquetPhoto")), el("dd", {}, imgOf(o.bouquet_path, ENTREGAS, t("bouquetPhoto")))] : null,
-      o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", { class: "note" }, o.delivery_note)] : null,
-      o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, imgOf(o.proof_path, ENTREGAS, t("proofPhoto")))] : null),
-    el("div", { class: "field" }, el("span", {}, t("notifyBuyer")),
-      notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
-    el("details", { class: "deliv" }, el("summary", {}, t("history")), hist),
-    S.cap.events ? el("details", { class: "deliv" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null,
-    el("div", { class: "sheet-foot" }, el("span"), el("button", { class: "btn", type: "button", onclick: () => closeSheet() }, t("close"))));
+    el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), badge(cur), el("span", { class: "spacer" }), closeBtn()),
+    el("div", { class: "sheet-body" },
+      el("section", {}, el("dl", { class: "ro" },
+        el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
+        el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
+        el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
+        o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "link-out" }, o.customer_phone))] : null,
+        o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, o.card_message)] : null,
+        el("dt", {}, t("note")), el("dd", {}, o.notes || t("noNotes")),
+        el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"))) : t("noPhoto")),
+        o.bouquet_path ? [el("dt", {}, t("bouquetPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.bouquet_path, ENTREGAS, t("bouquetPhoto"))))] : null,
+        o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
+        o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
+      el("section", {}, el("h3", {}, t("notifyBuyer")),
+        notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
+      el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
+        S.cap.events ? el("details", { class: "hist" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null)),
+    el("div", { class: "sheet-foot" }, el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => closeSheet() }, t("close"))));
   openLayer(node);
 }
 
@@ -350,14 +352,24 @@ async function openFresh(o, opts) {
 }
 function openOrder(o) { openFresh(o); }
 
+// Phone with "+63" fixed in front; typing + or 00 switches to any other country
+function phoneBox(input) {
+  const box = el("div", { class: "phone-in" }, el("span", { class: "cc", "aria-hidden": "true" }, "+63"), input);
+  const sync = () => box.classList.toggle("intl", /^(\+|00)/.test(input.value.trim()) && !/^\+?63/.test(input.value.trim()));
+  input.setAttribute("aria-label", t("phoneCc"));
+  input.addEventListener("input", () => { if (/^(\+?\s*63|0)\s*9/.test(input.value)) input.value = input.value.replace(/^(\+?\s*63|0)\s*/, ""); sync(); });
+  sync();
+  return box;
+}
+
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",
-  "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes"];
+  "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
 function openEditor(o, { copyFrom, draft } = {}) {
   const isNew = !o;
   const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
-    customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "" };
+    customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "" };
   const src = o || (copyFrom ? { ...blank, ...Object.fromEntries(["slot", "channel", "vendor_email", "customer_name", "address", "customer_phone", "customer_email", "buyer_name", "buyer_phone", "card_message"].map((k) => [k, copyFrom[k] ?? ""])) } : draft ? { ...blank, ...draft } : blank);
   const f = Object.fromEntries(ORDER_FIELDS.map((k) => [k, src[k] ?? ""]));
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
@@ -366,21 +378,21 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
   const iSlot = slotPicker(f.slot);
-  const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", class: "tnum", required: true });
-  const iChan = sel("f-chan", [["", t("noChannel")], ...CHANNELS.map((c) => [c, c])], f.channel);
+  const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", class: "num", required: true });
   const iName = el("input", { id: "f-name", value: f.customer_name, placeholder: t("namePh"), autocomplete: "off" });
   const iAddr = el("input", { id: "f-addr", value: f.address, placeholder: t("addrPh"), autocomplete: "off" });
-  const iPhone = el("input", { id: "f-phone", type: "tel", value: f.customer_phone, placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
+  const iPhone = el("input", { id: "f-phone", type: "tel", inputmode: "tel", value: phLocal(f.customer_phone), placeholder: "917 123 4567", autocomplete: "off" });
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email, placeholder: "cliente@email.com", autocomplete: "off" });
   const iBName = el("input", { id: "f-bname", value: f.buyer_name, placeholder: t("buyerNamePh"), autocomplete: "off" });
-  const iBPhone = el("input", { id: "f-bphone", type: "tel", value: f.buyer_phone, placeholder: "0917 123 4567 · +34 600…", autocomplete: "off" });
+  const iBPhone = el("input", { id: "f-bphone", type: "tel", inputmode: "tel", value: phLocal(f.buyer_phone), placeholder: "917 123 4567", autocomplete: "off" });
   // Not a gift: the buyer is the recipient, so their name and phone are only asked once
   const same = isNew && !copyFrom && !draft ? false : (!f.buyer_name || (f.buyer_name === f.customer_name && f.buyer_phone === f.customer_phone));
-  if (same && !f.buyer_name) { iBName.value = f.customer_name; iBPhone.value = f.customer_phone; }
+  if (same && !f.buyer_name) { iBName.value = f.customer_name; iBPhone.value = phLocal(f.customer_phone); }
   const iSame = el("input", { type: "checkbox", id: "f-same", checked: same });
   const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), rows: 2 }, f.card_message);
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: 2 }, f.delivery_note);
   const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh"), rows: 3 }, f.notes);
+  const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "2500", value: f.amount ?? "" });
   const iVend = sel("f-vendor", [["", t("unassigned")], ...S.members.filter((m) => m.role !== "carrier").map((m) => [m.email, m.name + (m.role !== "vendor" ? " (" + t("role_" + m.role) + ")" : "")])], f.vendor_email);
   const iCarr = S.cap.carrier ? sel("f-carrier", [["", t("anyCarrier")], ...S.members.filter((m) => m.role === "carrier").map((m) => [m.email, m.name])], f.carrier_email) : null;
   const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true });
@@ -388,35 +400,65 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr });
   const hist = isNew ? null : historyBlock(o);
 
+  // Channel: logos in the header, grey until chosen; tapping the chosen one clears it
+  let channel = f.channel || "";
+  const chanWarn = el("div", { class: "chan-warn collapse", role: "status" }, icon("alert"), el("span", {}, t("chanWarn")));
+  const syncChan = () => {
+    iChan.querySelectorAll(".chan-opt").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.c === channel)));
+    chanWarn.classList.toggle("is-collapsed", !!channel);
+  };
+  const iChan = el("div", { class: "chan-pick", role: "group", "aria-label": t("channel") }, CHANNELS.map((c) =>
+    el("button", { type: "button", class: "chan-opt", "data-c": c, style: "--cc:" + chanColor(c), "aria-label": c, title: c,
+      onclick: () => { channel = channel === c ? "" : c; syncChan(); keepDraft(); } }, chanMark(c))));
+
+  // Returning customer: the same buyer phone on other orders already loaded
+  const repeatTag = el("div", { class: "repeat-tag collapse is-collapsed", role: "status" });
+  const syncRepeat = () => {
+    const d = intlPhone(phFull(iBPhone.value)), prev = d.length >= 9 ? S.orders.filter((x) => x.id !== o?.id && intlPhone(x.buyer_phone) === d) : [];
+    const sum = pricesOn() ? t("repeatSum", { sum: peso(prev.reduce((a, x) => a + (+x.amount || 0), 0)) }) : "";
+    repeatTag.replaceChildren(icon("star"), el("span", {}, prev.length ? (prev.length === 1 ? t("repeatOne") : t("repeatMany", { n: prev.length })) + sum : ""));
+    repeatTag.classList.toggle("is-collapsed", !prev.length);
+  };
+  iBPhone.addEventListener("input", syncRepeat);
+
   // What the form holds, cleaned the way it is stored
   const collect = () => {
     const sameNow = iSame.checked;
-    return {
-      num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel: iChan.value, vendor_email: iVend.value,
+    const row = {
+      num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel, vendor_email: iVend.value,
       carrier_email: iCarr ? iCarr.value : f.carrier_email,
       customer_name: (sameNow ? iBName.value : iName.value).trim(), address: iAddr.value.trim(),
-      customer_phone: normPhone(sameNow ? iBPhone.value : iPhone.value), customer_email: iEmail.value.trim().toLowerCase(),
-      buyer_name: iBName.value.trim(), buyer_phone: normPhone(iBPhone.value),
+      customer_phone: phFull(sameNow ? iBPhone.value : iPhone.value), customer_email: iEmail.value.trim().toLowerCase(),
+      buyer_name: iBName.value.trim(), buyer_phone: phFull(iBPhone.value),
       card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(), notes: iNotes.value.trim(),
     };
+    if (S.cap.amount) row.amount = pricesOn() ? (iAmount.value === "" ? null : Math.max(0, +iAmount.value)) : (f.amount === "" ? null : f.amount);
+    return row;
   };
   let initial = null;
   const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || bouquet.dirty || proof.dirty;
 
-  const linkBlock = isNew ? el("div", { class: "hint" }, t("linkAfterSave")) : (() => {
-    const li = el("input", { id: "f-link", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select(), "aria-label": t("customerLink") });
+  const linkBlock = isNew ? el("p", { class: "note", style: "margin:0" }, t("linkAfterSave")) : (() => {
+    const li = el("input", { id: "f-link", class: "input", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select(), "aria-label": t("customerLink") });
     return el("div", { class: "link-row" }, li,
-      el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(li.value).then(() => toast(t("copied")), () => { li.focus(); li.select(); toast(t("selectCopy")); }) }, t("copy")),
+      el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(li.value).then(() => toast(t("copied")), () => { li.focus(); li.select(); toast(t("selectCopy"), { type: "info" }); }) }, t("copy")),
       el("a", { class: "btn", href: trackUrl(o), target: "_blank", rel: "noopener" }, t("view")));
   })();
 
   const saveBtn = el("button", { class: "btn primary", type: "submit" }, t("save"));
-  const syncSame = () => { node.querySelector(".recip").hidden = iSame.checked; };
-  iSame.addEventListener("change", syncSame);
+  const fName = reqField(t("customerName"), iName), fPhone = reqField(t("phone"), phoneBox(iPhone));
+  const recip = el("div", { class: "row2 recip collapse" }, fName, fPhone);
+  const syncSame = (animate) => {
+    recip.classList.toggle("is-collapsed", iSame.checked);
+    recip.setAttribute("aria-hidden", String(iSame.checked));
+    recip.querySelectorAll("input").forEach((x) => (x.tabIndex = iSame.checked ? -1 : 0));
+    if (!animate) { recip.classList.add("no-anim"); requestAnimationFrame(() => recip.classList.remove("no-anim")); }
+  };
+  iSame.addEventListener("change", () => syncSame(true));
 
   const save = async () => {
     setErr("");
-    for (const x of node.querySelectorAll(".missing")) x.classList.remove("missing");
+    for (const x of node.querySelectorAll(".invalid")) x.classList.remove("invalid");
     const row = collect();
     // Required: number, date, time, buyer name + (phone or email), recipient name, phone and address
     const need = [[iNum, row.num], [iDate, row.date], [iSlot, row.slot], [iBName, row.buyer_name],
@@ -425,11 +467,12 @@ function openEditor(o, { copyFrom, draft } = {}) {
     const miss = need.filter(([, v]) => !v).map(([x]) => x.closest(".field"));
     const badPhones = [[iBPhone, row.buyer_phone], [iPhone, iSame.checked ? "" : row.customer_phone]].filter(([, v]) => !phoneOk(v)).map(([x]) => x.closest(".field"));
     if (miss.length || badPhones.length) {
-      [...miss, ...badPhones].forEach((x) => x.classList.add("missing"));
+      void node.offsetWidth;
+      [...miss, ...badPhones].forEach((x) => x.classList.add("invalid"));
       [...miss, ...badPhones][0].scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
-      return miss.length ? (iSlot.closest(".field").classList.contains("missing") && iSlot.first.value ? t("slotInvalid") : t("fillRequired")) : t("phoneInvalid");
+      return miss.length ? (iSlot.closest(".field").classList.contains("invalid") && iSlot.first.value ? t("slotInvalid") : t("fillRequired")) : t("phoneInvalid");
     }
-    if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { iEmail.closest(".field").classList.add("missing"); return t("emailInvalid"); }
+    if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
 
@@ -463,8 +506,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
     upsertLocal(saved);
     S.sel = row.date; S.month = monthOf(row.date);
     await closeSheet(true);
-    toast(photoTrouble ? t("partialSave") : t(isNew ? "created" : "saved"));
+    toast(photoTrouble ? t("partialSave") : t(isNew ? "created" : "saved"), photoTrouble ? { type: "error" } : {});
+    if (!row.channel) setTimeout(() => toast(t("savedNoChannel"), { type: "info" }), 350);
     if (!inRange(row.date)) loadOrders(); else render();
+    // The new order glows for a moment where it landed
+    if (isNew) requestAnimationFrame(() => { const e = document.querySelector(`#list .entry[data-id="${saved.id}"]`); e?.classList.add("is-new"); e?.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" }); });
   };
 
   const archived = !!o?.archived_at;
@@ -474,11 +520,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
     isAdmin() ? el("button", { class: "btn danger", type: "button", onclick: async () => {
       if (!(await askConfirm(t("askDelete", { num: o.num }), t("yesDelete"), { danger: true, detail: S.cap.archive ? t("deleteHintArchive") : null }))) return;
       const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
-      if (error) { toast(t("deleteFail")); return; }
+      if (error) { toast(t("deleteFail"), { type: "error" }); return; }
       await removeFiles([o]);
       S.orders = S.orders.filter((x) => x.id !== o.id);
       await closeSheet(true); toast(t("deleted")); render();
-    } }, t("delete")) : null);
+    } }, icon("trash"), t("delete")) : null);
 
   const cur = o ? stepOf(o) : 0;
   const node = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
@@ -490,51 +536,54 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (msg) setErr(msg);
   } },
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t(copyFrom ? "duplicateTitle" : "newOrderTitle") : t("editOrder", { num: f.num })),
-      o ? el("span", { class: "pill s-" + STEPS[cur].k }, stepName(cur)) : null, archived ? el("span", { class: "pill" }, t("archived")) : null, closeBtn()),
-    copyFrom ? el("div", { class: "hint banner" }, t("duplicateHint")) : null,
-    draft ? el("div", { class: "hint banner" }, t("draftRestored")) : null,
-    el("div", { class: "f-row f-when" }, el("label", { class: "field req" }, el("span", {}, t("date")), iDate), el("div", { class: "field req" }, el("span", {}, t("slot")), iSlot)),
-    el("div", { class: "f-row" }, el("label", { class: "field req" }, el("span", {}, t("orderNum")), iNum), el("label", { class: "field" }, el("span", {}, t("vendor")), iVend)),
-    iCarr ? el("label", { class: "field" }, el("span", {}, t("carrier")), iCarr, el("div", { class: "hint" }, t("carrierHint"))) : null,
-    el("div", { class: "group" }, el("h3", {}, t("buyerH")), el("div", { class: "hint" }, t("buyerHint")),
-      el("div", { class: "f-row" }, el("label", { class: "field req" }, el("span", {}, t("name")), iBName),
-        el("label", { class: "field req-or" }, el("span", {}, t("phone")), iBPhone)),
-      el("label", { class: "field req-or" }, el("span", {}, t("email")), iEmail, el("div", { class: "hint" }, t("autoMailHint")))),
-    el("div", { class: "group" }, el("h3", {}, t("recipientH")),
-      el("label", { class: "check" }, iSame, el("span", {}, t("sameAsBuyer"))),
-      el("div", { class: "f-row recip" }, el("label", { class: "field req" }, el("span", {}, t("customerName")), iName),
-        el("label", { class: "field req" }, el("span", {}, t("phone")), iPhone)),
-      el("div", { class: "field req" }, el("span", {}, t("deliveryAddr")), iAddr, el("div", { class: "hint" }, mapHint(iAddr))),
-      el("label", { class: "field" }, el("span", {}, t("cardMsg")), iCard)),
-    el("div", { class: "field" }, el("span", {}, t("photo")), shot.node),
-    isNew ? null : el("div", { class: "field" }, el("span", {}, t("customerLink")), linkBlock,
-      notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => iBPhone.value.trim() || iPhone.value.trim(), () => STEPS[stepOf(o)].k, hist)),
-    el("details", { class: "deliv", open: !!(f.notes || f.channel || f.delivery_note || o?.proof_path || o?.bouquet_path) || null },
-      el("summary", {}, t("moreDetails")),
-      el("label", { class: "field" }, el("span", {}, t("channel")), iChan),
-      el("label", { class: "field" }, el("span", {}, t("note")), iNotes),
-      el("div", { class: "field" }, el("span", {}, t("bouquetPhoto")), bouquet.node),
-      el("label", { class: "field" }, el("span", {}, t("deliveryNote")), iDNote, el("div", { class: "hint" }, t("deliveryNoteHint"))),
-      el("div", { class: "field" }, el("span", {}, t("proofPhoto")), proof.node)),
-    isNew ? null : el("details", { class: "deliv" }, el("summary", {}, t("history")), hist),
-    !isNew && S.cap.events ? el("details", { class: "deliv" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null,
-    err,
-    el("div", { class: "sheet-foot" }, footLeft, saveBtn));
+      o ? badge(cur) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
+    el("div", { class: "sheet-body" },
+      chanWarn,
+      copyFrom ? el("div", { class: "sheet-note" }, icon("copy"), el("span", {}, t("duplicateHint"))) : null,
+      draft ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
+      el("section", {},
+        el("div", { class: "row2 when-row" }, reqField(t("date"), iDate), reqField(t("slot"), iSlot)),
+        el("div", { class: "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
+        iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null,
+        pricesOn() ? el("div", { class: "row2" }, field(t("amount"), iAmount, el("small", { class: "note" }, t("amountHint"))), el("span")) : null),
+      el("section", {}, el("h3", {}, t("buyerH")), el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
+        el("div", { class: "row2" }, reqField(t("name"), iBName), reqField(t("phone"), phoneBox(iBPhone))),
+        repeatTag,
+        field(t("email"), iEmail, el("small", { class: "note" }, t("autoMailHint")))),
+      el("section", {}, el("h3", {}, t("recipientH")),
+        checkRow(iSame, t("sameAsBuyer")),
+        recip,
+        el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr), mapHint(iAddr)),
+        field(t("cardMsg"), iCard)),
+      el("section", {}, field(t("photo"), shot.node)),
+      isNew ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
+        notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone.value) || phFull(iPhone.value), () => STEPS[stepOf(o)].k, hist)),
+      el("section", {}, el("details", { class: "hist", open: !!(f.notes || f.delivery_note || o?.proof_path || o?.bouquet_path) || null },
+        el("summary", {}, t("moreDetails")),
+        el("div", { class: "details-body" },
+          field(t("note"), iNotes),
+          field(t("bouquetPhoto"), bouquet.node),
+          field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
+          field(t("proofPhoto"), proof.node)))),
+      isNew ? null : el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
+        S.cap.events ? el("details", { class: "hist" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null),
+      err),
+    el("div", { class: "sheet-foot" }, footLeft, el("span", { class: "spacer" }), saveBtn));
 
   // New orders keep a draft in this browser until they are saved, in case the tab closes.
   let draftT;
-  const keepDraft = () => { if (!isNew) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); };
-  node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("missing"); keepDraft(); });
-  node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("missing"); keepDraft(); });
+  function keepDraft() { if (!isNew || !initial) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); }
+  node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
+  node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   openLayer(node, { dirty, dispose: () => { [shot, bouquet, proof].forEach((p) => p.dispose()); clearTimeout(draftT); } });
-  syncSame();
+  syncSame(false); syncChan(); syncRepeat();
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
   sheet.order = o;
 }
 function mapHint(input) {
-  const a = el("a", { target: "_blank", rel: "noopener", class: "plain-link" }, t("openMaps"));
+  const a = el("a", { target: "_blank", rel: "noopener", class: "note link-out" }, t("openMaps"));
   const sync = () => { a.href = mapsUrl(input.value); a.hidden = !input.value.trim(); };
   input.addEventListener("input", sync); sync();
   return a;
@@ -555,7 +604,7 @@ document.addEventListener("orderchange", (e) => {
   const row = e.detail;
   if (!sheet?.order || sheet.order.id !== row.id || row.updated_at === sheet.order.updated_at) return;
   if (sheet.node.querySelector(".changed-banner")) return;
-  sheet.node.querySelector(".sheet-head").after(el("div", { class: "hint banner changed-banner", role: "status" }, t("changedMeanwhile")));
+  sheet.node.querySelector(".sheet-body").prepend(el("div", { class: "sheet-note warn changed-banner", role: "status" }, icon("alert"), el("span", {}, t("changedMeanwhile"))));
 });
 
 // ---------- archive ----------
@@ -563,7 +612,7 @@ async function setArchived(list, on) {
   if (!list.length) return;
   const ids = list.map((o) => o.id);
   const { error } = await sb.from("cdf_orders").update({ archived_at: on ? new Date().toISOString() : null }).in("id", ids);
-  if (error) { toast(t("saveFail", { msg: error.message })); return; }
+  if (error) { toast(t("saveFail", { msg: error.message }), { type: "error" }); return; }
   if (sheet && list.some((o) => o.id === sheet.order?.id)) await closeSheet(true);
   if (on) S.orders = S.orders.filter((o) => !ids.includes(o.id));
   S.selected.clear();

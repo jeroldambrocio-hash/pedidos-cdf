@@ -3,6 +3,19 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    // panel (rediseño)
+    statusH: "Estado", channelH: "Canal", allStatuses: "Todos los estados", accountMenu: "Cuenta y ajustes", expandNav: "Desplegar barra lateral", collapseNav: "Plegar barra lateral",
+    openNav: "Abrir navegación", closeNav: "Cerrar navegación", sections: "Secciones", settings: "Ajustes",
+    changePassword: "Cambiar contraseña", newPass: "Nueva contraseña", repeatPass: "Repite la contraseña", passMin: "La contraseña debe tener al menos 8 caracteres.",
+    passMismatch: "Las contraseñas no coinciden.", passChanged: "Contraseña cambiada. Úsala la próxima vez que entres.", savePassword: "Guardar contraseña", accountOf: "Cuenta: {email}",
+    sendFeedback: "Enviar sugerencia", fbType: "Tipo", fbIdea: "Idea", fbBug: "Algo no funciona", fbOther: "Otro", fbMsg: "Mensaje", fbPh: "Cuéntanos qué mejorarías o qué no funciona…",
+    fbTo: "Llega directamente a {to}.", fbOpened: "Se ha abierto tu correo con el mensaje listo. Solo falta pulsar Enviar.", fbEmpty: "Escribe tu mensaje.", send: "Enviar",
+    pricesAdmin: "Precios (solo admin)", pricesOff: "Desactivados", pricesOn: "Activados", amount: "Importe (₱)", amountHint: "Opcional. Sirve para las estadísticas de ventas.",
+    flowHint: "En preparación → Listo → En reparto → Entregado. El cliente recibe un correo automático cuando sale.",
+    chanWarn: "No has marcado el canal (Shopify, Instagram, TikTok o Web). Puedes guardar igualmente.", savedNoChannel: "Guardado sin canal. Puedes añadirlo después desde el pedido.",
+    repeatOne: "Cliente recurrente · 1 pedido anterior", repeatMany: "Cliente recurrente · {n} pedidos anteriores", repeatSum: " · {sum} en total",
+    sumPrep: "por preparar", sumReady: "listos", sumTransit: "en reparto", sumDone: "entregados", sumFail: "intentos fallidos", reschedule: "Reprogramar",
+    phoneCc: "Teléfono (+63)", kpiSales: "Ventas", bySales: "Ventas por canal",
     appTitle: "Pedidos · Casa de Flores", trackTitle: "Tu pedido · Casa de Flores", skipContent: "Ir a los pedidos", sections: "Secciones",
     signIn: "Inicia sesión", signInTitle: "Entrar en Pedidos", loginHelp: "Acceso para el equipo de Casa de Flores.", email: "Email", password: "Contraseña", enter: "Entrar", logout: "Salir",
     studioTitle: "Cada entrega merece cuidado.", studioIntro: "Del taller a su puerta. Todos los pedidos, en tus manos.", manilaTime: "Horarios de entrega · Manila (PHT)",
@@ -17,7 +30,7 @@ const I18N = {
     // calendar and day
     chooseDate: "Cambiar fecha", prevMonth: "Mes anterior", nextMonth: "Mes siguiente", today: "Hoy", tomorrow: "Mañana", newOrder: "Nuevo pedido",
     dow: ["L", "M", "X", "J", "V", "S", "D"], nOrders: "{n} pedidos", oneOrder: "1 pedido", manila: "Hora de Manila",
-    quickFilters: "Filtros", allOrders: "Todos", searchAll: "Buscar en todas las fechas", searchPh: "Nº, nombre, teléfono o dirección", clearSearch: "Limpiar búsqueda",
+    quickFilters: "Filtros", allOrders: "Todos", searchAll: "Buscar en todas las fechas", searchPh: "Buscar en todas las fechas — pedido, nombre o teléfono", clearSearch: "Limpiar búsqueda",
     searchResults: "Resultados", searchTitle: "Búsqueda: «{q}»", emptySearch: "No hay pedidos que coincidan",
     summaryTotal: "Pedidos", summaryPending: "Pendientes", summaryPrep: "En el taller", summaryFailed: "No había nadie", summaryUnassigned: "Sin florista", summaryRisk: "En riesgo",
     timelineView: "Cronología", compactView: "Compacta", viewMode: "Vista de pedidos", select: "Seleccionar", bulkActions: "Acciones con la selección",
@@ -28,7 +41,7 @@ const I18N = {
     details: "Ver detalles", notify: "Avisar al cliente", selectOrder: "Seleccionar el pedido #{num}", nSelected: "{n} seleccionados", selectAll: "Todos los visibles",
     assignFlorist: "Asignar florista", bulkDone: "{n} pedidos actualizados", done: "Hecho", assignedTo: "Florista: {name}", undo: "Deshacer",
     // steps
-    st_prep: "Preparando", st_ready: "Listo", st_transit: "En camino", st_done: "Entregado", st_fail: "No había nadie",
+    st_prep: "En preparación", st_ready: "Listo", st_transit: "En reparto", st_done: "Entregado", st_fail: "Intento fallido",
     db_Preparing: "Preparando", db_Ready: "Listo", db_: "—", db_Intransit: "En camino", db_Delivered: "Entregado", db_Failed: "No había nadie",
     actReady: "Marcar listo", actOut: "Salir a repartir", actOutAgain: "Volver a salir", actDelivered: "Entregado", actMissed: "No había nadie", call: "Llamar", map: "Mapa",
     status: "Estado", delivery: "Entrega", statusFail: "No se pudo cambiar el estado",
@@ -110,6 +123,19 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    // panel (redesign)
+    statusH: "Status", channelH: "Channel", allStatuses: "All statuses", accountMenu: "Account and settings", expandNav: "Expand sidebar", collapseNav: "Collapse sidebar",
+    openNav: "Open navigation", closeNav: "Close navigation", sections: "Sections", settings: "Settings",
+    changePassword: "Change password", newPass: "New password", repeatPass: "Repeat the password", passMin: "The password needs at least 8 characters.",
+    passMismatch: "The passwords don't match.", passChanged: "Password changed. Use it next time you sign in.", savePassword: "Save password", accountOf: "Account: {email}",
+    sendFeedback: "Send a suggestion", fbType: "Type", fbIdea: "Idea", fbBug: "Something's broken", fbOther: "Other", fbMsg: "Message", fbPh: "Tell us what you'd improve or what isn't working…",
+    fbTo: "Goes straight to {to}.", fbOpened: "Your email app opened with the message ready. Just press Send.", fbEmpty: "Write your message.", send: "Send",
+    pricesAdmin: "Prices (admin only)", pricesOff: "Off", pricesOn: "On", amount: "Amount (₱)", amountHint: "Optional. Used for the sales statistics.",
+    flowHint: "Preparing → Ready → Out for delivery → Delivered. The customer gets an automatic email when it goes out.",
+    chanWarn: "You haven't marked the channel (Shopify, Instagram, TikTok or Web). You can save anyway.", savedNoChannel: "Saved without a channel. You can add it later from the order.",
+    repeatOne: "Returning customer · 1 earlier order", repeatMany: "Returning customer · {n} earlier orders", repeatSum: " · {sum} in total",
+    sumPrep: "to prepare", sumReady: "ready", sumTransit: "out for delivery", sumDone: "delivered", sumFail: "failed attempts", reschedule: "Reschedule",
+    phoneCc: "Phone (+63)", kpiSales: "Sales", bySales: "Sales by channel",
     appTitle: "Orders · Casa de Flores", trackTitle: "Your order · Casa de Flores", skipContent: "Skip to orders", sections: "Sections",
     signIn: "Sign in", signInTitle: "Sign in to Orders", loginHelp: "For the Casa de Flores team.", email: "Email", password: "Password", enter: "Sign in", logout: "Sign out",
     studioTitle: "Every delivery deserves care.", studioIntro: "From our studio to their doorstep. Keep every order in hand.", manilaTime: "Delivery times · Manila (PHT)",
@@ -123,7 +149,7 @@ const I18N = {
     loadFail: "Couldn't load the orders",
     chooseDate: "Choose date", prevMonth: "Previous month", nextMonth: "Next month", today: "Today", tomorrow: "Tomorrow", newOrder: "New order",
     dow: ["M", "T", "W", "T", "F", "S", "S"], nOrders: "{n} orders", oneOrder: "1 order", manila: "Manila time",
-    quickFilters: "Filters", allOrders: "All", searchAll: "Search all dates", searchPh: "No., name, phone or address", clearSearch: "Clear search",
+    quickFilters: "Filters", allOrders: "All", searchAll: "Search all dates", searchPh: "Search all dates — order, name or phone", clearSearch: "Clear search",
     searchResults: "Results", searchTitle: "Search: “{q}”", emptySearch: "No matching orders",
     summaryTotal: "Orders", summaryPending: "Pending", summaryPrep: "In the studio", summaryFailed: "Nobody home", summaryUnassigned: "No florist", summaryRisk: "At risk",
     timelineView: "Timeline", compactView: "Compact", viewMode: "Order view", select: "Select", bulkActions: "Actions on the selection",
@@ -243,26 +269,47 @@ const pref = (k) => { try { return localStorage.getItem(k); } catch { return nul
 const savePref = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
 function applyPrefs() {
   const root = document.documentElement, th = pref("cdf-theme") || "dark", sz = pref("cdf-size") || "", mo = pref("cdf-motion") === "reduced" ? "reduced" : "full";
-  root.dataset.theme = th;
+  if (th === "auto") delete root.dataset.theme; else root.dataset.theme = th;
   if (sz === "lg") root.dataset.size = "lg"; else delete root.dataset.size;
   root.dataset.motion = mo;
   for (const b of document.querySelectorAll("button[data-size]")) b.setAttribute("aria-pressed", String(b.dataset.size === sz));
   for (const b of document.querySelectorAll("[data-theme-set]")) b.setAttribute("aria-pressed", String(b.dataset.themeSet === th));
   for (const b of document.querySelectorAll("[data-motion-set]")) b.setAttribute("aria-pressed", String(b.dataset.motionSet === mo));
+  for (const b of document.querySelectorAll("[data-prices]")) b.setAttribute("aria-pressed", String(b.dataset.prices === (pref("cdf-prices") || "")));
+  for (const s of document.querySelectorAll(".seg")) placePill(s);
+}
+// Segmented controls: a pill slides under the pressed button
+function placePill(box) {
+  let pill = box.querySelector(":scope > .pill");
+  if (!pill) {
+    pill = document.createElement("span"); pill.className = "pill"; pill.setAttribute("aria-hidden", "true"); box.prepend(pill);
+    if (window.ResizeObserver) new ResizeObserver(() => placePill(box)).observe(box);
+  }
+  const a = box.querySelector('button[aria-pressed="true"]');
+  pill.style.opacity = a ? "1" : "0";
+  if (a) { pill.style.width = a.offsetWidth + "px"; pill.style.transform = `translateX(${a.offsetLeft}px)`; }
+}
+// Menus (settings, account): opened with a class so they animate in and out
+const openMenu = () => document.querySelector(".settings .menu.open");
+function setMenu(menu, open) {
+  menu.classList.toggle("open", open);
+  menu.parentElement.querySelector("[data-settings]")?.setAttribute("aria-expanded", String(open));
+  if (open) for (const s of menu.querySelectorAll(".seg")) placePill(s);
 }
 document.addEventListener("click", (e) => {
   const gear = e.target.closest("[data-settings]");
-  const menu = document.querySelector(".settings .menu");
-  if (gear) { menu.hidden = !menu.hidden; gear.setAttribute("aria-expanded", String(!menu.hidden)); return; }
-  if (menu && !menu.hidden && !e.target.closest(".settings")) { menu.hidden = true; document.querySelector("[data-settings]").setAttribute("aria-expanded", "false"); }
+  const cur = openMenu();
+  if (gear) { const m = gear.parentElement.querySelector(".menu"); if (cur && cur !== m) setMenu(cur, false); setMenu(m, !m.classList.contains("open")); return; }
+  if (cur && (!e.target.closest(".settings") || e.target.closest(".mitem"))) setMenu(cur, false);
   const l = e.target.closest(".lang button"); if (l) { setLang(l.dataset.lang); applyPrefs(); return; }
   const z = e.target.closest("button[data-size]"); if (z) { savePref("cdf-size", z.dataset.size); applyPrefs(); return; }
   const th = e.target.closest("button[data-theme-set]"); if (th) { savePref("cdf-theme", th.dataset.themeSet); applyPrefs(); return; }
-  const mo = e.target.closest("button[data-motion-set]"); if (mo) { savePref("cdf-motion", mo.dataset.motionSet === "reduced" ? "reduced" : ""); applyPrefs(); }
+  const mo = e.target.closest("button[data-motion-set]"); if (mo) { savePref("cdf-motion", mo.dataset.motionSet === "reduced" ? "reduced" : ""); applyPrefs(); return; }
+  const pr = e.target.closest("button[data-prices]"); if (pr) { savePref("cdf-prices", pr.dataset.prices); applyPrefs(); document.dispatchEvent(new Event("priceschange")); }
 });
 document.addEventListener("keydown", (e) => {
-  const m = document.querySelector(".settings .menu");
-  if (e.key === "Escape" && m && !m.hidden) { m.hidden = true; const g = document.querySelector("[data-settings]"); g.setAttribute("aria-expanded", "false"); g.focus(); }
+  const m = openMenu();
+  if (e.key === "Escape" && m) { setMenu(m, false); m.parentElement.querySelector("[data-settings]")?.focus(); }
 });
 applyStatic();
 applyPrefs();

@@ -5,7 +5,7 @@ const sb = supabase.createClient(url, anonKey);
 const ENTREGAS = "cdf-entregas";
 // The shop works on Philippine time, wherever the viewer happens to be
 const TZ = "Asia/Manila";
-const CHANNELS = ["Shopify", "TikTok", "Instagram", "Web"];
+const CHANNELS = ["Shopify", "Instagram", "TikTok", "Web"];
 
 // One pipeline drives both stored fields: status (Preparing/Ready) and delivery (-/In transit/Delivered/Failed).
 const STEPS = [
@@ -41,6 +41,8 @@ const el = (tag, a = {}, ...kids) => {
   for (const c of kids.flat()) { if (c == null || c === false) continue; e.append(c.nodeType ? c : document.createTextNode(c)); }
   return e;
 };
+// replaceChildren would print "null" for a left-out piece; this skips them like el() does
+const fill = (node, ...kids) => node.replaceChildren(...kids.flat().filter((k) => k != null && k !== false));
 // Any "H:MM - H:MM" is allowed; orders are grouped and sorted by start time.
 const slotStart = (s) => { const m = /(\d{1,2}):(\d{2})/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : 9999; };
 const slotEnd = (s) => { const m = /-\s*(\d{1,2}):(\d{2})/.exec(s || ""); return m ? +m[1] * 60 + +m[2] : slotStart(s) + 60; };
@@ -67,6 +69,15 @@ function intlPhone(raw) {
 // Stored form: "+63917…" when the number is recognisable, otherwise exactly what was typed
 const normPhone = (raw) => { const d = intlPhone(raw); return /^\d{10,15}$/.test(d) ? "+" + d : String(raw || "").trim(); };
 const phoneOk = (raw) => !String(raw || "").trim() || /^\d{10,15}$/.test(intlPhone(raw));
+// Phone fields show "+63" fixed and only the rest is typed. A number that starts with + or 00 keeps its own
+// country (Spain and the rest), and the fixed prefix steps aside for it.
+const phLocal = (p) => { const s = String(p || "").trim(); return /^\+63/.test(s) ? s.replace(/^\+63\s*/, "") : s; };
+const phFull = (v) => { const s = String(v || "").trim(); if (!s) return ""; if (/^(\+|00)/.test(s)) return normPhone(s); return normPhone("+63" + s.replace(/\D/g, "").replace(/^(63)?0?/, "")); };
+// Search without accents or case ("Sofia" finds "Sofía")
+const norm = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+// Prices: off unless an admin turns them on in this browser (needs migration 014)
+const pricesOn = () => S.cap.amount && isAdmin() && pref("cdf-prices") === "on";
+const peso = (n) => "₱" + Math.round(n || 0).toLocaleString("en-PH");
 
 // ---------- state ----------
 const S = {
@@ -75,7 +86,8 @@ const S = {
   loaded: false, loadError: false, filter: null, query: "", hits: null, showArchived: false,
   pending: new Set(), selecting: false, selected: new Set(),
   // Columns and tables added by migrations 012/013; the panel works before and after they are applied
-  cap: { archive: false, carrier: false, events: false },
+  cap: { archive: false, carrier: false, events: false, amount: false },
+  chan: null,
 };
 S.sel = S.today; S.month = monthOf(S.today);
 // admin: everything · moderator: all orders, no team or deleting · vendor: own orders · carrier: deliveries
@@ -86,20 +98,44 @@ const memberName = (email) => S.members.find((m) => m.email === email)?.name || 
 const prefersReducedMotion = () => document.documentElement.dataset.motion === "reduced";
 
 // ---------- toasts ----------
-// One message at a time; an optional action button (Undo, Retry…) stays a little longer.
-function toast(msg, { action, onAction, ms } = {}) {
-  const box = $("toast");
-  clearTimeout(toast.h);
-  box.replaceChildren(el("span", {}, msg), ...(action ? [el("button", { type: "button", onclick: () => { box.hidden = true; onAction(); } }, action)] : []));
-  box.hidden = false;
-  toast.h = setTimeout(() => (box.hidden = true), ms || (action ? 6000 : 3200));
+// Stacked at the bottom; an action (Undo, Retry…) keeps it longer, and hovering pauses it.
+function toast(msg, { action, onAction, ms, type = "ok" } = {}) {
+  const node = el("div", { class: "toast " + type, role: type === "error" ? "alert" : "status" },
+    el("span", { class: "ti" }, icon(type === "error" ? "alert" : type === "info" ? "clock" : "tick")), el("p", {}, msg),
+    action ? el("button", { type: "button", onclick: () => { close(); onAction(); } }, action) : null);
+  let h, gone = false;
+  const close = async () => { if (gone) return; gone = true; clearTimeout(h); node.classList.add("out"); await wait(prefersReducedMotion() ? 120 : 170); node.remove(); };
+  const arm = () => { clearTimeout(h); h = setTimeout(close, ms || (action ? 6000 : 3200)); };
+  node.addEventListener("pointerenter", () => clearTimeout(h));
+  node.addEventListener("pointerleave", arm);
+  const box = $("toasts");
+  while (box.children.length > 2) box.firstChild.remove();
+  box.append(node); arm();
 }
+const toastErr = (msg) => toast(msg, { type: "error" });
+
+// ---------- list motion ----------
+// FLIP: cards that stay slide to their new place, new ones fade up. Keyed by data-id.
+function flip(container, mutate) {
+  if (!container || prefersReducedMotion()) return mutate();
+  const first = new Map();
+  container.querySelectorAll(":scope > [data-id]").forEach((e) => first.set(e.dataset.id, e.getBoundingClientRect()));
+  mutate();
+  if (!first.size) return;
+  container.querySelectorAll(":scope > [data-id]").forEach((e) => {
+    const f = first.get(e.dataset.id), l = e.getBoundingClientRect();
+    if (f) { const dx = f.left - l.left, dy = f.top - l.top; if (dx || dy) e.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,0,0,1)" }); }
+    else e.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: "cubic-bezier(.16,1,.3,1)" });
+  });
+}
+const stagger = (parent) => { parent.classList.add("stagger"); [...parent.children].forEach((c, i) => c.style.setProperty("--i", i)); setTimeout(() => parent.classList.remove("stagger"), 600); };
+const bump = (node) => { node.classList.remove("bump"); void node.offsetWidth; node.classList.add("bump"); };
 
 // ---------- connection banner ----------
 function setConnection(kind) {
   const c = $("connection");
   if (!kind) { c.hidden = true; return; }
-  c.replaceChildren(el("span", {}, t(kind === "offline" ? "offline" : "loadError")),
+  c.replaceChildren(icon("alert"), el("span", {}, t(kind === "offline" ? "offline" : "loadError")),
     el("button", { class: "btn", type: "button", onclick: () => loadOrders() }, t("retry")));
   c.hidden = false;
 }
@@ -109,12 +145,13 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e] = await Promise.all([
+  const [a, c, e, m] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
+    sb.from("cdf_orders").select("amount").limit(1),
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: !m.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.

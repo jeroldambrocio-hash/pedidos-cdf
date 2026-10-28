@@ -21,12 +21,12 @@ Todo lleva el prefijo `cdf_`:
 
 ### Pasar esta versión a producción (en este orden, cuando se autorice)
 
-1. Migraciones `supabase/migrations/012_cdf_archive_history.sql` y luego `013_cdf_carrier_rules.sql`.
+1. Migraciones `supabase/migrations/012_cdf_archive_history.sql`, luego `013_cdf_carrier_rules.sql` y, para los precios, `014_cdf_amount.sql`.
 2. Volver a desplegar `cdf-notify` (ahora solo admin/moderador pueden enviar correos de texto libre).
 3. Opcional, Shopify: desplegar `cdf-shopify` con `--no-verify-jwt`, guardar el secreto `SHOPIFY_WEBHOOK_SECRET` y crear en Shopify el webhook "Order creation" apuntando a `https://<proyecto>.supabase.co/functions/v1/cdf-shopify`.
 4. Publicar el sitio en Netlify.
 
-El panel nuevo también funciona sin las migraciones 012/013 (sin archivo, sin historial de cambios y sin repartidor asignado), así que el orden protege pero no rompe.
+El panel nuevo también funciona sin las migraciones 012/013/014 (sin archivo, sin historial de cambios, sin repartidor asignado y sin precios), así que el orden protege pero no rompe.
 
 ## Probar en local
 
