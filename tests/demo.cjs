@@ -21,13 +21,17 @@ http.createServer((req, res) => {
     // The real supabase-js is swapped for the fake one; the role comes from ?role=
     if (f.endsWith(".html")) buf = String(buf).replace(/<script src="https:\/\/cdn\.jsdelivr[^>]*supabase[^>]*><\/script>/,
       `<script>window.__role=new URLSearchParams(location.search).get("role")||"admin"</script><script src="/__mock.js"></script>`);
-    // The tracking page asks the cdf-track function directly: answer with a made-up order (same as the tests)
+    // The tracking page asks the cdf-track function directly: answer with a made-up order.
+    // ?state=prep | ready | transit (default) | done | fail shows each step.
     if (f.endsWith("seguimiento.html")) buf = String(buf).replace('<script src="/config.js"></script>', `<script>
 const realFetch = window.fetch;
+const demoState = new URLSearchParams(location.search).get("state") || "transit";
+const DEMO = { prep: ["Preparing", "-"], ready: ["Ready", "-"], transit: ["Ready", "In transit"], done: ["Ready", "Delivered"], fail: ["Ready", "Failed"] }[demoState] || ["Ready", "In transit"];
 window.fetch = (u, o) => !String(u).includes("/functions/v1/cdf-track") ? realFetch(u, o) : Promise.resolve(new Response(JSON.stringify({ order: {
   num: "0124", date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()), slot: "8:00 - 12:00",
-  status: "Ready", delivery: "In transit", delivery_note: "", updated_at: new Date().toISOString(), for_name: "Maria",
-  card_message: "Happy birthday, Maria!", bouquet_url: "/img/emblem.webp", proof_url: null } }), { headers: { "Content-Type": "application/json" } }));
+  status: DEMO[0], delivery: DEMO[1], updated_at: new Date().toISOString(), for_name: "Maria", card_message: "Happy birthday, Maria!",
+  delivery_note: demoState === "done" ? "Left it with the guard." : demoState === "fail" ? "We came at 3 PM but nobody was home. We'll come back tomorrow, 10:00 - 12:00." : "",
+  bouquet_url: demoState === "prep" ? null : "/img/emblem.webp", proof_url: demoState === "done" || demoState === "fail" ? "/img/emblem.webp" : null } }), { headers: { "Content-Type": "application/json" } }));
 </script><script src="/config.js"></script>`);
     res.end(buf);
   });
