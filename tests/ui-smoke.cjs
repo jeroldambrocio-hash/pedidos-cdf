@@ -194,6 +194,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await p.evaluate(() => document.activeElement.dataset.goto), "prefs");
       await p.keyboard.press("ArrowDown"); await p.keyboard.press("Enter");
       assert(await p.locator("#pwBtn").isVisible()); assert.equal(await p.locator("#menuEmail").innerText(), "admin@example.com");
+      assert(!/\bnull\b|undefined/.test(await p.locator("#menuProfile").innerText()), "no stray null in My account");
       await p.keyboard.press("Escape");
       assert.equal(await p.evaluate(() => document.activeElement.id), "accountBtn");
       assert.equal(await p.locator("#account .menu.open").count(), 0);

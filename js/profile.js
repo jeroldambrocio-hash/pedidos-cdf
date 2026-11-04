@@ -164,12 +164,12 @@ function renderMyCard() {
   const me = S.me; if (!me) { box.replaceChildren(); return; }
   const done = el("b", {}, "…");
   if (S.cap.profiles) myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });
-  box.replaceChildren(
+  box.replaceChildren(...[
     el("div", { class: "my-id" }, avatarNode(me, "avatar lg"),
       el("div", {}, el("b", {}, me.name), el("small", {}, t("role_" + me.role)), me.phone ? el("small", {}, "+" + me.phone) : null)),
     S.cap.profiles && me.role === "vendor" ? el("div", { class: "my-avail" }, awayBadge(me)) : null,
     S.cap.profiles ? el("div", { class: "my-done" }, icon("check"), done) : null,
-    S.cap.profiles ? el("button", { class: "mitem", id: "editProfileBtn", type: "button", onclick: () => openProfile() }, icon("edit"), el("span", {}, t("editProfile"))) : null);
+    S.cap.profiles ? el("button", { class: "mitem", id: "editProfileBtn", type: "button", onclick: () => openProfile() }, icon("edit"), el("span", {}, t("editProfile"))) : null].filter(Boolean)); // DOM replaceChildren would print "null"
 }
 
 // ---------- the office: pending orders that fall inside an absence ----------
