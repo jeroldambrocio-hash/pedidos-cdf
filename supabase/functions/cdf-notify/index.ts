@@ -2,9 +2,10 @@
 // 1) Vendor alert: called by the database trigger cdf_orders_notify (migration 005) with a secret kept in Vault.
 // 2) Customer email: called from the panel by the admin with the message already written.
 // 3) Automatic customer email when an order goes In transit: called by the trigger cdf_orders_transit (migration 007).
-// Every attempt is logged in cdf_notifications (migration 006).
+// Every attempt is logged in cdf_notifications (migration 006). Customer emails use the branded template in email.ts.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import nodemailer from "npm:nodemailer@6.9.14";
+import { customerEmail, stepOf } from "./email.ts";
 
 const APP_URL = Deno.env.get("CDF_APP_URL") || "https://pedidos-cdf.netlify.app";
 const FROM = Deno.env.get("CDF_MAIL_FROM") || "Casa de Flores <onboarding@resend.dev>";
@@ -60,12 +61,23 @@ async function sendMail(to: string, subject: string, html: string, text: string)
   return r.ok ? { ok: true, via: "resend", id: out.id } : { ok: false, via: "resend", error: out?.message || `HTTP ${r.status}` };
 }
 
-const plainHtml = (text: string) =>
-  `<!doctype html><html><body style="margin:0;background:#f6f3ef;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:#2b2622">
-<div style="max-width:480px;margin:0 auto;padding:28px 18px">
-  <p style="margin:0 0 14px;font-size:13px;letter-spacing:.08em;text-transform:uppercase;color:#a0705a">Casa de Flores</p>
-  <p style="margin:0;font-size:15px;line-height:1.55;white-space:pre-wrap">${esc(text).replace(/(https?:\/\/[^\s<]+)/g, '<a href="$1" style="color:#13302a">$1</a>')}</p>
-</div></body></html>`;
+// The bouquet photo is private: a signed link long enough for the email to be opened later (30 days)
+const PHOTO_DAYS = 30;
+type Svc = ReturnType<typeof createClient>;
+async function bouquetUrl(service: Svc, path: string | null) {
+  if (!path) return null;
+  const { data } = await service.storage.from("cdf-entregas").createSignedUrl(path, PHOTO_DAYS * 86400);
+  return data?.signedUrl || null;
+}
+// The branded customer email for an order, worded for the step it is on right now
+async function orderEmail(service: Svc, o: Record<string, any>, message?: string) {
+  return customerEmail({
+    appUrl: APP_URL, num: String(o.num), step: stepOf(o.status, o.delivery),
+    // The email goes to the buyer; greet the buyer, or the recipient when they are the same person
+    name: o.buyer_name || o.customer_name || "",
+    link: `${APP_URL}/p/${o.code}`, photoUrl: await bouquetUrl(service, o.bouquet_path), message,
+  });
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
@@ -87,7 +99,7 @@ Deno.serve(async (req) => {
     const { data: u } = await service.auth.getUser(token);
     const me = u?.user?.email?.toLowerCase();
     const { data: who } = me ? await service.from("cdf_members").select("role").eq("email", me).maybeSingle() : { data: null };
-    const { data: o } = await service.from("cdf_orders").select("id,customer_email").eq("id", orderId).maybeSingle();
+    const { data: o } = await service.from("cdf_orders").select("id,customer_email,num,code,status,delivery,buyer_name,customer_name,bouquet_path").eq("id", orderId).maybeSingle();
     // Free-text email from the shop's address: the admin only. Florists and drivers notify through
     // WhatsApp from their phone, and the automatic In transit email covers the rest.
     const allowed = who?.role === "admin";
@@ -96,9 +108,10 @@ Deno.serve(async (req) => {
 
     const to = String(o?.customer_email || "").trim();
     if (!to) return json({ error: "no customer email" }, 400);
-    const subject = String(payload.subject || "Casa de Flores").slice(0, 200);
     const text = String(payload.text || "").slice(0, 4000);
-    const sent = await sendMail(to, subject, plainHtml(text), text);
+    const mail = await orderEmail(service, o, text);
+    const subject = String(payload.subject || mail.subject).slice(0, 200);
+    const sent = await sendMail(to, subject, mail.html, mail.text);
     await log({ order_id: orderId, audience: "customer", channel: "email", recipient: to, ok: sent.ok, by_email: me, subject, message: text,
       detail: sent.ok ? `${sent.via}: ${String(payload.label || "")}` : `${sent.via}: ${sent.error}` });
     return json(sent, sent.ok ? 200 : 502);
@@ -114,12 +127,9 @@ Deno.serve(async (req) => {
   if (payload.action === "auto_transit") {
     const to = String(o.customer_email || "").trim();
     if (!to) return json({ skipped: "no customer email" });
-    const link = `${APP_URL}/p/${o.code}`;
-    // The email goes to the buyer; greet the buyer, or the recipient when they are the same person.
-    const hi = (o.buyer_name || o.customer_name || "").trim();
-    const text = `Hi${hi ? " " + hi : ""}, your Casa de Flores order #${o.num} is on its way. Track it here: ${link}`;
-    const subject = `Your order #${o.num} is on its way · Casa de Flores`;
-    const sent = await sendMail(to, subject, plainHtml(text), text);
+    // Worded from the order's state when the email goes out, so it never says "on its way" before it is
+    const { subject, html, text } = await orderEmail(service, o);
+    const sent = await sendMail(to, subject, html, text);
     await log({ order_id: o.id, audience: "customer", channel: "email", recipient: to, ok: sent.ok, subject, message: text,
       detail: sent.ok ? `${sent.via}: automatic, In transit` : `${sent.via}: ${sent.error}` });
     return json(sent, sent.ok ? 200 : 502);

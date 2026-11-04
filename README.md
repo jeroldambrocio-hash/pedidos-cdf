@@ -103,3 +103,10 @@ La función envía con el primer proveedor que tenga sus secretos puestos en Sup
 
 Supabase bloquea los puertos 25 y 587, así que el SMTP tiene que ir por el 465 (SSL).
 En el historial de avisos de cada pedido se ve por cuál salió cada correo (`smtp:`, `gmail:` o `resend:`).
+
+### Correo al cliente (diseño)
+
+La plantilla está en `supabase/functions/cdf-notify/email.ts` (HTML con tablas y estilos en línea, más versión en texto plano).
+El texto se adapta al estado del pedido cuando sale el correo; la foto del ramo va con un enlace firmado de 30 días y,
+si no hay foto, ese bloque no aparece. Para verlo sin enviar nada: `node tests/demo.cjs` y abrir http://localhost:4324/email.
+Comprobaciones: `NODE_PATH=.test-tools/node_modules node tests/email-check.cjs` (capturas en `.impeccable/review/email-*.png`).

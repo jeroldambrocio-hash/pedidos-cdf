@@ -8,10 +8,29 @@ const mockFile = path.join(os.tmpdir(), "pedidos-cdf-demo-mock.js");
 execFileSync(process.execPath, [path.join(__dirname, "ui-smoke.cjs")], { env: { ...process.env, EXPORT_MOCK: mockFile, NODE_PATH: path.join(root, ".test-tools", "node_modules") }, stdio: "inherit" });
 const mock = fs.readFileSync(mockFile, "utf8");
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".json": "application/json" };
+// Customer email preview with sample data (nothing is sent): /email lists every step,
+// /email/<step> shows one; ?photo=0 leaves the photo out, ?note=… adds a shop note, ?format=text shows the plain text
+const STEPS = ["prep", "ready", "transit", "done", "fail"];
+async function emailPreview(req, res) {
+  const origin = "http://localhost:" + port, u = new URL(req.url, origin), step = u.pathname.split("/")[2];
+  if (!step) {
+    const links = STEPS.map((s) => `<li><a href="/email/${s}">${s}</a> · <a href="/email/${s}?photo=0">no photo</a> · <a href="/email/${s}?format=text">plain text</a></li>`).join("");
+    res.setHeader("Content-Type", "text/html; charset=utf-8");
+    return res.end(`<!doctype html><meta charset="utf-8"><title>Email preview</title><body style="font:15px system-ui;padding:24px"><h1>Customer email · preview</h1><ul>${links}<li><a href="/email/transit?note=Your%20driver%20is%20Luis.">transit with a shop note</a></li></ul>`);
+  }
+  if (!STEPS.includes(step)) { res.writeHead(404).end(); return; }
+  const { customerEmail } = await import(require("url").pathToFileURL(path.join(root, "supabase/functions/cdf-notify/email.ts")).href);
+  const mail = customerEmail({ appUrl: origin, num: "0003", name: "Carlos Reyes", step, link: origin + "/p/abc123abcd?state=" + step,
+    photoUrl: u.searchParams.get("photo") === "0" ? null : origin + "/img/emblem.png", message: u.searchParams.get("note") });
+  const text = u.searchParams.get("format") === "text";
+  res.setHeader("Content-Type", (text ? "text/plain" : "text/html") + "; charset=utf-8");
+  res.end(text ? "Subject: " + mail.subject + "\n\n" + mail.text : mail.html);
+}
 http.createServer((req, res) => {
   let name = new URL(req.url, "http://x").pathname;
   res.setHeader("Cache-Control", "no-store");
   if (name === "/__mock.js") { res.setHeader("Content-Type", "text/javascript"); return res.end(mock); }
+  if (name === "/email" || name.startsWith("/email/")) { emailPreview(req, res).catch((e) => res.writeHead(500).end(String(e))); return; }
   if (name === "/" || name.startsWith("/p/")) name = name.startsWith("/p/") ? "/seguimiento.html" : "/index.html";
   const f = path.resolve(root, "." + decodeURIComponent(name));
   if (!f.startsWith(root + path.sep)) { res.writeHead(403).end(); return; }
