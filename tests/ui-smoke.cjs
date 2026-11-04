@@ -533,12 +533,12 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Florist: My account shows the completed total; edits name, phone, photo and a future absence; all of it survives a reload", async () => {
       const q = await open("vendor");
       await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
-      await q.locator("#menuProfile").getByText("48 completed orders").waitFor();
+      await q.locator("#menuProfile").getByText("48 orders delivered").waitFor();
       assert.match(await q.locator("#menuProfile .avail").innerText(), /Available/);
       await q.locator("#editProfileBtn").click();
       await q.locator(".sheet #pName").waitFor();
       assert.equal(await q.locator(".sheet input[type=email]").inputValue(), "ana@example.com");
-      assert(await q.locator(".sheet").getByText("48 completed orders").isVisible());
+      assert(await q.locator(".sheet").getByText("48 orders delivered").isVisible());
       await q.locator("#pName").fill("Ana Reyes"); await q.locator("#pPhone").fill("917 555 1234");
       await q.locator("#pPhoto").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
       await q.locator(".sheet .avail-pick").selectOption("no");

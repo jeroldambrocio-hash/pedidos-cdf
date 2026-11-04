@@ -1493,14 +1493,27 @@ button.brand-home { margin: 0; font: inherit; }
 .m-phone .i { width: 14px; height: 14px; }
 
 /* My account (menu view) */
-.my-card { display: grid; gap: 8px; padding: 6px 8px 2px; }
+/* "My account" card, like a profile card: picture with an online dot, name, "My flower shop", gear, and a sage strip */
+.my-card { display: grid; gap: 0; margin: 4px 6px 6px; padding: 0; overflow: hidden; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.my-id { display: flex; align-items: center; gap: 12px; padding: 12px 10px 12px 12px; }
+.my-pic { position: relative; flex: none; }
+.my-pic .avatar.lg { width: 48px; height: 48px; }
+.avatar.flower { background: #dfe8d2; overflow: hidden; }
+.avatar.flower svg { width: 100%; height: 100%; display: block; }
+.my-pic .online { position: absolute; right: -1px; bottom: -1px; width: 13px; height: 13px; border-radius: 50%; background: #3ecf5a; box-shadow: 0 0 0 2.5px var(--surface); }
+.my-names { min-width: 0; flex: 1; }
+.my-names b { display: block; color: var(--fg); font-size: 1rem; font-weight: 700; line-height: 1.2; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.my-names small { display: block; margin-top: 2px; color: var(--muted); font-size: 0.8125rem; }
+.my-gear { flex: none; align-self: flex-start; display: grid; place-items: center; width: 32px; height: 32px; margin: -4px -2px 0 0; padding: 0; border: 0; border-radius: 8px; background: none; color: var(--faint); cursor: pointer; transition: color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out), transform 260ms var(--ease-out); }
+.my-gear:hover { color: var(--fg); background: var(--surface-hover); transform: rotate(30deg); }
+.my-gear .i { width: 18px; height: 18px; }
+.my-avail { padding: 0 12px 10px; }
+.my-done { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: #344536; color: #e8efe4; font-size: 0.8125rem; font-weight: 500; }
+.my-done .i { width: 20px; height: 20px; color: #b9cdb0; }
+:root[data-theme="light"] .my-done { background: #dbe6d5; color: #24331f; }
+:root[data-theme="light"] .my-done .i { color: #4f6b4b; }
+@media (pointer: coarse) { .my-gear { width: 44px; height: 44px; margin: -10px -8px 0 0; } }
 .my-card:empty { display: none; }
-.my-id { display: flex; align-items: center; gap: 12px; }
-.my-id b { display: block; }
-.my-id small { display: block; color: var(--muted); font-size: 0.75rem; }
-.my-done { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-ctl); background: var(--done-bg); color: var(--fg); font-size: 0.8125rem; }
-.my-done .i { width: 16px; height: 16px; color: var(--done); }
-.my-avail { padding: 0 2px; }
 
 /* My account (sheet) */
 .identity { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }

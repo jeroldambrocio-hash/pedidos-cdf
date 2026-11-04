@@ -159,18 +159,38 @@ function openProfile() {
   }, { dirty: dirtyStart });
 }
 
-// The "My account" view of the profile menu: who you are, what you have completed and, for florists, availability
+// Without a photo, the profile card shows a smiling pink flower on a soft green circle
+const FLOWER_AVATAR = `<svg viewBox="0 0 48 48" aria-hidden="true">
+  <path d="M24 30c0 6-1 11-3 16" fill="none" stroke="#5f7d5a" stroke-width="2" stroke-linecap="round"/>
+  <path d="M22.5 38c-4-5-10-6-14-4 3 5 9 7 14 4Z" fill="#86a37f" stroke="#4f6b4b" stroke-width="1.2" stroke-linejoin="round"/>
+  <path d="M23.5 36c4-5 10-6 14.5-4-3 5-9.5 7-14.5 4Z" fill="#86a37f" stroke="#4f6b4b" stroke-width="1.2" stroke-linejoin="round"/>
+  <g fill="#f4a9b6" stroke="#c4627a" stroke-width="1.2"><circle cx="24" cy="10.5" r="7"/><circle cx="32.6" cy="16.8" r="7"/><circle cx="29.3" cy="26.9" r="7"/><circle cx="18.7" cy="26.9" r="7"/><circle cx="15.4" cy="16.8" r="7"/></g>
+  <circle cx="24" cy="19.5" r="7.6" fill="#f4a9b6"/>
+  <circle cx="20.6" cy="22" r="1.5" fill="#ee8ea0" opacity=".7"/><circle cx="27.4" cy="22" r="1.5" fill="#ee8ea0" opacity=".7"/>
+  <ellipse cx="21.6" cy="18.6" rx="1.1" ry="1.4" fill="#4a2f35"/><ellipse cx="26.4" cy="18.6" rx="1.1" ry="1.4" fill="#4a2f35"/>
+  <path d="M22.2 21.8q1.8 1.6 3.6 0" fill="none" stroke="#4a2f35" stroke-width="1.1" stroke-linecap="round"/>
+</svg>`;
+function profilePic(me) {
+  if (me.avatar_path) return avatarNode(me, "avatar lg");
+  const pic = el("span", { class: "avatar lg flower", "aria-hidden": "true" });
+  pic.innerHTML = FLOWER_AVATAR;
+  return pic;
+}
+
+// The "My account" view of the profile menu, like a profile card: picture with a green "online" dot,
+// name, "My flower shop", a gear to edit the profile, availability for florists, and the orders delivered
 function renderMyCard() {
   const box = $("menuProfile"); if (!box) return;
   const me = S.me; if (!me) { box.replaceChildren(); return; }
-  const done = el("b", {}, "…");
+  const done = el("span", {}, "…");
   if (S.cap.profiles) myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });
   box.replaceChildren(...[
-    el("div", { class: "my-id" }, avatarNode(me, "avatar lg"),
-      el("div", {}, el("b", {}, me.name), el("small", {}, t("role_" + me.role)), me.phone ? el("small", {}, "+" + me.phone) : null)),
+    el("div", { class: "my-id" },
+      el("span", { class: "my-pic" }, profilePic(me), el("i", { class: "online", title: t("online") })),
+      el("div", { class: "my-names" }, el("b", {}, me.name), el("small", {}, t("myShop"))),
+      S.cap.profiles ? el("button", { class: "my-gear", id: "editProfileBtn", type: "button", "aria-label": t("editProfile"), title: t("editProfile"), onclick: () => openProfile() }, icon("gear")) : null),
     S.cap.profiles && me.role === "vendor" ? el("div", { class: "my-avail" }, awayBadge(me)) : null,
-    S.cap.profiles ? el("div", { class: "my-done" }, icon("check"), done) : null,
-    S.cap.profiles ? el("button", { class: "mitem", id: "editProfileBtn", type: "button", onclick: () => openProfile() }, icon("edit"), el("span", {}, t("editProfile"))) : null].filter(Boolean)); // DOM replaceChildren would print "null"
+    S.cap.profiles ? el("div", { class: "my-done" }, icon("bouquet"), done) : null].filter(Boolean)); // DOM replaceChildren would print "null"
 }
 
 // ---------- the office: pending orders that fall inside an absence ----------
