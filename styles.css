@@ -1306,6 +1306,8 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .tracking-page.tracking-motion-paused .tl li.cur[data-s="transit"] svg { animation-play-state: paused; }
 
 .tl li.cur[data-s="done"] svg { animation: beat 2.4s var(--ease-out) infinite; }
+/* Delivered: the heart turns red (filled), a small thank-you */
+.tl li.cur[data-s="done"] .dot svg { color: #e5484d; fill: currentColor; }
 .tl li.fail svg { animation: blink 2.4s ease-in-out infinite; }
 @media (min-width: 861px) { .grid { grid-template-columns: minmax(272px, 23%) minmax(0, 1fr); gap: 24px; } }
 @media (max-width: 1200px) { .steps .step .t { display: none; } .o-bottom { flex-wrap: wrap; } }
