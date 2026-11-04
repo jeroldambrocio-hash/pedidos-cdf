@@ -28,6 +28,13 @@ Deno.serve(async (req) => {
   if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) return json({ error: "Email no válido" }, 400);
 
   if (body.action === "add") {
+    const username = String(body.username || "").trim().toLowerCase() || null;
+    if (username && !/^[a-z0-9][a-z0-9._-]{2,29}$/.test(username)) return json({ error: "Invalid username (3–30 letters, numbers, dots, underscores or hyphens)" }, 400);
+    if (username) {
+      const { data: existing, error: lookupError } = await service.from("cdf_members").select("email").eq("username", username).maybeSingle();
+      if (lookupError) return json({ error: "Unable to check username" }, 503);
+      if (existing && existing.email !== email) return json({ error: "Username already taken" }, 409);
+    }
     const name = String(body.name || "").trim();
     const role = ["admin", "vendor", "carrier"].includes(body.role) ? body.role : "vendor";
     const password = String(body.password || "");
@@ -40,7 +47,7 @@ Deno.serve(async (req) => {
       if (!/already|registered|exists/i.test(created.error.message)) return json({ error: created.error.message }, 400);
       existed = true; // account already exists in this project: keep its password, just grant access
     }
-    const { error } = await service.from("cdf_members").upsert({ email, name, role });
+    const { error } = await service.from("cdf_members").upsert({ email, name, role, ...(body.username !== undefined ? { username } : {}) });
     if (error) return json({ error: error.message }, 400);
     return json({ ok: true, existed });
   }
