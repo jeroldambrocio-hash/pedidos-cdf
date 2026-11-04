@@ -91,3 +91,15 @@ NODE_PATH=.test-tools/node_modules node tests/username-db.cjs
 
 La segunda prueba usa `@electric-sql/pglite@0.5.12`. La primera requiere Node 24 y simula
 el proveedor de autenticación; ninguna utiliza cuentas reales ni se conecta a producción.
+
+## Correo de los avisos (cdf-notify)
+
+La función envía con el primer proveedor que tenga sus secretos puestos en Supabase (Edge Functions → Secrets):
+
+1. **Buzón propio por SMTP** (Hostinger): `SMTP_USER` (el correo, p. ej. pedidos@tudominio.com), `SMTP_PASS` (su contraseña).
+   Opcionales: `SMTP_HOST` (por defecto `smtp.hostinger.com`), `SMTP_PORT` (por defecto `465`), `SMTP_FROM_NAME` (por defecto "Casa de Flores").
+2. **Gmail**: `GMAIL_USER` y `GMAIL_APP_PASSWORD` (contraseña de aplicación de Google).
+3. **Resend**: `RESEND_API_KEY` (y `CDF_MAIL_FROM`).
+
+Supabase bloquea los puertos 25 y 587, así que el SMTP tiene que ir por el 465 (SSL).
+En el historial de avisos de cada pedido se ve por cuál salió cada correo (`smtp:`, `gmail:` o `resend:`).

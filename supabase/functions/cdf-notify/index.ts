@@ -24,8 +24,20 @@ const fmtDate = (d: string) =>
 
 type Sent = { ok: true; via: string; id: string } | { ok: false; via: string; error: string };
 
-// Gmail (app password) if configured, otherwise Resend
+// The shop's own mailbox over SMTP (Hostinger: smtp.hostinger.com, 465) if configured, then Gmail (app password), then Resend
 async function sendMail(to: string, subject: string, html: string, text: string): Promise<Sent> {
+  const sUser = Deno.env.get("SMTP_USER"), sPass = Deno.env.get("SMTP_PASS");
+  if (sUser && sPass) {
+    // Port 465 (SSL): Supabase Edge Functions block outbound 25 and 587
+    const port = Number(Deno.env.get("SMTP_PORT") || 465);
+    const smtp = nodemailer.createTransport({ host: Deno.env.get("SMTP_HOST") || "smtp.hostinger.com", port, secure: port === 465, auth: { user: sUser, pass: sPass } });
+    try {
+      const info = await smtp.sendMail({ from: `${Deno.env.get("SMTP_FROM_NAME") || "Casa de Flores"} <${sUser}>`, to, subject, html, text });
+      return { ok: true, via: "smtp", id: info.messageId };
+    } catch (e) {
+      return { ok: false, via: "smtp", error: String((e as Error)?.message || e) };
+    }
+  }
   const gUser = Deno.env.get("GMAIL_USER"), gPass = Deno.env.get("GMAIL_APP_PASSWORD");
   if (gUser && gPass) {
     // Port 465: Supabase Edge Functions block outbound 25 and 587
