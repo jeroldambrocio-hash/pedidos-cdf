@@ -21,11 +21,12 @@ function doneLine(email) {
 }
 
 // Edit a member's name and role (admins only; RLS allows it). Your own role can't be changed here,
-// so an admin can't lock themselves out. The email is the login, so it stays as it is.
+// so an admin can't lock themselves out. Email stays unchanged; the optional username can be assigned by an admin.
 function editMember(m) {
   const self = m.email === S.me.email;
   const back = document.activeElement, scrim = el("div", { class: "scrim center-scrim" });
   const iName = el("input", { id: "eName", value: m.name, autocomplete: "off", required: true, maxlength: 80 });
+  const iUsername = el("input", { id: "eUsername", value: m.username || "", autocomplete: "off", autocapitalize: "none", spellcheck: "false", pattern: "[A-Za-z0-9][A-Za-z0-9._-]{2,29}", minlength: 3, maxlength: 30 });
   const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", "carrier", "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
   // Availability: florists only; the admin can set anyone's (the server checks it too)
   const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
@@ -37,11 +38,12 @@ function editMember(m) {
     const name = iName.value.trim(), role = self ? m.role : iRole.value;
     if (!name) { err.textContent = t("fillRequired"); iName.focus(); return; }
     const bad = avail?.check(); if (bad) { err.textContent = bad; return; }
-    const basics = name !== m.name || role !== m.role, away = !!avail?.changed();
+    const username = iUsername.value.trim().toLowerCase() || null;
+    const basics = name !== m.name || role !== m.role || username !== (m.username || null), away = !!avail?.changed();
     if (!basics && !away) { close(); return; }
     save.disabled = true;
     try {
-      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role }).eq("email", m.email); if (error) throw new Error(t("editFail")); }
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : "editFail")); }
       if (away) await saveAvailability(m.email, avail.value());
     } catch (x) { save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;
@@ -52,6 +54,7 @@ function editMember(m) {
     el("div", { class: "sheet-body" },
       el("h2", { id: "eTitle", class: "dialog-text" }, t("editMember")),
       el("label", { class: "field" }, el("span", {}, t("name")), iName),
+      field(t("username"), iUsername), el("p", { class: "hint" }, t("usernameHint")),
       el("label", { class: "field" }, el("span", {}, t("role")), iRole),
       el("div", { class: "hint" }, self ? t("ownRoleHint") : m.email),
       avail ? el("h3", { class: "grp" }, t("availability")) : null, avail?.node,
@@ -74,7 +77,7 @@ function renderTeam() {
     const florist = m.role === "vendor";
     box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
       avatarNode(m),
-      el("div", {}, el("b", {}, m.name), el("small", {}, m.email),
+      el("div", {}, el("b", {}, m.name), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
         m.phone ? el("a", { class: "m-phone", href: "tel:+" + m.phone }, icon("phone"), "+" + m.phone) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
@@ -95,7 +98,7 @@ function renderTeam() {
 }
 $("addForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("aErr").textContent = ""; $("aBtn").disabled = true;
-  const body = { action: "add", name: $("aName").value.trim(), email: $("aEmail").value.trim(), role: $("aRole").value, password: $("aPass").value };
+  const body = { action: "add", username: $("aUsername").value.trim().toLowerCase(), name: $("aName").value.trim(), email: $("aEmail").value.trim(), role: $("aRole").value, password: $("aPass").value };
   const { data, error } = await sb.functions.invoke("cdf-users", { body });
   $("aBtn").disabled = false;
   let msg = data?.error;

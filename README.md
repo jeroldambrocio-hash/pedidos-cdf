@@ -66,3 +66,28 @@ NODE_PATH=.test-tools/node_modules node tests/db-regression.cjs
 ```
 
 Ejecuta PostgreSQL temporal con pedidos ficticios. Comprueba conservación de importes, permisos por rol, historial privado, búsqueda con acentos y flujo de reparto. No se conecta al proyecto real. Los resultados se guardan en `.impeccable/review/sql-verification.json`.
+
+### Acceso por usuario o correo
+
+El formulario acepta correo + contraseña como siempre, o un usuario único + la misma contraseña.
+El admin asigna o cambia el usuario en **Equipo → Editar**; también puede indicarlo al añadir una cuenta.
+Es opcional: las cuentas existentes siguen entrando por correo hasta que se les asigne uno.
+Formato: 3–30 caracteres, primera letra o número, después letras ASCII, números, `.`, `_` o `-`.
+Se guarda en minúsculas; el nombre visible y el rol no cambian. El usuario aparece en Mi cuenta.
+
+Orden de publicación: aplicar `20261104120449_cdf_username_login.sql`, desplegar `cdf-login`
+con `verify_jwt=false` (autentica la contraseña dentro de la función) y actualizar `cdf-users`;
+después publicar el cliente. `cdf-login` devuelve tokens solo tras validar la contraseña;
+no existe una consulta pública que devuelva el correo de un usuario. Su cuota compartida
+limita a diez intentos por usuario cada cinco minutos, sin guardar contraseñas ni correos.
+Las tablas y RPC de cuota solo son accesibles con `service_role`.
+
+Verificación aislada:
+
+```bash
+node tests/username-login.cjs
+NODE_PATH=.test-tools/node_modules node tests/username-db.cjs
+```
+
+La segunda prueba usa `@electric-sql/pglite@0.5.12`. La primera requiere Node 24 y simula
+el proveedor de autenticación; ninguna utiliza cuentas reales ni se conecta a producción.

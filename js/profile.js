@@ -129,6 +129,7 @@ function openProfile() {
     el("div", { class: "completed" }, icon("check"), el("span", {}, done, el("small", {}, t("doneSince")))),
     el("h3", { class: "grp" }, t("personalData")),
     field(t("displayName"), iName),
+    field(t("username"), el("input", { value: me.username || "—", readonly: true, class: "ro" })),
     field(t("phone"), phoneBox(iPhone)),
     field(t("email"), el("input", { type: "email", value: me.email, readonly: true, tabindex: -1, class: "ro" })),
     el("p", { class: "hint" }, t("emailIsLogin")),
