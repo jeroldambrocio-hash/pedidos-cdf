@@ -1,7 +1,24 @@
 {
   "cleanUrls": false,
   "rewrites": [
-    { "source": "/", "destination": "/index.html" },
-    { "source": "/p/:code", "destination": "/seguimiento.html" }
+    {
+      "source": "/",
+      "destination": "/index.html"
+    },
+    {
+      "source": "/p/:code",
+      "destination": "/seguimiento.html"
+    }
+  ],
+  "headers": [
+    {
+      "source": "**/*.@(html|js|css)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
+      ]
+    }
   ]
 }

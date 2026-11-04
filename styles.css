@@ -1291,7 +1291,7 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .tl li.cur[data-s="transit"] svg { animation: drive 1.8s ease-in-out infinite; }
 .tl li.cur[data-s="done"] svg { animation: beat 2.4s var(--ease-out) infinite; }
 .tl li.fail svg { animation: blink 2.4s ease-in-out infinite; }
-@media (min-width: 861px) { .grid { grid-template-columns: minmax(210px, 23%) minmax(0, 1fr); gap: 24px; } }
+@media (min-width: 861px) { .grid { grid-template-columns: minmax(272px, 23%) minmax(0, 1fr); gap: 24px; } }
 @media (max-width: 1200px) { .steps .step .t { display: none; } .o-bottom { flex-wrap: wrap; } }
 @media (max-width: 560px) {
  .entry { grid-template-columns: 36px minmax(0,1fr); gap: 6px; }
@@ -1316,3 +1316,20 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .done-stats b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
 .done-stats .done-h { color: var(--muted); }
 .day-sum .done-stats { margin-top: 0; }
+
+/* Narrow desktop windows (or the menu open on a small screen): the calendar column no longer fits beside
+   the orders, so it folds behind "Choose date" above the list, as on phones, instead of overlapping it */
+@media (min-width: 861px) { #ordersView { container-type: inline-size; } }
+@container (max-width: 860px) {
+  .grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .sidebar { position: static; gap: 10px; }
+  .cal-toggle { display: inline-flex; width: 100%; }
+  .cal-body { grid-template-rows: 0fr 0fr; overflow: hidden; opacity: 0; gap: 0; transition: grid-template-rows var(--dur-slow) var(--ease-out), opacity var(--dur-base); }
+  .cal-body > * { min-height: 0; overflow: hidden; }
+  .cal-body.expanded { grid-template-rows: 1fr 1fr; gap: 10px; opacity: 1; }
+  .cal-body > .panel { transition: padding 280ms var(--ease-out), border-width 280ms; }
+  .cal-body:not(.expanded) > .panel { padding-top: 0; padding-bottom: 0; border-width: 0; }
+  .tools { grid-template-columns: minmax(0, 1fr) 160px auto; }
+  .tools .status-mobile { display: block; }
+  .tools > .btn { grid-column: 1 / -1; }
+}
