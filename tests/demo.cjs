@@ -1,6 +1,6 @@
 // Demo: serves the panel with the tests' fake Supabase, so it can be tried in a browser with made-up data
 // and nothing reaches the real database. Run: node tests/demo.cjs [port]  →  http://localhost:4324/?role=admin
-// Roles: ?role=admin | moderator | vendor | carrier · tracking page: /p/abc123abcd
+// Roles: ?role=admin | vendor | carrier · tracking page: /p/abc123abcd
 const http = require("http"), fs = require("fs"), path = require("path"), os = require("os"), { execFileSync } = require("child_process");
 const root = path.resolve(__dirname, ".."), port = +process.argv[2] || 4324;
 // The fake backend lives in ui-smoke.cjs; ask it to write itself out instead of running the tests

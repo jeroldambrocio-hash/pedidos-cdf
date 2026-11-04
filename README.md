@@ -11,7 +11,7 @@ Gestión de pedidos de flores (Shopify, TikTok, Instagram, web).
 ## Backend (Supabase, proyecto `rentrooms`)
 
 Todo lleva el prefijo `cdf_`:
-- `cdf_members`: equipo (email, nombre, rol `admin` | `moderator` | `vendor` | `carrier`).
+- `cdf_members`: equipo (email, nombre, rol `admin` | `vendor` | `carrier`).
 - `cdf_orders`: pedidos. Admin y moderador lo ven todo; la florista, los suyos; el repartidor, los listos sin entregar sin asignar o asignados a él (RLS).
 - `cdf_order_events`: historial de cambios de cada pedido (lo escribe un trigger).
 - `cdf_notifications`: historial de avisos al cliente y a la florista.

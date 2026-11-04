@@ -357,7 +357,7 @@ function openOrderView(o) {
   openLayer(node);
 }
 
-// ---------- the order editor (admin and moderator) ----------
+// ---------- the order editor (admin) ----------
 const DRAFT_KEY = "cdf-draft";
 const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch { return null; } };
 const writeDraft = (v) => { try { v ? localStorage.setItem(DRAFT_KEY, JSON.stringify(v)) : localStorage.removeItem(DRAFT_KEY); } catch {} };

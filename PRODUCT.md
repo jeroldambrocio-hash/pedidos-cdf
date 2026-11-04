@@ -5,7 +5,7 @@
 web
 
 ## Users
-Admin gestiona todos los pedidos, el equipo y las estadísticas. Moderator gestiona pedidos sin equipo ni borrado. Vendor es florista: ve sus pedidos, prepara el ramo, adjunta su foto y avanza mediante RPC. Carrier es repartidor: ve los pedidos listos sin asignar o asignados a él, sale a repartir (y así se lo queda), entrega o reprograma. El cliente consulta un enlace público sin cuenta.
+Admin gestiona todos los pedidos, el equipo y las estadísticas. Vendor es florista: ve sus pedidos, prepara el ramo, adjunta su foto y avanza mediante RPC. Carrier es repartidor: ve los pedidos listos sin asignar o asignados a él, sale a repartir (y así se lo queda), entrega o reprograma. El cliente consulta un enlace público sin cuenta.
 
 ## Product Purpose
 Coordinar pedidos de flores desde varios canales hasta su preparación y entrega en Filipinas, con el menor número de pasos y sin errores que lleguen al cliente.

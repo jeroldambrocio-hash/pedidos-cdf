@@ -25,10 +25,10 @@ window.__prices = window.__orders.map(o=>({order_id:o.id,amount:2500}));
 window.__calls = []; window.__events = [];
 window.__notifications = [{ order_id: "33333333-3333-3333-3333-333333333333", created_at: "2026-10-27T02:15:00Z", channel: "email", audience: "customer", recipient: "buyer@example.com", ok: true, detail: "gmail: automatic, In transit", subject: "Order", message: "On its way." }];
 // Members survive a reload (sessionStorage) so profile and availability changes can be checked after F5
-const members = JSON.parse(sessionStorage.getItem("__members") || "null") || [{ email: "admin@example.com", name: "Jerold", role: "admin" }, { email: "ana@example.com", name: "Ana", role: "vendor", phone: "", avatar_path: null, away_from: null, away_until: null, away_reason: null, ...(window.__ana || {}) }, { email: "driver@example.com", name: "Luis", role: "carrier" }, { email: "moderator@example.com", name: "Mika", role: "moderator" }];
+const members = JSON.parse(sessionStorage.getItem("__members") || "null") || [{ email: "admin@example.com", name: "Jerold", role: "admin" }, { email: "ana@example.com", name: "Ana", role: "vendor", phone: "", avatar_path: null, away_from: null, away_until: null, away_reason: null, ...(window.__ana || {}) }, { email: "driver@example.com", name: "Luis", role: "carrier" }];
 const keepMembers = () => sessionStorage.setItem("__members", JSON.stringify(members));
 const awayOnDay = (m, d) => !!(m.away_from && d >= m.away_from && (!m.away_until || d <= m.away_until));
-const email = { vendor: "ana@example.com", carrier: "driver@example.com", moderator: "moderator@example.com" };
+const email = { vendor: "ana@example.com", carrier: "driver@example.com" };
 const tables = () => ({ cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
@@ -369,7 +369,6 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("B6 · Team offers only admin, florist and driver", async () => {
       await p.locator("#tabTeam").click();
       assert.equal(await p.locator("#aRole option").count(), 3);
-      assert.equal(await p.locator("#aRole option[value=moderator]").count(), 0);
       await p.locator(".member .done-stats").first().waitFor();
       assert.match(await p.locator(".member .done-stats").first().innerText(), /12\s+this month[\s\S]*48\s+total/);
       await capture(p, "team-desktop");
@@ -399,13 +398,6 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       const q = await open("admin", { before: { __noMigration: true } });
       assert(await q.locator(".entry").count() >= 3);
       assert.equal(await q.locator("#adminTools").getByRole("button", { name: /Archive/ }).count(), 0);
-      await q.close();
-    });
-    await step("Moderator: orders, no team tab and no delete", async () => {
-      const q = await open("moderator");
-      assert(!(await q.locator("#tabTeam").isVisible()));
-      await q.locator(".o-name").first().click();
-      assert.equal(await q.locator(".sheet").getByRole("button", { name: "Delete", exact: true }).count(), 0);
       await q.close();
     });
     await step("Mobile admin: calendar folds, no overflow", async () => {
@@ -508,10 +500,6 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert(await q.getByRole("heading",{name:"Ideas to grow"}).isVisible());assert(await q.getByRole("heading",{name:"Top customers"}).isVisible());
       const before=await q.locator(".kpi b").first().innerText();await q.evaluate(()=>{const row={...window.__orders[0],id:"new-stats",num:"9999"};window.__orders.push(row);window.__realtime({eventType:"INSERT",new:row})});await q.waitForTimeout(500);assert.notEqual(await q.locator(".kpi b").first().innerText(),before);
       await q.locator('#statsPeriod [data-days="90"]').click();await q.waitForTimeout(350);assert(await q.getByRole("heading",{name:"Orders per week"}).isVisible());await q.close();
-    });
-    await step("Integration: moderator CSV never includes prices",async()=>{
-      const q=await open("moderator");await q.evaluate(()=>exportDialog());const [dl]=await Promise.all([q.waitForEvent("download"),q.locator(".sheet").getByRole("button",{name:"Download",exact:true}).click()]);
-      const stream=await dl.createReadStream(),chunks=[];for await(const c of stream)chunks.push(c);assert(!Buffer.concat(chunks).toString().includes("Amount"));await q.close();
     });
     await step("Phone country picker: Philippine flag and +63 by default, search, another country is kept", async () => {
       const q = await open("admin");

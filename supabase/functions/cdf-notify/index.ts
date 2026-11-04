@@ -1,6 +1,6 @@
 // Pedidos CDF email sender.
 // 1) Vendor alert: called by the database trigger cdf_orders_notify (migration 005) with a secret kept in Vault.
-// 2) Customer email: called from the panel by office staff (admin or moderator) with the message already written.
+// 2) Customer email: called from the panel by the admin with the message already written.
 // 3) Automatic customer email when an order goes In transit: called by the trigger cdf_orders_transit (migration 007).
 // Every attempt is logged in cdf_notifications (migration 006).
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -88,9 +88,9 @@ Deno.serve(async (req) => {
     const me = u?.user?.email?.toLowerCase();
     const { data: who } = me ? await service.from("cdf_members").select("role").eq("email", me).maybeSingle() : { data: null };
     const { data: o } = await service.from("cdf_orders").select("id,customer_email").eq("id", orderId).maybeSingle();
-    // Free-text email from the shop's address: office staff only. Florists and drivers notify through
+    // Free-text email from the shop's address: the admin only. Florists and drivers notify through
     // WhatsApp from their phone, and the automatic In transit email covers the rest.
-    const allowed = who?.role === "admin" || who?.role === "moderator";
+    const allowed = who?.role === "admin";
     if (!allowed) return json({ error: "unauthorized" }, 403);
     if (!o) return json({ error: "no order" }, 404);
 

@@ -84,7 +84,7 @@ async function start(user) {
 // Who is signed in: rail footer, account menu and the thin mobile header
 function renderSub() {
   const name = S.me?.name || S.email || "", role = S.me ? t("role_" + S.me.role) : "";
-  $("sub").textContent = S.me ? t({ admin: "subAdmin", moderator: "subModerator", carrier: "subCarrier" }[S.me.role] || "subVendor", { name: S.me.name }) : "";
+  $("sub").textContent = S.me ? t({ admin: "subAdmin", carrier: "subCarrier" }[S.me.role] || "subVendor", { name: S.me.name }) : "";
   fillAvatar($("userAvatar"), { name, avatar_path: S.me?.avatar_path }); fillAvatar($("menuAvatar"), { name, avatar_path: S.me?.avatar_path });
   $("userName").textContent = $("menuName").textContent = name;
   $("userRole").textContent = role;

@@ -1,4 +1,4 @@
-// Office view (admin and moderator): calendar, filters by status and channel, the day's orders on a timeline,
+// Office view (admin): calendar, filters by status and channel, the day's orders on a timeline,
 // search, orders at risk, bulk actions, archiving and the CSV export.
 
 function renderOrders() {

@@ -107,9 +107,10 @@ const S = {
   chan: null,
 };
 S.sel = S.today; S.month = monthOf(S.today);
-// admin: everything · moderator: all orders, no team or deleting · vendor: own orders · carrier: deliveries
+// admin: everything · vendor (florist): own orders · carrier (driver): deliveries
 const isAdmin = () => S.me?.role === "admin";
-const isStaff = () => S.me?.role === "admin" || S.me?.role === "moderator";
+// The office view: only the admin
+const isStaff = () => S.me?.role === "admin";
 const isCarrier = () => S.me?.role === "carrier";
 const memberName = (email) => S.members.find((m) => m.email === email)?.name || email || t("unassigned");
 const prefersReducedMotion = () => document.documentElement.dataset.motion === "reduced";

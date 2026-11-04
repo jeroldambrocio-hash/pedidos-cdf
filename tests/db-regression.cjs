@@ -10,10 +10,10 @@ const query=(sql)=>db.query(sql);
  create schema auth; create schema storage; grant usage on schema auth to authenticated;
  create function auth.jwt() returns jsonb language sql stable as $$select coalesce(nullif(current_setting('request.jwt.claims',true),''),'{}')::jsonb$$;
  create table public.cdf_members(email text primary key,name text,role text);
- insert into public.cdf_members values ('admin@test','Admin','admin'),('mod@test','Moderator','moderator'),('florist@test','Florist','vendor'),('driver@test','Driver','carrier'),('other@test','Other','carrier');
+ insert into public.cdf_members values ('admin@test','Admin','admin'),('florist@test','Florist','vendor'),('driver@test','Driver','carrier'),('other@test','Other','carrier');
  create function public.cdf_my_role() returns text language sql stable security definer set search_path='' as $$select role from public.cdf_members where email=auth.jwt()->>'email'$$;
  create function public.cdf_is_admin() returns boolean language sql stable security definer set search_path='' as $$select public.cdf_my_role()='admin'$$;
- create function public.cdf_is_staff() returns boolean language sql stable security definer set search_path='' as $$select public.cdf_my_role() in ('admin','moderator')$$;
+ create function public.cdf_is_staff() returns boolean language sql stable security definer set search_path='' as $$select public.cdf_my_role()='admin'$$;
  create table public.cdf_orders(id uuid primary key,num text,date date,slot text,channel text,status text,delivery text,vendor_email text,customer_name text,buyer_name text,address text,customer_email text,customer_phone text,buyer_phone text,archived_at timestamptz,amount numeric(10,2),updated_at timestamptz,attempts integer default 0,missed_on date,missed_at timestamptz,delivery_note text,proof_path text);
  alter table public.cdf_orders add column photo_path text;
  insert into public.cdf_orders(id,num,date,slot,status,delivery,vendor_email,customer_name,buyer_name,buyer_phone,amount) values
@@ -36,14 +36,17 @@ const query=(sql)=>db.query(sql);
  assert.equal((await query('select amount from public.cdf_order_prices')).rows[0].amount,'12345.00');
  assert((await query('select amount from public.cdf_orders')).rows.every(r=>r.amount===null));ok('All orders remain; existing price copied exactly and legacy field is empty');
  async function as(email){await db.exec('reset role');await db.query("select set_config('request.jwt.claims',$1,false)",[JSON.stringify({email})]);await db.exec('set role authenticated')}
- await as('mod@test');assert.equal((await query('select * from public.cdf_order_prices')).rows.length,0);ok('Moderator cannot read prices');
- let blocked=false;try{await query("insert into public.cdf_order_prices values('22222222-2222-2222-2222-222222222222',999)")}catch{blocked=true}assert(blocked);ok('Moderator cannot create prices');
+ await as('florist@test');assert.equal((await query('select * from public.cdf_order_prices')).rows.length,0);ok('Florist cannot read prices');
+ let blocked=false;try{await query("insert into public.cdf_order_prices values('22222222-2222-2222-2222-222222222222',999)")}catch{blocked=true}assert(blocked);ok('Florist cannot create prices');
+ // The old price column is closed even for the admin, who can write orders
+ await as('admin@test');
  blocked=false;try{await query("update public.cdf_orders set amount=999 where num='2'")}catch{blocked=true}assert(blocked);ok('Legacy price writes are rejected');
+ // Search and buyer history are office tools (admin)
  assert.equal((await query("select count(*)::int n from public.cdf_search_orders('Sofia')")).rows[0].n,1);ok('Server search matches accented names');
- const buyer=(await query("select * from public.cdf_buyer_history('639171234567',null)")).rows[0];assert.equal(Number(buyer.n),2);assert.equal(Number(buyer.total),0);ok('Buyer history includes all orders without leaking prices to moderator');
+ const buyer=(await query("select * from public.cdf_buyer_history('639171234567',null)")).rows[0];assert.equal(Number(buyer.n),2);assert.equal(Number(buyer.total),12345);ok('Buyer history includes all orders and the admin sees their prices');
  await as('admin@test');await query("update public.cdf_order_prices set amount=5432.10 where order_id='11111111-1111-1111-1111-111111111111'");
  assert.equal((await query("select count(*)::int n from public.cdf_order_events where changes?'amount'")).rows[0].n,1);ok('Admin price changes produce history');
- await as('mod@test');assert.equal((await query("select count(*)::int n from public.cdf_order_events where changes?'amount'")).rows[0].n,0);ok('Price history is hidden from moderator');
+ await as('florist@test');assert.equal((await query("select count(*)::int n from public.cdf_order_events where changes?'amount'")).rows[0].n,0);ok('Price history is hidden from florists');
  await as('florist@test');blocked=false;try{await query("select public.cdf_progress('11111111-1111-1111-1111-111111111111','done')")}catch{blocked=true}assert(blocked);ok('Florist cannot skip Preparing to Delivered');
  await as('driver@test');await query("select public.cdf_progress('22222222-2222-2222-2222-222222222222','transit')");ok('Driver can take a ready order');
  await as('other@test');assert.equal((await query("select count(*)::int n from public.cdf_orders where num='2'")).rows[0].n,0);ok('Another driver cannot see the claimed order');
@@ -78,5 +81,10 @@ const query=(sql)=>db.query(sql);
  await as('florist@test');{const r=(await query("select * from public.cdf_save_profile('Flor',' +34 691 089 459 ',null)")).rows[0];assert.equal(r.name,'Flor');assert.equal(r.phone,'+34 691 089 459');assert.equal(r.role,'vendor');}ok('Own profile: name and phone saved, role untouched');
  blocked=false;try{await query("select public.cdf_save_profile('Flor','',  'someone-else/a.jpg')")}catch{blocked=true}assert(blocked);ok('A profile photo must be in the person\'s own folder');
  await db.exec('reset role');assert.equal((await query("select has_schema_privilege('authenticated','cdf_backup_20261028_integration','USAGE') allowed")).rows[0].allowed,false);ok('Price backup is not accessible to application roles');
+ // 018: three roles only; the moderator role can no longer be given and the office is the admin
+ await db.exec('reset role');await db.exec(fs.readFileSync(path.join(root,'supabase/migrations/018_cdf_no_moderator.sql'),'utf8'));ok('018 (no moderator) compiles');
+ blocked=false;try{await query("insert into public.cdf_members values('mod@test','Mod','moderator')")}catch{blocked=true}assert(blocked);ok('The moderator role can no longer be given');
+ await as('admin@test');assert.equal((await query("select public.cdf_is_staff() s")).rows[0].s,true);assert((await query("select count(*)::int n from public.cdf_member_stats()")).rows[0].n>=2);ok('The admin is still the office and sees everyone');
+ await as('florist@test');assert.equal((await query("select public.cdf_is_staff() s")).rows[0].s,false);ok('A florist is not office staff');
  fs.mkdirSync(path.join(root,'.impeccable/review'),{recursive:true});fs.writeFileSync(path.join(root,'.impeccable/review/sql-verification.json'),JSON.stringify({results,productionWrites:false},null,2));await db.close();
 })().catch(async e=>{console.error(e.message);await db.close();process.exitCode=1});
