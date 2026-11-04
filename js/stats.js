@@ -1,6 +1,6 @@
 // Delivery dates use Manila. History includes archived orders. No customer history is cached across accounts.
 let statsDays=30, statsRows=null, statsFor=null, statsVersion=0, statsRequest=0;
-function invalidateStats(){statsVersion++;statsFor=null;statsRows=null;statsRequest++;}
+function invalidateStats(){memberStatsAt=0;statsVersion++;statsFor=null;statsRows=null;statsRequest++;}
 async function renderStats(){
  if(!isAdmin())return;
  const box=$("statsBody"),account=S.me.email,key=[account,S.today,statsDays,pricesOn(),statsVersion].join("|"),request=++statsRequest;

@@ -83,7 +83,11 @@ window.supabase = { createClient: () => ({
       const digits=p=>String(p||"").replace(/\D/g,"").slice(-9);const os=window.__orders.filter(o=>o.id!==args.p_exclude&&digits(o.buyer_phone||o.customer_phone)===digits(args.p_phone));
       return {data:[{n:os.length,total:window.__role==="admin"?os.reduce((n,o)=>n+(window.__prices.find(p=>p.order_id===o.id)?.amount||0),0):0}],error:null};
     }
-    const o = window.__orders.find((x) => x.id === args.p_id); if (!o) return { error: { message: "missing" } };
+    if(name === "cdf_member_stats") {
+      const rows=[{email:"ana@example.com",done_week:3,done_month:12,done_total:48,open_now:4}];
+      return {data:window.__role==="vendor"||window.__role==="admin"||!window.__role?rows:[],error:null};
+    }
+    const o = window.__orders.find((x) => x.id === args?.p_id); if (!o) return { error: { message: "missing" } };
     if (name === "cdf_progress") { [o.status, o.delivery] = steps[args.p_step]; if (args.p_note) o.delivery_note = args.p_note; if (args.p_set_proof) o.proof_path = args.p_proof; }
     if (name === "cdf_set_bouquet") o.bouquet_path = args.p_path;
     if (name === "cdf_reschedule") Object.assign(o, { date: args.p_date, slot: args.p_slot, delivery_note: args.p_note, status: "Ready", delivery: "-", attempts: o.attempts + 1 });
@@ -314,6 +318,8 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#tabTeam").click();
       assert.equal(await p.locator("#aRole option").count(), 4);
       assert.equal(await p.locator("#aRole option[value=moderator]").count(), 1);
+      await p.locator(".member .done-stats").first().waitFor();
+      assert.match(await p.locator(".member .done-stats").first().innerText(), /12\s+this month[\s\S]*48\s+total/);
       await capture(p, "team-desktop");
     });
     await p.close();
@@ -359,7 +365,10 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Florist: ready with bouquet, then head out asks first (RPCs)", async () => {
       const q = await open("vendor", { width: 390 });
-      await q.locator(".work").first().waitFor(); await capture(q, "florist-mobile");
+      await q.locator(".work").first().waitFor();
+      await q.locator("#summary .done-stats").waitFor();
+      assert.match(await q.locator("#summary .done-stats").innerText(), /3\s+7 days/);
+      await capture(q, "florist-mobile");
       await q.getByRole("button", { name: "Mark ready" }).first().click();
       await q.locator(".sheet").getByRole("button", { name: "Mark ready", exact: true }).click();
       await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });

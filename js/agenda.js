@@ -18,7 +18,10 @@ function renderAgenda() {
   $("dLabel").textContent = isCarrier() ? t("myRoute") : t("myOrders");
   const todays = S.orders.filter((o) => o.date === S.today);
   $("dSub").textContent = (todays.length ? t("todayCount", { n: todays.length }) : t("nothingToday")) + " · " + t("manila");
-  $("summary").replaceChildren();
+  // A florist sees how many of their orders are done
+  const mine = S.me?.role === "vendor";
+  if (mine) refreshMemberStats(() => { if (S.tab === "orders") renderAgenda(); });
+  $("summary").replaceChildren(...(mine && memberStats ? [doneLine(S.me.email)] : []));
   const box = $("list"); box.replaceChildren();
   box.classList.remove("timeline");
   const empty = (title, sub, action) => box.append(el("div", { class: "empty" }, el("img", { src: "/img/emblem.webp", alt: "" }), el("b", {}, title), sub ? el("span", {}, sub) : null, action));

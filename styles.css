@@ -1309,3 +1309,9 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 }
 @media (pointer: coarse) { .field input, .field select, .field textarea { font-size: 1rem; } }
 @media (prefers-color-scheme: light) { :root:not([data-theme]) .tag.fail { color: #96382f; } }
+
+/* Completed orders per florist (team list and the florist's own agenda) */
+.done-stats { display: flex; flex-wrap: wrap; gap: 2px 12px; margin-top: 4px; font-size: 0.8125rem; color: var(--muted); }
+.done-stats b { color: var(--fg); font-weight: 600; font-variant-numeric: tabular-nums; }
+.done-stats .done-h { color: var(--muted); }
+.day-sum .done-stats { margin-top: 0; }
