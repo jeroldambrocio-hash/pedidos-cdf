@@ -14,9 +14,20 @@ function show(view) {
 
 $("loginForm").addEventListener("submit", async (e) => {
   e.preventDefault(); $("lErr").textContent = ""; $("lBtn").disabled = true;
-  const { error } = await sb.auth.signInWithPassword({ email: $("lEmail").value.trim(), password: $("lPass").value });
-  $("lBtn").disabled = false;
-  if (error) $("lErr").textContent = /invalid/i.test(error.message) ? t("badLogin") : error.message;
+  try {
+    const identity = $("lEmail").value.trim(), password = $("lPass").value;
+    if (identity.includes("@")) {
+      const { error } = await sb.auth.signInWithPassword({ email: identity.toLowerCase(), password });
+      if (error) throw error;
+    } else {
+      const { data, error } = await sb.functions.invoke("cdf-login", { body: { username: identity.toLowerCase(), password } });
+      if (error || !data?.access_token || !data?.refresh_token) throw new Error("invalid");
+      const session = await sb.auth.setSession({ access_token: data.access_token, refresh_token: data.refresh_token });
+      if (session.error) throw session.error;
+    }
+    $("lPass").value = "";
+  } catch { $("lErr").textContent = t("badLogin"); }
+  finally { $("lBtn").disabled = false; }
 });
 // Local sign-out needs no network round trip, so it works even when the server call would fail
 // (Safari kept the session when the global sign-out request errored).
@@ -78,7 +89,7 @@ function renderSub() {
   $("userName").textContent = $("menuName").textContent = name;
   $("userRole").textContent = role;
   $("menuSub").textContent = role || S.email || "";
-  $("menuEmail").textContent = S.me?.email || S.email || "";
+  $("menuEmail").textContent = [S.me?.username, S.me?.email || S.email].filter(Boolean).join(" · ");
   $("accountBtn").dataset.tip = name;
   $("pwBtn").hidden = !S.me;
   $("myAccountBtn").hidden = !S.me;
