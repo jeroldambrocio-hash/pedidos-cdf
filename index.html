@@ -20,7 +20,7 @@
 <aside class="rail" id="rail" hidden data-expanded="false">
   <div class="rail-head">
     <button class="rail-toggle" id="railToggle" type="button" aria-controls="rail" aria-expanded="false" data-i18n-aria="expandNav" aria-label="Expand sidebar"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="3.5" y="4.5" width="17" height="15" rx="3"/><path d="M9.5 4.5v15"/></svg></span></button>
-    <span class="rail-label rail-brand">Casa de Flores</span>
+    <button class="rail-label rail-brand" id="brandHome" type="button" data-i18n-aria="goHome" aria-label="Go to orders">Casa de Flores</button>
   </div>
   <nav class="rail-nav" id="tabs" data-i18n-aria="sections">
     <button class="rail-item" id="tabOrders" type="button" aria-current="page" data-tip=""><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6m-6 4h6"/></svg></span><span class="rail-label" id="tabOrdersLabel" data-i18n="tabOrders">Orders</span></button>
@@ -34,18 +34,30 @@
         <span class="rail-label"><b id="userName"></b><small id="userRole"></small></span>
       </button>
       <div class="menu account" role="dialog" data-i18n-aria="accountMenu" aria-label="Account and settings">
-        <div class="mhead"><span class="avatar" id="menuAvatar"></span><div><b id="menuName"></b><small id="menuSub"></small></div></div>
-        <div class="msep"></div>
-        <div class="mrow"><span data-i18n="language">Language</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
-        <div class="mrow"><span data-i18n="textSize">Text size</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Large</button></div></div>
-        <div class="mrow"><span data-i18n="theme">Mode</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Light</button><button type="button" data-theme-set="dark" data-i18n="dark">Dark</button></div></div>
-        <div class="mrow"><span data-i18n="motion">Animations</span><div class="seg"><button type="button" data-motion-set="full" data-i18n="motionFull">Full</button><button type="button" data-motion-set="reduced" data-i18n="motionReduced">Reduced</button></div></div>
-        <div class="mrow" id="pricesRow" hidden><span data-i18n="pricesAdmin">Prices (admin only)</span><div class="seg"><button type="button" data-prices="" data-i18n="pricesOff">Off</button><button type="button" data-prices="on" data-i18n="pricesOn">On</button></div></div>
-        <div class="msep"></div>
-        <button class="mitem" id="pwBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-4 4 3 3m-6 0 2 2"/></svg></span><span data-i18n="changePassword">Change password</span></button>
-        <button class="mitem" id="fbBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M21 11a9 9 0 0 1-9 9H4l-3 3 2-8a9 9 0 1 1 18-4Z"/><path d="M7 11h1m4 0h1m4 0h1"/></svg></span><span data-i18n="sendFeedback">Send a suggestion</span></button>
-        <div class="msep"></div>
-        <button class="mitem danger" id="logout" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></span><span data-i18n="logout">Sign out</span></button>
+        <!-- Menú de perfil: una lista corta; Preferencias y Mi cuenta abren su propia vista dentro del menú -->
+        <div class="mview" data-view="main">
+          <div class="mhead"><span class="avatar" id="menuAvatar"></span><div><b id="menuName"></b><small id="menuSub"></small></div></div>
+          <div class="msep"></div>
+          <button class="mitem" type="button" data-goto="prefs"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h10m4 0h2M4 17h2m4 0h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></span><span data-i18n="preferences">Preferences</span><span class="svg-icon" aria-hidden="true"><svg class="i mchev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>
+          <button class="mitem" id="myAccountBtn" type="button" data-goto="account"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span data-i18n="myAccount">My account</span><span class="svg-icon" aria-hidden="true"><svg class="i mchev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>
+          <button class="mitem" id="fbBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M21 11a9 9 0 0 1-9 9H4l-3 3 2-8a9 9 0 1 1 18-4Z"/><path d="M7 11h1m4 0h1m4 0h1"/></svg></span><span data-i18n="sendFeedback">Send a suggestion</span></button>
+          <div class="msep"></div>
+          <button class="mitem danger" id="logout" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></span><span data-i18n="logout">Sign out</span></button>
+        </div>
+        <div class="mview" data-view="prefs" hidden>
+          <div class="mback-row"><button class="mback" type="button" data-goto="main"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span><span data-i18n="back">Back</span></button><b data-i18n="preferences">Preferences</b></div>
+          <div class="msep"></div>
+          <div class="mrow"><span data-i18n="language">Language</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
+          <div class="mrow"><span data-i18n="theme">Mode</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Light</button><button type="button" data-theme-set="dark" data-i18n="dark">Dark</button></div></div>
+          <div class="mrow"><span data-i18n="textSize">Text size</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Large</button></div></div>
+          <div class="mrow"><span data-i18n="motion">Animations</span><div class="seg"><button type="button" data-motion-set="full" data-i18n="motionFull">Full</button><button type="button" data-motion-set="reduced" data-i18n="motionReduced">Reduced</button></div></div>
+        </div>
+        <div class="mview" data-view="account" hidden>
+          <div class="mback-row"><button class="mback" type="button" data-goto="main"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span><span data-i18n="back">Back</span></button><b data-i18n="myAccount">My account</b></div>
+          <div class="msep"></div>
+          <p class="maccount" id="menuEmail"></p>
+          <button class="mitem" id="pwBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-4 4 3 3m-6 0 2 2"/></svg></span><span data-i18n="changePassword">Change password</span></button>
+        </div>
       </div>
     </div>
   </div>
@@ -56,7 +68,7 @@
 <!-- Móvil: cabecera fina con el botón que abre el cajón -->
 <header class="app-header" id="header" hidden>
   <button class="btn icon ghost nav-open" id="navOpen" type="button" aria-controls="rail" aria-expanded="false" data-i18n-aria="openNav" aria-label="Open navigation"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg></span></button>
-  <div class="brand"><img src="/img/emblem.webp" alt="" width="30" height="30"><div><h1>Casa de Flores</h1><small id="sub"></small></div></div>
+  <button class="brand brand-home" id="brandHomeMobile" type="button" data-i18n-aria="goHome" aria-label="Go to orders"><img src="/img/emblem.webp" alt="" width="30" height="30"><div><h1>Casa de Flores</h1><small id="sub"></small></div></button>
 </header>
 <p id="connection" class="connection" role="status" hidden></p>
 
@@ -124,6 +136,7 @@
           <select class="input status-mobile" id="statusMobile" data-i18n-aria="status" aria-label="Status"></select>
           <button class="btn" id="clearSearch" type="button" hidden data-i18n="clearSearch">Clear search</button>
           <div class="day-tools" style="display:flex;gap:8px">
+            <button class="btn icon icon-tool" id="pricesBtn" type="button" aria-pressed="false" hidden data-i18n-aria="showPrices" aria-label="Show prices"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M3 12.5V4a1 1 0 0 1 1-1h8.5L21 11.5 12.5 20Z"/><circle cx="8" cy="8" r="1.5"/></svg></span></button>
             <button class="btn icon icon-tool" id="selectBtn" type="button" aria-pressed="false" hidden data-i18n-aria="select" aria-label="Select"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/></svg></span></button>
             <div class="seg density" id="viewControls" role="group" data-i18n-aria="viewMode" aria-label="View">
               <button type="button" id="timelineView" aria-pressed="true" data-i18n-aria="timelineView" aria-label="Timeline"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M6 4v16"/><circle cx="6" cy="8" r="1.5"/><path d="M10 8h10M10 16h10"/><circle cx="6" cy="16" r="1.5"/></svg></span></button>

@@ -77,10 +77,14 @@ function renderSub() {
   $("userAvatar").textContent = $("menuAvatar").textContent = name.trim().charAt(0).toUpperCase();
   $("userName").textContent = $("menuName").textContent = name;
   $("userRole").textContent = role;
-  $("menuSub").textContent = [role, S.me?.email || S.email].filter(Boolean).join(" · ");
+  $("menuSub").textContent = role || S.email || "";
+  $("menuEmail").textContent = S.me?.email || S.email || "";
   $("accountBtn").dataset.tip = name;
   $("pwBtn").hidden = !S.me;
-  $("pricesRow").hidden = !(isAdmin() && S.cap.amount);
+  $("myAccountBtn").hidden = !S.me;
+  // Prices are a per-browser view choice of the admin (localStorage "cdf-prices"), so the switch sits with the order view controls
+  $("pricesBtn").hidden = !(isAdmin() && S.cap.amount);
+  $("pricesBtn").dataset.tip = $("pricesBtn").title = t("showPrices");
   // Florists and drivers have one section: their own list
   $("tabOrdersLabel").textContent = !S.me || isStaff() ? t("tabOrders") : isCarrier() ? t("myRoute") : t("myOrders");
   $("tabOrders").dataset.tip = $("tabOrdersLabel").textContent;
@@ -96,6 +100,10 @@ function setTab(tab) {
   render();
 }
 $("tabOrders").onclick = () => { if (S.me) setTab("orders"); };
+// The brand name goes home: the orders list, the drawer closed on phones
+const goHome = () => { if (!S.me) return; setDrawer(false, false); if (S.tab !== "orders") setTab("orders"); else window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? "auto" : "smooth" }); };
+$("brandHome").onclick = goHome;
+$("brandHomeMobile").onclick = goHome;
 $("tabTeam").onclick = () => setTab("team");
 $("tabStats").onclick = () => setTab("stats");
 $("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { statsDays = +b.dataset.days; renderStats(); } });
@@ -186,6 +194,7 @@ $("fbBtn").onclick = () => {
   }, { dirty: () => !!msg.value.trim() });
   requestAnimationFrame(() => placePill(kinds));
 };
+$("pricesBtn").onclick = () => { savePref("cdf-prices", pref("cdf-prices") === "on" ? "" : "on"); applyPrefs(); document.dispatchEvent(new Event("priceschange")); };
 document.addEventListener("priceschange", async () => { invalidateStats(); await attachPrices(S.orders); render(); });
 
 // ---------- calendar and the day's controls ----------

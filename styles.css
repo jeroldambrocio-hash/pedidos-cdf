@@ -1392,3 +1392,46 @@ form.dialog h2.dialog-text { margin: 0; font-weight: 600; font-size: 1.05rem; }
 @media (max-width: 560px) { .member .m-acts { grid-column: 2 / -1; justify-content: flex-start; } }
 @media (max-width: 860px) { .team-grid > main { order: -1; } }
 .field select:disabled { opacity: .55; cursor: not-allowed; }
+/* Country code picker inside the phone field */
+.phone-in select.cc { appearance: none; -webkit-appearance: none; border: 0; border-right: 1px solid var(--line); border-radius: var(--r-ctl) 0 0 var(--r-ctl); background: transparent; color: var(--muted); font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; padding: 0 22px 0 12px; cursor: pointer; max-width: 120px;
+  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: right 11px center, right 7px center; background-size: 4px 4px; background-repeat: no-repeat; }
+.phone-in select.cc:hover { color: var(--fg); }
+.phone-in select.cc:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.phone-in select.cc option { color: var(--fg); background: var(--surface); }
+
+/* =====================================================================
+   Menú de perfil por vistas (lista → Preferencias / Mi cuenta) y marca que lleva a Pedidos
+   ===================================================================== */
+.mview[hidden] { display: none; }
+.mview.in-fwd { animation: mview-fwd 200ms var(--ease-std) both; }
+.mview.in-back { animation: mview-back 200ms var(--ease-std) both; }
+@keyframes mview-fwd { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
+@keyframes mview-back { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
+.menu.account .mitem > span:not(.svg-icon) { flex: 1; }
+.menu.account .mitem .mchev { width: 16px; height: 16px; color: var(--faint); transition: transform var(--dur-fast) var(--ease-out); }
+.menu.account .mitem:hover .mchev, .menu.account .mitem:focus-visible .mchev { transform: translateX(2px); }
+.menu.account:has(.mview[data-view="prefs"]:not([hidden])) { width: 344px; }
+.menu.account { max-width: calc(100vw - 24px); }
+.mback-row { display: flex; align-items: center; gap: 6px; min-height: 44px; padding: 0 4px; }
+.mback-row b { font-size: 0.875rem; font-weight: 600; }
+.mback { display: inline-flex; align-items: center; gap: 4px; min-height: 36px; padding: 0 10px 0 4px; border: 0; border-radius: 8px; background: none; color: var(--muted); font: inherit; font-size: 0.8125rem; transition: background-color var(--dur-fast), color var(--dur-fast); }
+.mback:hover { background: var(--surface-hover); color: var(--fg); }
+.mback svg.i { width: 18px; height: 18px; }
+.mback-row b { margin-left: auto; margin-right: 8px; }
+.maccount { margin: 4px 10px 6px; color: var(--muted); font-size: 0.8125rem; overflow-wrap: anywhere; }
+/* Preferencias: etiqueta a la izquierda, control a la derecha; en pantallas estrechas se apila si no cabe */
+.mview[data-view="prefs"] .mrow { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 12px; padding: 6px 8px; }
+.mview[data-view="prefs"] .mrow > span { font-size: 0.8125rem; color: var(--fg); font-weight: 500; }
+.mview[data-view="prefs"] .mrow .seg { width: auto; flex: 0 1 auto; margin-left: auto; }
+.mview[data-view="prefs"] .mrow .seg button { padding: 0 10px; }
+@media (max-width: 860px) {
+  .mview[data-view="prefs"] .mrow { display: grid; justify-content: stretch; }
+  .mview[data-view="prefs"] .mrow > span { font-size: 0.75rem; color: var(--muted); }
+  .mview[data-view="prefs"] .mrow .seg { width: 100%; margin-left: 0; }
+}
+/* La marca de la barra lateral y de la cabecera móvil lleva a Pedidos */
+button.rail-brand, button.brand-home { padding: 4px 6px; margin: -4px -6px; border: 0; border-radius: 6px; background: none; color: var(--fg); cursor: pointer; text-align: left; transition: background-color var(--dur-fast), opacity 120ms var(--ease-in), transform var(--rail-dur) var(--ease-std); }
+button.rail-brand:hover, button.brand-home:hover { background: color-mix(in srgb, var(--fg) 6%, transparent); }
+button.brand-home { margin: 0; font: inherit; }
+.rail[data-expanded="false"]:not(.drawer-open) .rail-brand { visibility: hidden; }
+.rail[data-expanded="true"] .rail-brand, .rail.drawer-open .rail-brand { pointer-events: auto; }
