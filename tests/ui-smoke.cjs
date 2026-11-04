@@ -314,10 +314,10 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert(await p.locator(".col").count() >= 30);
       await capture(p, "stats-desktop");
     });
-    await step("B6 · Team can add a moderator", async () => {
+    await step("B6 · Team offers only admin, florist and driver", async () => {
       await p.locator("#tabTeam").click();
-      assert.equal(await p.locator("#aRole option").count(), 4);
-      assert.equal(await p.locator("#aRole option[value=moderator]").count(), 1);
+      assert.equal(await p.locator("#aRole option").count(), 3);
+      assert.equal(await p.locator("#aRole option[value=moderator]").count(), 0);
       await p.locator(".member .done-stats").first().waitFor();
       assert.match(await p.locator(".member .done-stats").first().innerText(), /12\s+this month[\s\S]*48\s+total/);
       await capture(p, "team-desktop");

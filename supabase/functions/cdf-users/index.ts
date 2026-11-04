@@ -29,7 +29,7 @@ Deno.serve(async (req) => {
 
   if (body.action === "add") {
     const name = String(body.name || "").trim();
-    const role = ["admin", "moderator", "vendor", "carrier"].includes(body.role) ? body.role : "vendor";
+    const role = ["admin", "vendor", "carrier"].includes(body.role) ? body.role : "vendor";
     const password = String(body.password || "");
     if (!name) return json({ error: "Falta el nombre" }, 400);
     if (password.length < 8) return json({ error: "La contraseña necesita al menos 8 caracteres" }, 400);
