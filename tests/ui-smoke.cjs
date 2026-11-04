@@ -163,9 +163,49 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Animations full by default even with OS reduce; Settings turns them down and remembers", async () => {
       assert.equal(await p.evaluate(() => document.documentElement.dataset.motion), "full");
-      await p.locator("#accountBtn").click(); await p.locator("#account [data-motion-set=reduced]").click();
+      await p.locator("#accountBtn").click(); await p.locator('#account [data-goto="prefs"]').click(); await p.locator("#account [data-motion-set=reduced]").click();
       assert.equal(await p.evaluate(() => [document.documentElement.dataset.motion, localStorage.getItem("cdf-motion")].join()), "reduced,reduced");
       await p.locator("#account [data-motion-set=full]").click(); await p.keyboard.press("Escape");
+    });
+    await step("Profile menu: four entries, Preferences and My account views, Back, Escape returns focus", async () => {
+      await p.locator("#accountBtn").click();
+      const main = p.locator('#account .mview[data-view="main"]');
+      assert.deepEqual(await main.locator(".mitem").allInnerTexts(), ["Preferences", "My account", "Send a suggestion", "Sign out"]);
+      assert.equal(await main.locator(".mhead small").innerText(), "Admin");
+      assert.equal(await p.locator("#account .mrow:visible").count(), 0);
+      await p.locator('#account [data-goto="prefs"]').click();
+      assert.equal(await p.locator("#account .mrow:visible").count(), 4);
+      assert.equal(await p.evaluate(() => document.activeElement.classList.contains("mback")), true);
+      const row = await p.locator('#account .mview[data-view="prefs"] .mrow').first().evaluate((r) => { const a = r.firstElementChild.getBoundingClientRect(), b = r.lastElementChild.getBoundingClientRect(); return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 4 && b.left > a.right; });
+      assert(row, "label and control side by side on desktop");
+      await capture(p, "menu-prefs");
+      await p.keyboard.press("Enter");
+      assert.equal(await p.evaluate(() => document.activeElement.dataset.goto), "prefs");
+      await p.keyboard.press("ArrowDown"); await p.keyboard.press("Enter");
+      assert(await p.locator("#pwBtn").isVisible()); assert.equal(await p.locator("#menuEmail").innerText(), "admin@example.com");
+      await p.keyboard.press("Escape");
+      assert.equal(await p.evaluate(() => document.activeElement.id), "accountBtn");
+      assert.equal(await p.locator("#account .menu.open").count(), 0);
+      await p.keyboard.press("Enter"); await p.waitForTimeout(100);
+      assert.equal(await p.evaluate(() => document.activeElement.dataset.goto), "prefs", "reopens on the main list, focus inside");
+      await p.keyboard.press("Escape");
+    });
+    await step("Show prices lives in the orders controls (admin), remembered per browser", async () => {
+      assert(await p.locator("#pricesBtn").isVisible());
+      assert.equal(await p.locator(".amt").count(), 0);
+      await p.locator("#pricesBtn").click(); await p.waitForTimeout(300);
+      assert.equal(await p.evaluate(() => localStorage.getItem("cdf-prices")), "on");
+      assert.equal(await p.locator("#pricesBtn").getAttribute("aria-pressed"), "true");
+      assert(await p.locator(".amt").count() > 0);
+      await p.locator("#pricesBtn").click(); await p.waitForTimeout(300);
+      assert.equal(await p.evaluate(() => localStorage.getItem("cdf-prices")), null);
+    });
+    await step("Brand name goes to Orders", async () => {
+      await p.locator("#railToggle").click(); await p.locator("#tabTeam").click();
+      await p.locator("#brandHome").click();
+      assert(await p.locator("#ordersView").isVisible());
+      assert.equal(await p.locator("#tabOrders").getAttribute("aria-current"), "page");
+      await p.locator("#railToggle").click();
     });
     await step("B2 · On the way asks first, says who gets the email, and cancel changes nothing", async () => {
       const card = p.locator(".order", { hasText: "#0127" });
@@ -363,6 +403,26 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator("#newBtn").click(); await capture(q, "editor-mobile");
       await q.close();
     });
+    await step("Mobile profile menu: views fit the drawer, preferences stack, brand closes the drawer", async () => {
+      for (const role of ["admin", "vendor"]) {
+        const q = await open(role, { width: 360 });
+        assert.equal(await q.locator("#pricesBtn").isVisible(), role === "admin");
+        await q.locator("#navOpen").click(); await q.waitForTimeout(300); await q.locator("#accountBtn").click();
+        assert.equal(await q.locator('#account .mview[data-view="main"] .mitem:visible').count(), 4);
+        await q.locator('#account [data-goto="prefs"]').click(); await q.waitForTimeout(250);
+        const fits = await q.locator("#account .menu").evaluate((m) => { const r = m.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0; });
+        assert(fits, "menu inside the viewport");
+        const stacked = await q.locator('#account .mview[data-view="prefs"] .mrow').nth(1).evaluate((r) => r.lastElementChild.getBoundingClientRect().top > r.firstElementChild.getBoundingClientRect().bottom - 2);
+        assert(stacked, "rows stack on narrow screens");
+        await capture(q, "menu-prefs-mobile-" + role);
+        await q.locator('#account .mview[data-view="prefs"] .mback').click(); await q.locator("#myAccountBtn").click();
+        assert(await q.locator("#pwBtn").isVisible());
+        await q.keyboard.press("Escape"); assert.equal(await q.evaluate(() => document.activeElement.id), "accountBtn"); await q.locator("#brandHome").click(); await q.waitForTimeout(300);
+        assert.equal(await q.locator("#rail.drawer-open").count(), 0);
+        await q.locator("#brandHomeMobile").click(); assert(await q.locator("#ordersView").isVisible());
+        await q.close();
+      }
+    });
     await step("Florist: ready with bouquet, then head out asks first (RPCs)", async () => {
       const q = await open("vendor", { width: 390 });
       await q.locator(".work").first().waitFor();
@@ -427,7 +487,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       const bad=await q.locator(".sheet input:not([type=file]),.sheet textarea,.sheet select").evaluateAll(ns=>ns.filter(n=>n.getClientRects().length&&!n.labels?.length&&!n.hasAttribute("aria-label")&&!n.hasAttribute("aria-labelledby")).length);assert.equal(bad,0);await q.close();
     });
     await step("Integration: mobile password is above the closed drawer",async()=>{
-      const q=await open("admin",{width:390});await q.locator("#navOpen").click();await q.locator("#accountBtn").click();await q.locator("#pwBtn").click();await q.waitForTimeout(300);
+      const q=await open("admin",{width:390});await q.locator("#navOpen").click();await q.locator("#accountBtn").click();await q.locator("#myAccountBtn").click();await q.locator("#pwBtn").click();await q.waitForTimeout(300);
       assert.equal(await q.locator("#rail.drawer-open").count(),0);await q.locator(".sheet input").first().fill("safe-test-password");await q.close();
     });
     await step("Integration: complete statistics, live invalidation, historic customers and weekly buckets",async()=>{

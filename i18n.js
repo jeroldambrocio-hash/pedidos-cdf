@@ -45,7 +45,7 @@ const I18N = {
     passMismatch: "Las contraseñas no coinciden.", passChanged: "Contraseña cambiada. Úsala la próxima vez que entres.", savePassword: "Guardar contraseña", accountOf: "Cuenta: {email}",
     sendFeedback: "Enviar sugerencia", fbType: "Tipo", fbIdea: "Idea", fbBug: "Algo no funciona", fbOther: "Otro", fbMsg: "Mensaje", fbPh: "Cuéntanos qué mejorarías o qué no funciona…",
     fbTo: "Llega directamente a {to}.", fbOpened: "Se ha abierto tu correo con el mensaje listo. Solo falta pulsar Enviar.", fbEmpty: "Escribe tu mensaje.", send: "Enviar",
-    pricesAdmin: "Precios (solo admin)", pricesOff: "Desactivados", pricesOn: "Activados", amount: "Importe (₱)", amountHint: "Opcional. Sirve para las estadísticas de ventas.",
+    pricesAdmin: "Precios (solo admin)", showPrices: "Mostrar precios", preferences: "Preferencias", goHome: "Ir a Pedidos", myAccount: "Mi cuenta", back: "Volver", pricesOff: "Desactivados", pricesOn: "Activados", amount: "Importe (₱)", amountHint: "Opcional. Sirve para las estadísticas de ventas.",
     flowHint: "En preparación → Listo → En reparto → Entregado. El cliente recibe un correo automático cuando sale.",
     chanWarn: "No has marcado el canal (Shopify, Instagram, TikTok o Web). Puedes guardar igualmente.", savedNoChannel: "Guardado sin canal. Puedes añadirlo después desde el pedido.",
     repeatOne: "Cliente recurrente · 1 pedido anterior", repeatMany: "Cliente recurrente · {n} pedidos anteriores", repeatSum: " · {sum} en total",
@@ -200,7 +200,7 @@ const I18N = {
     passMismatch: "The passwords don't match.", passChanged: "Password changed. Use it next time you sign in.", savePassword: "Save password", accountOf: "Account: {email}",
     sendFeedback: "Send a suggestion", fbType: "Type", fbIdea: "Idea", fbBug: "Something's broken", fbOther: "Other", fbMsg: "Message", fbPh: "Tell us what you'd improve or what isn't working…",
     fbTo: "Goes straight to {to}.", fbOpened: "Your email app opened with the message ready. Just press Send.", fbEmpty: "Write your message.", send: "Send",
-    pricesAdmin: "Prices (admin only)", pricesOff: "Off", pricesOn: "On", amount: "Amount (₱)", amountHint: "Optional. Used for the sales statistics.",
+    pricesAdmin: "Prices (admin only)", showPrices: "Show prices", preferences: "Preferences", goHome: "Go to orders", myAccount: "My account", back: "Back", pricesOff: "Off", pricesOn: "On", amount: "Amount (₱)", amountHint: "Optional. Used for the sales statistics.",
     flowHint: "Preparing → Ready → Out for delivery → Delivered. The customer gets an automatic email when it goes out.",
     chanWarn: "You haven't marked the channel (Shopify, Instagram, TikTok or Web). You can save anyway.", savedNoChannel: "Saved without a channel. You can add it later from the order.",
     repeatOne: "Returning customer · 1 earlier order", repeatMany: "Returning customer · {n} earlier orders", repeatSum: " · {sum} in total",
@@ -345,7 +345,7 @@ function applyPrefs() {
   for (const b of document.querySelectorAll("button[data-size]")) b.setAttribute("aria-pressed", String(b.dataset.size === sz));
   for (const b of document.querySelectorAll("[data-theme-set]")) b.setAttribute("aria-pressed", String(b.dataset.themeSet === th));
   for (const b of document.querySelectorAll("[data-motion-set]")) b.setAttribute("aria-pressed", String(b.dataset.motionSet === mo));
-  for (const b of document.querySelectorAll("[data-prices]")) b.setAttribute("aria-pressed", String(b.dataset.prices === (pref("cdf-prices") || "")));
+  document.getElementById("pricesBtn")?.setAttribute("aria-pressed", String(pref("cdf-prices") === "on"));
   for (const s of document.querySelectorAll(".seg")) placePill(s);
 }
 // Segmented controls: a pill slides under the pressed button
@@ -359,27 +359,76 @@ function placePill(box) {
   pill.style.opacity = a ? "1" : "0";
   if (a) { pill.style.width = a.offsetWidth + "px"; pill.style.transform = `translateX(${a.offsetLeft}px)`; }
 }
-// Menus (settings, account): opened with a class so they animate in and out
+// Menus (settings, account): opened with a class so they animate in and out.
+// The account menu has views (main list, Preferences, My account); it always opens on the main one.
 const openMenu = () => document.querySelector(".settings .menu.open");
-function setMenu(menu, open) {
+const menuOpener = (menu) => menu.parentElement.querySelector("[data-settings]");
+const menuItems = (menu) => [...menu.querySelectorAll(".mview:not([hidden]) :is(.mitem, .mback, .seg button), :scope > .mrow .seg button")].filter((b) => !b.hidden && b.getClientRects().length);
+let menuReset;
+function showMenuView(menu, name, { focus = true, from } = {}) {
+  const views = menu.querySelectorAll(".mview");
+  if (!views.length) return;
+  const cur = menu.querySelector(".mview:not([hidden])"), next = menu.querySelector(`.mview[data-view="${name}"]`);
+  if (!next || next === cur) return;
+  for (const v of views) v.hidden = v !== next;
+  next.classList.remove("in-fwd", "in-back"); void next.offsetWidth;
+  next.classList.add(name === "main" ? "in-back" : "in-fwd");
+  for (const s of next.querySelectorAll(".seg")) placePill(s);
+  if (!focus) return;
+  // Into a sub-view: focus "Back". Back to the list: focus the entry that opened that sub-view.
+  const target = name === "main" ? next.querySelector(`[data-goto="${from}"]`) : next.querySelector(".mback");
+  target?.focus();
+}
+function setMenu(menu, open, { focusFirst = false } = {}) {
+  clearTimeout(menuReset);
   menu.classList.toggle("open", open);
-  menu.parentElement.querySelector("[data-settings]")?.setAttribute("aria-expanded", String(open));
-  if (open) for (const s of menu.querySelectorAll(".seg")) placePill(s);
+  menuOpener(menu)?.setAttribute("aria-expanded", String(open));
+  if (open) {
+    showMenuView(menu, "main", { focus: false });
+    for (const s of menu.querySelectorAll(".seg")) placePill(s);
+    if (focusFirst) requestAnimationFrame(() => menuItems(menu)[0]?.focus());
+  } else {
+    // Back to the main list once the closing animation is over
+    menuReset = setTimeout(() => showMenuView(menu, "main", { focus: false }), 260);
+  }
+}
+function closeMenu(menu, { refocus = false } = {}) {
+  const back = menu.contains(document.activeElement);
+  setMenu(menu, false);
+  if (refocus || back) menuOpener(menu)?.focus();
 }
 document.addEventListener("click", (e) => {
   const gear = e.target.closest("[data-settings]");
   const cur = openMenu();
-  if (gear) { const m = gear.parentElement.querySelector(".menu"); if (cur && cur !== m) setMenu(cur, false); setMenu(m, !m.classList.contains("open")); return; }
-  if (cur && (!e.target.closest(".settings") || e.target.closest(".mitem"))) setMenu(cur, false);
+  if (gear) {
+    const m = gear.parentElement.querySelector(".menu");
+    if (cur && cur !== m) setMenu(cur, false);
+    // Opened from the keyboard (Enter/Space): move focus into the menu
+    setMenu(m, !m.classList.contains("open"), { focusFirst: e.detail === 0 });
+    return;
+  }
+  const go = e.target.closest(".menu [data-goto]");
+  if (go) { const m = go.closest(".menu"); showMenuView(m, go.dataset.goto, { from: m.querySelector(".mview:not([hidden])")?.dataset.view }); return; }
+  if (cur && !e.target.closest(".settings")) setMenu(cur, false);
+  else if (cur && e.target.closest(".mitem")) closeMenu(cur);
   const l = e.target.closest(".lang button"); if (l) { setLang(l.dataset.lang); applyPrefs(); return; }
   const z = e.target.closest("button[data-size]"); if (z) { savePref("cdf-size", z.dataset.size); applyPrefs(); return; }
   const th = e.target.closest("button[data-theme-set]"); if (th) { savePref("cdf-theme", th.dataset.themeSet); applyPrefs(); return; }
   const mo = e.target.closest("button[data-motion-set]"); if (mo) { savePref("cdf-motion", mo.dataset.motionSet === "reduced" ? "reduced" : ""); applyPrefs(); return; }
-  const pr = e.target.closest("button[data-prices]"); if (pr) { savePref("cdf-prices", pr.dataset.prices); applyPrefs(); document.dispatchEvent(new Event("priceschange")); }
 });
 document.addEventListener("keydown", (e) => {
   const m = openMenu();
-  if (e.key === "Escape" && m) { setMenu(m, false); m.parentElement.querySelector("[data-settings]")?.focus(); }
+  if (!m) return;
+  // One Escape closes only the menu (not the phone drawer behind it), and focus goes back to its button
+  if (e.key === "Escape") { e.preventDefault(); e.stopImmediatePropagation(); closeMenu(m, { refocus: true }); return; }
+  // Arrow keys move between the rows of the visible view; Home/End jump to the ends
+  if (!["ArrowDown", "ArrowUp", "Home", "End"].includes(e.key) || !m.contains(document.activeElement) && document.activeElement !== menuOpener(m)) return;
+  const items = menuItems(m); if (!items.length) return;
+  const i = items.indexOf(document.activeElement);
+  const n = e.key === "Home" ? 0 : e.key === "End" ? items.length - 1 : e.key === "ArrowDown" ? (i + 1) % items.length : i <= 0 ? items.length - 1 : i - 1;
+  e.preventDefault(); items[n].focus();
 });
+// Tabbing out of an open menu closes it
+document.addEventListener("focusin", (e) => { const m = openMenu(); if (m && !m.parentElement.contains(e.target)) setMenu(m, false); });
 applyStatic();
 applyPrefs();
