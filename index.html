@@ -86,7 +86,7 @@
         <div class="logo"><img class="logo on-light" src="/img/logo.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="logo on-dark" src="/img/logo-dark.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
         <h2 data-i18n="signInTitle">Sign in to Orders</h2>
         <p data-i18n="loginHelp">For the Casa de Flores team.</p>
-        <label class="field"><span data-i18n="email">Email</span><input id="lEmail" type="email" autocomplete="email" required></label>
+        <label class="field"><span data-i18n="loginIdentity">Username or email</span><input id="lEmail" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required maxlength="254"></label>
         <label class="field"><span data-i18n="password">Password</span><input id="lPass" type="password" autocomplete="current-password" required></label>
         <div class="err" id="lErr" role="alert"></div>
         <button class="btn primary block" type="submit" id="lBtn" data-i18n="enter">Sign in</button>
@@ -167,6 +167,7 @@
       <form class="panel" id="addForm">
         <h2 data-i18n="addPerson">Add person</h2>
         <label class="field"><span data-i18n="name">Name</span><input id="aName" required autocomplete="off"></label>
+        <label class="field"><span data-i18n="username">Username</span><input id="aUsername" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" minlength="3" maxlength="30"><small data-i18n="usernameHint">Optional. 3–30 letters, numbers, dots, underscores or hyphens.</small></label>
         <label class="field"><span data-i18n="email">Email</span><input id="aEmail" type="email" required autocomplete="off"></label>
         <label class="field"><span data-i18n="role">Role</span><select id="aRole"><option value="vendor" data-i18n="role_vendor">Florist</option><option value="carrier" data-i18n="role_carrier">Driver</option><option value="admin" data-i18n="role_admin">Admin</option></select></label>
         <div class="hint" data-i18n="roleHint">Florist: their own orders. Driver: deliveries. Admin: everything, including the team.</div>
