@@ -87,3 +87,18 @@ document.addEventListener("langchange", render);
 poll = setInterval(() => { if (!document.hidden) load(); }, 60000);
 document.addEventListener("visibilitychange", onVisible);
 load();
+
+// Pause the delivery loop while this page or its tracking card is out of view.
+let trackingCardVisible = true;
+function syncTrackingMotion() {
+  document.body.classList.toggle("tracking-motion-paused", document.hidden || !trackingCardVisible);
+}
+document.addEventListener("visibilitychange", syncTrackingMotion);
+if ("IntersectionObserver" in window) {
+  const trackingMotionObserver = new IntersectionObserver(([entry]) => {
+    trackingCardVisible = entry.isIntersecting;
+    syncTrackingMotion();
+  });
+  trackingMotionObserver.observe(card);
+}
+syncTrackingMotion();

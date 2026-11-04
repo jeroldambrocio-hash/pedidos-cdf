@@ -1289,6 +1289,22 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .tl li.cur[data-s="prep"] svg { transform-origin: 30% 50%; animation: snip 2.4s var(--ease-std) infinite; }
 .tl li.cur[data-s="ready"] svg { transform-origin: 50% 100%; animation: sway 3s ease-in-out infinite; }
 .tl li.cur[data-s="transit"] svg { animation: drive 1.8s ease-in-out infinite; }
+
+/* Active delivery: a green halo expands for 280ms, then rests before repeating. */
+.tl li.cur[data-s="transit"] .dot { position: relative; isolation: isolate; }
+.tl li.cur[data-s="transit"] .dot::after {
+  content: ""; position: absolute; inset: -3px; border: 2px solid var(--step-done);
+  border-radius: 50%; pointer-events: none; z-index: -1; opacity: 0;
+  animation: delivery-halo 1600ms linear infinite;
+}
+@keyframes delivery-halo {
+  0% { transform: scale(1); opacity: .55; }
+  17.5%, 100% { transform: scale(1.75); opacity: 0; }
+}
+:root[data-motion="reduced"] .tl li.cur[data-s="transit"] .dot::after { display: none; }
+.tracking-page.tracking-motion-paused .tl li.cur[data-s="transit"] .dot::after,
+.tracking-page.tracking-motion-paused .tl li.cur[data-s="transit"] svg { animation-play-state: paused; }
+
 .tl li.cur[data-s="done"] svg { animation: beat 2.4s var(--ease-out) infinite; }
 .tl li.fail svg { animation: blink 2.4s ease-in-out infinite; }
 @media (min-width: 861px) { .grid { grid-template-columns: minmax(272px, 23%) minmax(0, 1fr); gap: 24px; } }
