@@ -440,12 +440,16 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       const q=await open("moderator");await q.evaluate(()=>exportDialog());const [dl]=await Promise.all([q.waitForEvent("download"),q.locator(".sheet").getByRole("button",{name:"Download",exact:true}).click()]);
       const stream=await dl.createReadStream(),chunks=[];for await(const c of stream)chunks.push(c);assert(!Buffer.concat(chunks).toString().includes("Amount"));await q.close();
     });
-    await step("Phone country code: +63 by default, another country can be picked and is kept", async () => {
+    await step("Phone country picker: Philippine flag and +63 by default, search, another country is kept", async () => {
       const q = await open("admin");
       await q.locator(".order", { hasText: "#0125" }).getByRole("button", { name: "Details" }).click();
-      const pick = q.locator("#f-bphone").locator("xpath=..").locator("select.cc");
-      assert.equal(await pick.inputValue(), "63");
-      await pick.selectOption("34"); await q.locator("#f-bphone").fill("691 089 459");
+      const pick = q.locator("#f-bphone").locator("xpath=..").locator("button.cc");
+      assert.match(await pick.innerText(), /\+63/);
+      assert.equal(await pick.locator("img.flag").getAttribute("src"), "/img/flags/ph.svg");
+      await pick.click(); await q.locator(".cc-search:visible").fill("spa");
+      await q.locator(".cc-opt:visible", { hasText: "+34" }).click();
+      assert.equal(await pick.locator("img.flag").getAttribute("src"), "/img/flags/es.svg");
+      await q.locator("#f-bphone").fill("691 089 459");
       await q.locator(".sheet").getByRole("button", { name: "Save", exact: true }).click();
       await q.waitForFunction(() => window.__orders.find((o) => o.num === "0125").buyer_phone === "+34691089459");
       await q.close();

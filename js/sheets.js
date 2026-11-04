@@ -368,20 +368,59 @@ async function openFresh(o, opts) {
 }
 function openOrder(o) { openFresh(o); }
 
-// Phone with a country code picker in front (+63 by default); typing + or 00 also switches to any country
+// Phone with a country picker in front (+63 by default): flag + code when closed; a searchable list with
+// flag, country and code when open. Typing + or 00 in the number also works for any country.
+const countryName = (iso) => { try { return new Intl.DisplayNames([LANG === "es" ? "es" : "en"], { type: "region" }).of(iso.toUpperCase()); } catch { return iso.toUpperCase(); } };
+const flagImg = (iso) => iso ? el("img", { class: "flag", src: "/img/flags/" + iso + ".svg", alt: "", width: 22, height: 16, loading: "lazy", decoding: "async" }) : el("span", { class: "flag flag-other", "aria-hidden": "true" }, "+");
 function phoneBox(input) {
   if (input.dataset.cc == null) input.dataset.cc = "63";
-  const cur = input.dataset.cc;
-  const opts = CCODES.map(([c, k]) => el("option", { value: c, selected: c === cur }, k + " +" + c));
-  const pick = el("select", { class: "cc", "aria-label": t("countryCode") }, ...opts, el("option", { value: "", selected: cur === "" }, t("otherCode")));
-  const box = el("div", { class: "phone-in" }, pick, input);
+  const list = [...CCODES.map(([c, iso]) => ({ c, iso, name: countryName(iso) })), { c: "", iso: "", name: t("otherCode") }];
+  const find = (c) => list.find((x) => x.c === c) || list[0];
+  const trigger = el("button", { class: "cc", type: "button", "aria-haspopup": "listbox", "aria-expanded": "false" });
+  const search = el("input", { type: "search", class: "cc-search", placeholder: t("searchCountry"), "aria-label": t("searchCountry"), autocomplete: "off" });
+  const results = el("div", { class: "cc-results", role: "listbox", "aria-label": t("countryCode") });
+  const panel = el("div", { class: "cc-panel", hidden: true }, search, results);
+  const box = el("div", { class: "phone-in" }, trigger, input);
+  const wrap = el("div", { class: "phone-wrap" }, box, panel);
   const ph = () => { input.placeholder = input.dataset.cc === "63" ? "917 123 4567" : input.dataset.cc === "" ? "+00 000 000 000" : ""; };
   const sync = () => box.classList.toggle("intl", /^(\+|00)/.test(input.value.trim()) && !/^\+?63/.test(input.value.trim()));
-  pick.addEventListener("change", () => { input.dataset.cc = pick.value; ph(); sync(); input.focus(); });
+  const paint = () => {
+    const x = find(input.dataset.cc);
+    trigger.replaceChildren(flagImg(x.iso), el("span", { class: "cc-dial" }, x.c ? "+" + x.c : "+…"), el("span", { class: "cc-caret", "aria-hidden": "true" }));
+    trigger.setAttribute("aria-label", t("countryCode") + ": " + x.name + (x.c ? " +" + x.c : ""));
+  };
+  const renderList = () => {
+    const q = norm(search.value.trim()).replace(/^\+/, "");
+    results.replaceChildren(...list.filter((x) => !q || norm(x.name).includes(q) || x.iso.includes(q) || (x.c && x.c.startsWith(q))).map((x) => {
+      const on = x.c === input.dataset.cc;
+      return el("button", { type: "button", class: "cc-opt", role: "option", "aria-selected": String(on), onclick: () => choose(x.c) },
+        flagImg(x.iso), el("span", { class: "cc-name" }, x.name), el("span", { class: "cc-code" }, x.c ? "+" + x.c : ""), el("span", { class: "cc-tick", "aria-hidden": "true" }, on ? "✓" : ""));
+    }));
+    if (!results.childElementCount) results.append(el("div", { class: "cc-empty", role: "status" }, t("noCountry")));
+  };
+  const onDoc = (e) => { if (!wrap.contains(e.target)) setOpen(false, false); };
+  const setOpen = (open, focus = true) => {
+    if (panel.hidden === !open) return;
+    panel.hidden = !open; trigger.setAttribute("aria-expanded", String(open));
+    if (open) { search.value = ""; renderList(); search.focus(); results.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" }); document.addEventListener("pointerdown", onDoc, true); }
+    else { document.removeEventListener("pointerdown", onDoc, true); if (focus) trigger.focus(); }
+  };
+  const choose = (c) => { input.dataset.cc = c; paint(); ph(); sync(); setOpen(false, false); input.focus(); };
+  trigger.addEventListener("click", () => setOpen(panel.hidden));
+  search.addEventListener("input", renderList);
+  panel.addEventListener("keydown", (e) => {
+    const opts = [...results.querySelectorAll(".cc-opt")], i = opts.indexOf(document.activeElement);
+    if (e.key === "Escape") { e.preventDefault(); e.stopPropagation(); setOpen(false); }
+    else if (e.key === "ArrowDown") { e.preventDefault(); opts[Math.min(i + 1, opts.length - 1)]?.focus(); }
+    else if (e.key === "ArrowUp") { e.preventDefault(); (i <= 0 ? search : opts[i - 1]).focus(); }
+    else if (e.key === "Enter" && document.activeElement === search) { e.preventDefault(); opts[0]?.click(); }
+  });
   input.setAttribute("aria-label", t("phone"));
   input.addEventListener("input", () => { if (input.dataset.cc === "63" && /^(\+?\s*63|0)\s*9/.test(input.value)) input.value = input.value.replace(/^(\+?\s*63|0)\s*/, ""); sync(); });
-  ph(); sync();
-  return box;
+  // Code that sets the number later (the "same person" copy) can repaint the picker
+  input.addEventListener("cc-change", () => { paint(); ph(); sync(); });
+  paint(); ph(); sync();
+  return wrap;
 }
 
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",

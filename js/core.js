@@ -73,7 +73,8 @@ const normPhone = (raw) => { const d = intlPhone(raw); return /^\d{10,15}$/.test
 const phoneOk = (raw) => !String(raw || "").trim() || /^\d{10,15}$/.test(intlPhone(raw));
 // Phone fields: a country code picker (+63 by default) and the rest of the number. Typing + or 00 in the
 // number still works for any country. The code chosen lives on the input as data-cc ("" = typed in full).
-const CCODES = [["63","PH"],["34","ES"],["1","US"],["44","UK"],["61","AU"],["64","NZ"],["65","SG"],["60","MY"],["62","ID"],["66","TH"],["84","VN"],["852","HK"],["86","CN"],["81","JP"],["82","KR"],["91","IN"],["971","AE"],["966","SA"],["974","QA"],["965","KW"],["39","IT"],["33","FR"],["49","DE"],["351","PT"],["31","NL"],["41","CH"],["52","MX"]];
+// [dial code, ISO country code]; the ISO code names the flag in /img/flags (flag-icons 7.2.3, 4x3)
+const CCODES = [["63","ph"],["34","es"],["1","us"],["44","gb"],["61","au"],["64","nz"],["65","sg"],["60","my"],["62","id"],["66","th"],["84","vn"],["852","hk"],["86","cn"],["81","jp"],["82","kr"],["91","in"],["971","ae"],["966","sa"],["974","qa"],["965","kw"],["39","it"],["33","fr"],["49","de"],["351","pt"],["31","nl"],["41","ch"],["52","mx"]];
 const phSplit = (p) => {
   const s = String(p || "").trim();
   if (!s.startsWith("+")) return { cc: "63", local: s };

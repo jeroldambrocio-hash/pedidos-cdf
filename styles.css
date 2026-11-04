@@ -1363,9 +1363,25 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 /* A card that is too narrow for the four labelled steps plus its buttons shows the steps as dots only */
 .entry .order { container-type: inline-size; }
 @container (max-width: 700px) { .steps .step .t { display: none; } }
-/* Country code picker inside the phone field */
-.phone-in select.cc { appearance: none; -webkit-appearance: none; border: 0; border-right: 1px solid var(--line); border-radius: var(--r-ctl) 0 0 var(--r-ctl); background: transparent; color: var(--muted); font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; padding: 0 22px 0 12px; cursor: pointer; max-width: 120px;
-  background-image: linear-gradient(45deg, transparent 50%, currentColor 50%), linear-gradient(135deg, currentColor 50%, transparent 50%); background-position: right 11px center, right 7px center; background-size: 4px 4px; background-repeat: no-repeat; }
-.phone-in select.cc:hover { color: var(--fg); }
-.phone-in select.cc:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
-.phone-in select.cc option { color: var(--fg); background: var(--surface); }
+/* Country picker inside the phone field: flag + code when closed, a searchable list with flags when open.
+   Flags are flag-icons 7.2.3 (4x3) served from /img/flags, shown at 22 x 16 with 2px corners. */
+.phone-in button.cc { display: flex; align-items: center; gap: 7px; flex: none; min-height: 44px; padding: 0 10px 0 12px; border: 0; border-right: 1px solid var(--line); border-radius: var(--r-ctl) 0 0 var(--r-ctl); background: transparent; color: var(--fg); font: inherit; font-weight: 600; font-variant-numeric: tabular-nums; cursor: pointer; transition: background-color var(--dur-fast); }
+.phone-in button.cc:hover { background: var(--surface-hover, rgba(127,127,127,.08)); }
+.phone-in button.cc:focus-visible { outline: 2px solid var(--primary); outline-offset: -2px; }
+.cc-caret { width: 0; height: 0; border-left: 4px solid transparent; border-right: 4px solid transparent; border-top: 5px solid var(--muted); transition: transform var(--dur-fast); }
+.cc[aria-expanded="true"] .cc-caret { transform: rotate(180deg); }
+.flag { display: block; flex: none; width: 22px; height: 16px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
+.flag-other { display: grid; place-items: center; background: var(--sunk); color: var(--muted); font-size: 0.75rem; font-weight: 700; line-height: 1; }
+.phone-wrap { display: grid; gap: 6px; }
+.cc-panel { padding: 6px; background: var(--surface); border: 1px solid var(--line-2, var(--line)); border-radius: var(--r-ctl); box-shadow: 0 8px 24px rgba(0,0,0,.18); animation: cc-open 180ms var(--ease-out, ease-out); }
+.cc-panel[hidden] { display: none; }
+@keyframes cc-open { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
+:root[data-motion="reduced"] .cc-panel { animation: none; }
+.field .cc-panel input.cc-search { width: 100%; min-height: 40px; margin-bottom: 5px; padding: 8px 10px; border: 0; border-radius: 6px; background: var(--input); color: var(--fg); box-shadow: none; }
+.cc-results { max-height: 228px; overflow: auto; scrollbar-width: thin; }
+.cc-opt { display: grid; grid-template-columns: 22px minmax(0, 1fr) auto 14px; gap: 8px; align-items: center; width: 100%; min-height: 40px; padding: 0 10px; border: 0; border-radius: 6px; background: transparent; color: var(--fg); font: inherit; text-align: left; cursor: pointer; }
+.cc-opt:hover, .cc-opt:focus-visible, .cc-opt[aria-selected="true"] { background: var(--surface-hover, var(--sunk)); outline: none; }
+.cc-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cc-code { color: var(--muted); font-variant-numeric: tabular-nums; }
+.cc-tick { color: var(--primary-text, var(--fg)); font-weight: 700; }
+.cc-empty { padding: 10px; color: var(--muted); }
