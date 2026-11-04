@@ -1290,16 +1290,16 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .tl li.cur[data-s="ready"] svg { transform-origin: 50% 100%; animation: sway 3s ease-in-out infinite; }
 .tl li.cur[data-s="transit"] svg { animation: drive 1.8s ease-in-out infinite; }
 
-/* Active delivery: a green halo expands for 280ms, then rests before repeating. */
+/* Active delivery: a soft green halo grows and fades over 1.4s, then rests before repeating. */
 .tl li.cur[data-s="transit"] .dot { position: relative; isolation: isolate; }
 .tl li.cur[data-s="transit"] .dot::after {
   content: ""; position: absolute; inset: -6px; border: 2px solid var(--step-done);
   border-radius: 50%; pointer-events: none; z-index: -1; opacity: 0;
-  animation: delivery-halo 1600ms linear infinite;
+  animation: delivery-halo 2400ms cubic-bezier(.22, .61, .36, 1) infinite;
 }
 @keyframes delivery-halo {
-  0% { transform: scale(1); opacity: .85; }
-  17.5%, 100% { transform: scale(1.6); opacity: 0; }
+  0% { transform: scale(1); opacity: .7; }
+  60%, 100% { transform: scale(1.7); opacity: 0; }
 }
 :root[data-motion="reduced"] .tl li.cur[data-s="transit"] .dot::after { display: none; }
 .tracking-page.tracking-motion-paused .tl li.cur[data-s="transit"] .dot::after,
