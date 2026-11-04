@@ -26,7 +26,7 @@ async function load() {
 }
 function glyph(index, isFail = false) {
   const paths = [
-    '<circle cx="6" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="m8.2 8.2 12 12M8.2 15.8 20 4M14 10l-4 4"/>',
+    '<g class="blade a"><circle cx="6" cy="6" r="3"/><path d="m8.2 8.2 12 12"/></g><g class="blade b"><circle cx="6" cy="18" r="3"/><path d="M8.2 15.8 20 4"/></g><circle cx="12" cy="12" r=".6" fill="currentColor"/>',
     '<path d="m7 21-3-9 8 3 8-3-3 9H7Zm5-6V4m0 4C7 8 6 5 6 3c4 0 6 2 6 5Zm0 3c5 0 6-3 6-5-4 0-6 2-6 5Z"/>',
     '<path d="M3 6h11v12H3V6Zm11 4h4l3 4v4h-7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
     '<path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.7l-1.1-1.1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z"/>',

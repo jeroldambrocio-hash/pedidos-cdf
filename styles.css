@@ -1286,7 +1286,13 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .btn.busy::after { color: var(--on-primary); }
 .btn:not(.primary).busy::after { color: var(--fg); }
 .step.cur.pop .node { animation: node-pop var(--dur-slow) var(--ease-out); }
-.tl li.cur[data-s="prep"] svg { transform-origin: 30% 50%; animation: snip 2.4s var(--ease-std) infinite; }
+/* Preparing: the two blades close on the screw and open again, like scissors cutting stems */
+.tl li.cur[data-s="prep"] .blade { transform-box: view-box; transform-origin: 12px 12px; animation: 2s cubic-bezier(.45, 0, .55, 1) infinite; }
+.tl li.cur[data-s="prep"] .blade.a { animation-name: blade-a; }
+.tl li.cur[data-s="prep"] .blade.b { animation-name: blade-b; }
+@keyframes blade-a { 0%, 70%, 100% { transform: rotate(0); } 35% { transform: rotate(-28deg); } }
+@keyframes blade-b { 0%, 70%, 100% { transform: rotate(0); } 35% { transform: rotate(28deg); } }
+.tracking-page.tracking-motion-paused .tl li.cur[data-s="prep"] .blade { animation-play-state: paused; }
 .tl li.cur[data-s="ready"] svg { transform-origin: 50% 100%; animation: sway 3s ease-in-out infinite; }
 .tl li.cur[data-s="transit"] svg { animation: drive 1.8s ease-in-out infinite; }
 
