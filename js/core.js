@@ -71,10 +71,24 @@ function intlPhone(raw) {
 // Stored form: "+63917…" when the number is recognisable, otherwise exactly what was typed
 const normPhone = (raw) => { const d = intlPhone(raw); return /^\d{10,15}$/.test(d) ? "+" + d : String(raw || "").trim(); };
 const phoneOk = (raw) => !String(raw || "").trim() || /^\d{10,15}$/.test(intlPhone(raw));
-// Phone fields show "+63" fixed and only the rest is typed. A number that starts with + or 00 keeps its own
-// country (Spain and the rest), and the fixed prefix steps aside for it.
-const phLocal = (p) => { const s = String(p || "").trim(); return /^\+63/.test(s) ? s.replace(/^\+63\s*/, "") : s; };
-const phFull = (v) => { const s = String(v || "").trim(); if (!s) return ""; if (/^(\+|00)/.test(s)) return normPhone(s); return normPhone("+63" + s.replace(/\D/g, "").replace(/^(63)?0?/, "")); };
+// Phone fields: a country code picker (+63 by default) and the rest of the number. Typing + or 00 in the
+// number still works for any country. The code chosen lives on the input as data-cc ("" = typed in full).
+const CCODES = [["63","PH"],["34","ES"],["1","US"],["44","UK"],["61","AU"],["64","NZ"],["65","SG"],["60","MY"],["62","ID"],["66","TH"],["84","VN"],["852","HK"],["86","CN"],["81","JP"],["82","KR"],["91","IN"],["971","AE"],["966","SA"],["974","QA"],["965","KW"],["39","IT"],["33","FR"],["49","DE"],["351","PT"],["31","NL"],["41","CH"],["52","MX"]];
+const phSplit = (p) => {
+  const s = String(p || "").trim();
+  if (!s.startsWith("+")) return { cc: "63", local: s };
+  const d = s.slice(1).replace(/\D/g, ""), m = CCODES.map((c) => c[0]).filter((c) => d.startsWith(c)).sort((a, b) => b.length - a.length)[0];
+  return m ? { cc: m, local: d.slice(m.length) } : { cc: "", local: s };
+};
+const phLocal = (p) => phSplit(p).local;
+// Accepts the input itself (uses its country code) or a plain string (treated as +63)
+const phFull = (v) => {
+  const cc = v && v.nodeType ? (v.dataset.cc ?? "63") : "63", s = String((v && v.nodeType ? v.value : v) || "").trim();
+  if (!s) return "";
+  if (/^(\+|00)/.test(s) || cc === "") return normPhone(s);
+  if (cc === "63") return normPhone("+63" + s.replace(/\D/g, "").replace(/^(63)?0?/, ""));
+  return normPhone("+" + cc + s.replace(/\D/g, "").replace(/^0/, ""));
+};
 // Search without accents or case ("Sofia" finds "Sofía")
 const norm = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // Prices: off unless an admin turns them on in this browser (needs migration 014)

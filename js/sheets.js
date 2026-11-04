@@ -368,13 +368,19 @@ async function openFresh(o, opts) {
 }
 function openOrder(o) { openFresh(o); }
 
-// Phone with "+63" fixed in front; typing + or 00 switches to any other country
+// Phone with a country code picker in front (+63 by default); typing + or 00 also switches to any country
 function phoneBox(input) {
-  const box = el("div", { class: "phone-in" }, el("span", { class: "cc", "aria-hidden": "true" }, "+63"), input);
+  if (input.dataset.cc == null) input.dataset.cc = "63";
+  const cur = input.dataset.cc;
+  const opts = CCODES.map(([c, k]) => el("option", { value: c, selected: c === cur }, k + " +" + c));
+  const pick = el("select", { class: "cc", "aria-label": t("countryCode") }, ...opts, el("option", { value: "", selected: cur === "" }, t("otherCode")));
+  const box = el("div", { class: "phone-in" }, pick, input);
+  const ph = () => { input.placeholder = input.dataset.cc === "63" ? "917 123 4567" : input.dataset.cc === "" ? "+00 000 000 000" : ""; };
   const sync = () => box.classList.toggle("intl", /^(\+|00)/.test(input.value.trim()) && !/^\+?63/.test(input.value.trim()));
-  input.setAttribute("aria-label", t("phoneCc"));
-  input.addEventListener("input", () => { if (/^(\+?\s*63|0)\s*9/.test(input.value)) input.value = input.value.replace(/^(\+?\s*63|0)\s*/, ""); sync(); });
-  sync();
+  pick.addEventListener("change", () => { input.dataset.cc = pick.value; ph(); sync(); input.focus(); });
+  input.setAttribute("aria-label", t("phone"));
+  input.addEventListener("input", () => { if (input.dataset.cc === "63" && /^(\+?\s*63|0)\s*9/.test(input.value)) input.value = input.value.replace(/^(\+?\s*63|0)\s*/, ""); sync(); });
+  ph(); sync();
   return box;
 }
 
@@ -397,13 +403,13 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", class: "num", required: true });
   const iName = el("input", { id: "f-name", value: f.customer_name, placeholder: t("namePh"), autocomplete: "off" });
   const iAddr = el("input", { id: "f-addr", value: f.address, placeholder: t("addrPh"), autocomplete: "off" });
-  const iPhone = el("input", { id: "f-phone", type: "tel", inputmode: "tel", value: phLocal(f.customer_phone), placeholder: "917 123 4567", autocomplete: "off" });
+  const iPhone = el("input", { id: "f-phone", type: "tel", inputmode: "tel", value: phLocal(f.customer_phone), "data-cc": phSplit(f.customer_phone).cc, placeholder: "917 123 4567", autocomplete: "off" });
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email, placeholder: "cliente@email.com", autocomplete: "off" });
   const iBName = el("input", { id: "f-bname", value: f.buyer_name, placeholder: t("buyerNamePh"), autocomplete: "off" });
-  const iBPhone = el("input", { id: "f-bphone", type: "tel", inputmode: "tel", value: phLocal(f.buyer_phone), placeholder: "917 123 4567", autocomplete: "off" });
+  const iBPhone = el("input", { id: "f-bphone", type: "tel", inputmode: "tel", value: phLocal(f.buyer_phone), "data-cc": phSplit(f.buyer_phone).cc, placeholder: "917 123 4567", autocomplete: "off" });
   // Not a gift: the buyer is the recipient, so their name and phone are only asked once
   const same = isNew && !copyFrom && !draft ? false : (!f.buyer_name || (f.buyer_name === f.customer_name && f.buyer_phone === f.customer_phone));
-  if (same && !f.buyer_name) { iBName.value = f.customer_name; iBPhone.value = phLocal(f.customer_phone); }
+  if (same && !f.buyer_name) { iBName.value = f.customer_name; iBPhone.value = phLocal(f.customer_phone); iBPhone.dataset.cc = phSplit(f.customer_phone).cc; }
   const iSame = el("input", { type: "checkbox", id: "f-same", checked: same });
   const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), rows: 2 }, f.card_message);
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: 2 }, f.delivery_note);
@@ -431,7 +437,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const repeatTag = el("div", { class: "repeat-tag collapse is-collapsed", role: "status" });
   let repeatTimer, repeatGeneration=0;
   const syncRepeat = () => {
-   clearTimeout(repeatTimer);const generation=++repeatGeneration,d=intlPhone(phFull(iBPhone.value));
+   clearTimeout(repeatTimer);const generation=++repeatGeneration,d=intlPhone(phFull(iBPhone));
    repeatTag.classList.add("is-collapsed");if(d.length<9)return;
    repeatTimer=setTimeout(async()=>{
     const {data,error}=await sb.rpc("cdf_buyer_history",{p_phone:d,p_exclude:o?.id||null});
@@ -452,8 +458,8 @@ function openEditor(o, { copyFrom, draft } = {}) {
       num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel, vendor_email: iVend.value,
       carrier_email: iCarr ? iCarr.value : f.carrier_email,
       customer_name: (sameNow ? iBName.value : iName.value).trim(), address: iAddr.value.trim(),
-      customer_phone: phFull(sameNow ? iBPhone.value : iPhone.value), customer_email: iEmail.value.trim().toLowerCase(),
-      buyer_name: iBName.value.trim(), buyer_phone: phFull(iBPhone.value),
+      customer_phone: phFull(sameNow ? iBPhone : iPhone), customer_email: iEmail.value.trim().toLowerCase(),
+      buyer_name: iBName.value.trim(), buyer_phone: phFull(iBPhone),
       card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(), notes: iNotes.value.trim(),
     };
     if (pricesOn()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
@@ -545,9 +551,9 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   const archived = !!o?.archived_at;
   const footLeft = isNew ? el("span") : el("div", { class: "btn-row" },
-    el("button", { class: "btn", type: "button", onclick: async () => { if (await closeSheet()) openEditor(null, { copyFrom: o }); } }, icon("copy"), t("duplicate")),
-    S.cap.archive ? el("button", { class: "btn", type: "button", onclick: () => setArchived([o], !archived) }, icon("archive"), t(archived ? "restore" : "archive")) : null,
-    isAdmin() ? el("button", { class: "btn danger", type: "button", onclick: async () => {
+    el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) openEditor(null, { copyFrom: o }); } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
+    S.cap.archive ? el("button", { class: "btn foot-act", type: "button", "aria-label": t(archived ? "restore" : "archive"), onclick: () => setArchived([o], !archived) }, icon("archive"), el("span", { class: "lbl" }, t(archived ? "restore" : "archive"))) : null,
+    isAdmin() ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
       if (!(await askConfirm(t("askDelete", { num: o.num }), t("yesDelete"), { danger: true, detail: S.cap.archive ? t("deleteHintArchive") : null }))) return;
       const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
       if (error) { toast(t("deleteFail"), { type: "error" }); return; }
@@ -557,7 +563,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       const entry=document.querySelector(`#list .entry[data-id="${o.id}"]`);
       if(entry&&!prefersReducedMotion()) await entry.animate([{opacity:1},{opacity:0,transform:"scale(.98)"}],{duration:180}).finished;
       invalidateStats(); toast(t("deleted")); flip($("list"),render);
-    } }, icon("trash"), t("delete")) : null);
+    } }, icon("trash"), el("span", { class: "lbl" }, t("delete"))) : null);
 
   const cur = o ? stepOf(o) : 0;
   const node = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
@@ -590,7 +596,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
         field(t("cardMsg"), iCard)),
       el("section", {}, field(t("photo"), shot.node)),
       isNew ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
-        notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone.value) || phFull(iPhone.value), () => STEPS[stepOf(o)].k, hist)),
+        notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
       el("section", {}, el("details", { class: "hist", open: !!(f.notes || f.delivery_note || o?.proof_path || o?.bouquet_path) || null },
         el("summary", {}, t("moreDetails")),
         el("div", { class: "details-body" },
