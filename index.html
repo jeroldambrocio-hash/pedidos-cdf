@@ -55,6 +55,7 @@
         <div class="mview" data-view="account" hidden>
           <div class="mback-row"><button class="mback" type="button" data-goto="main"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span><span data-i18n="back">Back</span></button><b data-i18n="myAccount">My account</b></div>
           <div class="msep"></div>
+          <div class="my-card" id="menuProfile"></div>
           <p class="maccount" id="menuEmail"></p>
           <button class="mitem" id="pwBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><circle cx="8" cy="15" r="4"/><path d="m11 12 9-9m-4 4 3 3m-6 0 2 2"/></svg></span><span data-i18n="changePassword">Change password</span></button>
         </div>
@@ -148,6 +149,7 @@
           <div><h2 id="dLabel"></h2><p id="dSub"></p></div>
           <div class="day-sum" id="summary" role="status"></div>
         </div>
+        <div class="notice away-banner" id="awayBanner" role="status" hidden></div>
         <div class="bulk" id="bulk" hidden role="toolbar" data-i18n-aria="bulkActions"></div>
         <div id="list" class="list timeline" aria-busy="true"></div>
       </main>
@@ -190,6 +192,7 @@
 <script src="/js/icons.js"></script>
 <script src="/js/photos.js"></script>
 <script src="/js/sheets.js"></script>
+<script src="/js/profile.js"></script>
 <script src="/js/orders.js"></script>
 <script src="/js/agenda.js"></script>
 <script src="/js/team.js"></script>

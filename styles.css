@@ -1435,3 +1435,65 @@ button.rail-brand:hover, button.brand-home:hover { background: color-mix(in srgb
 button.brand-home { margin: 0; font: inherit; }
 .rail[data-expanded="false"]:not(.drawer-open) .rail-brand { visibility: hidden; }
 .rail[data-expanded="true"] .rail-brand, .rail.drawer-open .rail-brand { pointer-events: auto; }
+
+/* ---------- profiles and availability (017) ---------- */
+.avatar { overflow: hidden; flex: none; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; animation: fade-in var(--dur-base) var(--ease-out); }
+.avatar.lg { width: 44px; height: 44px; font-size: 1.05rem; }
+.avatar.xl { width: 72px; height: 72px; font-size: 1.6rem; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* "Available" (green) / "Away" and "Upcoming" (amber) */
+.avail { display: inline-flex; align-items: center; gap: 6px; font-size: 0.78125rem; font-weight: 550; color: var(--done); }
+.avail .dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; flex: none; transition: background-color var(--dur-base) var(--ease-std); }
+.avail.away, .avail.upcoming { color: var(--prep); }
+.avail.upcoming .dot { background: transparent; box-shadow: inset 0 0 0 2px currentColor; }
+.avail small { color: var(--muted); font-weight: 400; display: inline !important; }
+.member .avail { display: flex; margin-top: 2px; }
+.member.is-away .avatar { box-shadow: 0 0 0 2px var(--prep); }
+.m-phone { display: inline-flex; align-items: center; gap: 4px; color: var(--muted); font-size: 0.8125rem; text-decoration: none; }
+.m-phone:hover { color: var(--fg); }
+.m-phone .i { width: 14px; height: 14px; }
+
+/* My account (menu view) */
+.my-card { display: grid; gap: 8px; padding: 6px 8px 2px; }
+.my-card:empty { display: none; }
+.my-id { display: flex; align-items: center; gap: 12px; }
+.my-id b { display: block; }
+.my-id small { display: block; color: var(--muted); font-size: 0.75rem; }
+.my-done { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: var(--r-ctl); background: var(--done-bg); color: var(--fg); font-size: 0.8125rem; }
+.my-done .i { width: 16px; height: 16px; color: var(--done); }
+.my-avail { padding: 0 2px; }
+
+/* My account (sheet) */
+.identity { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.identity > div { flex: 1; min-width: 120px; }
+.identity b { display: block; font-size: 1.05rem; }
+.identity small { color: var(--muted); }
+.btn.pic-btn { cursor: pointer; display: inline-flex; align-items: center; gap: 8px; }
+.identity:has(input[type=file]:focus-visible) .pic-btn { outline: 2px solid var(--focus); }
+.completed { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--r-card); background: var(--done-bg); }
+.completed > .svg-icon .i, .completed > .i { width: 22px; height: 22px; color: var(--done); }
+.completed b { display: block; font-size: 1.05rem; }
+.completed small { display: block; color: var(--muted); }
+.input.ro, input.ro { background: var(--sunk) !important; color: var(--muted); }
+.avail-box { display: grid; gap: 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: var(--r-card); }
+.status-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.status-row b { display: block; }
+.status-row small { display: block; color: var(--muted); font-size: 0.75rem; }
+.avail-pick { min-height: 40px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--input); color: var(--fg); }
+.absence { display: grid; gap: 10px; animation: absence-in var(--dur-slow) var(--ease-out); }
+.absence[hidden] { display: none; }
+@keyframes absence-in { from { opacity: 0; transform: translateY(-4px); } to { opacity: 1; transform: none; } }
+
+/* Amber notices: an absence that meets pending orders */
+.notice { display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px; border-radius: var(--r-card); background: var(--prep-bg); color: var(--fg); font-size: 0.875rem; border: 1px solid color-mix(in srgb, var(--prep) 35%, transparent); animation: absence-in var(--dur-base) var(--ease-out); }
+.notice[hidden] { display: none; }
+.notice > .svg-icon, .notice > .i { color: var(--prep); flex: none; margin-top: 1px; }
+.away-banner { margin: 0 0 12px; }
+.away-row { margin-top: 4px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.linkish { background: none; border: 0; padding: 2px 0; color: var(--fg); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; transition: color var(--dur-fast); }
+.linkish:hover { color: var(--prep); }
+option.is-away { color: var(--prep); }
+.dialog .grp, .sheet .grp { margin: 8px 0 0; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
+.dialog .sheet-body { max-height: min(78vh, 720px); overflow: auto; }

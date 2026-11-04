@@ -24,7 +24,10 @@ window.__orders = [
 window.__prices = window.__orders.map(o=>({order_id:o.id,amount:2500}));
 window.__calls = []; window.__events = [];
 window.__notifications = [{ order_id: "33333333-3333-3333-3333-333333333333", created_at: "2026-10-27T02:15:00Z", channel: "email", audience: "customer", recipient: "buyer@example.com", ok: true, detail: "gmail: automatic, In transit", subject: "Order", message: "On its way." }];
-const members = [{ email: "admin@example.com", name: "Jerold", role: "admin" }, { email: "ana@example.com", name: "Ana", role: "vendor" }, { email: "driver@example.com", name: "Luis", role: "carrier" }, { email: "moderator@example.com", name: "Mika", role: "moderator" }];
+// Members survive a reload (sessionStorage) so profile and availability changes can be checked after F5
+const members = JSON.parse(sessionStorage.getItem("__members") || "null") || [{ email: "admin@example.com", name: "Jerold", role: "admin" }, { email: "ana@example.com", name: "Ana", role: "vendor", phone: "", avatar_path: null, away_from: null, away_until: null, away_reason: null, ...(window.__ana || {}) }, { email: "driver@example.com", name: "Luis", role: "carrier" }, { email: "moderator@example.com", name: "Mika", role: "moderator" }];
+const keepMembers = () => sessionStorage.setItem("__members", JSON.stringify(members));
+const awayOnDay = (m, d) => !!(m.away_from && d >= m.away_from && (!m.away_until || d <= m.away_until));
 const email = { vendor: "ana@example.com", carrier: "driver@example.com", moderator: "moderator@example.com" };
 const tables = () => ({ cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
@@ -41,7 +44,7 @@ function query(table) {
     insert(v) { action = "insert"; row = v; return q; }, update(v) { action = "update"; row = v; return q; }, delete() { action = "delete"; return q; },
     maybeSingle() { return q.then((r) => ({ ...r, data: r.data?.[0] || null })); }, single() { return q.then((r) => ({ ...r, data: r.data?.[0] || null })); },
     then(resolve, reject) {
-      if (window.__noMigration && action === "read" && (table === "cdf_order_events" || /archived_at|carrier_email/.test(cols))) return Promise.resolve({ data: null, error: { code: "42703", message: "column does not exist" } }).then(resolve, reject);
+      if (window.__noMigration && action === "read" && (table === "cdf_order_events" || /archived_at|carrier_email/.test(cols) || (table === "cdf_members" && /away_from/.test(cols)))) return Promise.resolve({ data: null, error: { code: "42703", message: "column does not exist" } }).then(resolve, reject);
       if (action === "read" && table === "cdf_orders" && window.__loadError) return Promise.resolve({ error: { message: "offline" }, data: null }).then(resolve, reject);
       let data = tables()[table];
       if (table === "cdf_orders" && window.__role === "vendor") data = data.filter((o) => o.vendor_email === "ana@example.com");
@@ -84,9 +87,17 @@ window.supabase = { createClient: () => ({
       return {data:[{n:os.length,total:window.__role==="admin"?os.reduce((n,o)=>n+(window.__prices.find(p=>p.order_id===o.id)?.amount||0),0):0}],error:null};
     }
     if(name === "cdf_member_stats") {
-      const rows=[{email:"ana@example.com",done_week:3,done_month:12,done_total:48,open_now:4}];
+      const rows=[{email:"ana@example.com",done_week:3,done_month:12,done_total:48,open_now:4},{email:"admin@example.com",done_week:0,done_month:1,done_total:5,open_now:0}];
       return {data:window.__role==="vendor"||window.__role==="admin"||!window.__role?rows:[],error:null};
     }
+    const me = email[window.__role] || "admin@example.com";
+    if (name === "cdf_save_profile") { const m = members.find((x) => x.email === me); Object.assign(m, { name: args.p_name, phone: args.p_phone, avatar_path: args.p_avatar }); keepMembers(); return { data: { ...m }, error: null }; }
+    if (name === "cdf_set_availability") {
+      if (me !== args.p_email && window.__role && window.__role !== "admin") return { data: null, error: { message: "not allowed" } };
+      if (args.p_until && args.p_from && args.p_until < args.p_from) return { data: null, error: { message: "end before start" } };
+      const m = members.find((x) => x.email === args.p_email); Object.assign(m, { away_from: args.p_from, away_until: args.p_from ? args.p_until : null, away_reason: args.p_from ? args.p_reason : null }); keepMembers(); return { data: { ...m }, error: null };
+    }
+    if (name === "cdf_away_conflicts") return { data: window.__orders.filter((o) => !o.archived_at && o.delivery !== "Delivered" && o.vendor_email).flatMap((o) => { const m = members.find((x) => x.email === o.vendor_email); return m && awayOnDay(m, o.date) ? [{ id: o.id, num: o.num, date: o.date, vendor_email: o.vendor_email, away_from: m.away_from, away_until: m.away_until }] : []; }), error: null };
     const o = window.__orders.find((x) => x.id === args?.p_id); if (!o) return { error: { message: "missing" } };
     if (name === "cdf_progress") { [o.status, o.delivery] = steps[args.p_step]; if (args.p_note) o.delivery_note = args.p_note; if (args.p_set_proof) o.proof_path = args.p_proof; }
     if (name === "cdf_set_bouquet") o.bouquet_path = args.p_path;
@@ -524,6 +535,104 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator("#eName").fill("Ana Cruz"); await q.locator("#eRole").selectOption("carrier");
       await q.locator(".dialog").getByRole("button", { name: "Save" }).click();
       await q.locator(".member", { hasText: "Ana Cruz" }).getByText("Driver").waitFor();
+      await q.close();
+    });
+    // ---------- profiles and availability ----------
+    const mnl = (d) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date(Date.now() + d * 864e5));
+    const setDate = (loc, v) => loc.evaluate((x, v) => { x.value = v; x.dispatchEvent(new Event("input", { bubbles: true })); }, v);
+    await step("Florist: My account shows the completed total; edits name, phone, photo and a future absence; all of it survives a reload", async () => {
+      const q = await open("vendor");
+      await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
+      await q.locator("#menuProfile").getByText("48 completed orders").waitFor();
+      assert.match(await q.locator("#menuProfile .avail").innerText(), /Available/);
+      await q.locator("#editProfileBtn").click();
+      await q.locator(".sheet #pName").waitFor();
+      assert.equal(await q.locator(".sheet input[type=email]").inputValue(), "ana@example.com");
+      assert(await q.locator(".sheet").getByText("48 completed orders").isVisible());
+      await q.locator("#pName").fill("Ana Reyes"); await q.locator("#pPhone").fill("917 555 1234");
+      await q.locator("#pPhoto").setInputFiles({ name: "me.png", mimeType: "image/png", buffer: png });
+      await q.locator(".sheet .avail-pick").selectOption("no");
+      await setDate(q.locator(".sheet .absence input[type=date]").first(), mnl(2));
+      await setDate(q.locator(".sheet .absence input[type=date]").nth(1), mnl(1));
+      await q.locator(".sheet .absence select").selectOption("vacation");
+      await q.locator(".sheet").getByRole("button", { name: "Save changes" }).click();
+      // The end date can't go before the start (the picker's minimum blocks the save)
+      assert(await q.locator(".sheet .absence input[type=date]").nth(1).evaluate((x) => x.validity.rangeUnderflow && x.min === x.form.querySelector(".absence input[type=date]").value));
+      await q.waitForTimeout(200); assert.equal(await q.locator(".sheet").count(), 1);
+      await setDate(q.locator(".sheet .absence input[type=date]").nth(1), mnl(4));
+      assert(await q.locator(".sheet .notice").isHidden(), "no clash: Ana's orders are today");
+      await capture(q, "profile-florist");
+      await q.locator(".sheet").getByRole("button", { name: "Save changes" }).click();
+      await q.locator(".sheet").waitFor({ state: "detached" });
+      const c = await calls(q);
+      assert(c.some((x) => x.upload === "cdf-avatars" && /^test\/avatar-\d+\.jpg$/.test(x.path)), "photo uploaded to the own folder");
+      assert(c.some((x) => x.rpc === "cdf_save_profile" && x.args.p_name === "Ana Reyes" && x.args.p_phone === "+639175551234"));
+      await q.reload(); await q.locator("#list").waitFor();
+      assert.equal(await q.locator("#userName").innerText(), "Ana Reyes");
+      assert(await q.locator("#userAvatar img").count() === 1, "photo shown in the rail");
+      await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
+      const badge = q.locator("#menuProfile .avail");
+      assert.equal(await badge.getAttribute("class"), "avail upcoming", "a future absence still counts as available until it starts");
+      assert.match(await badge.innerText(), /Away from .* – .*Vacation/s);
+      await q.keyboard.press("Escape");
+      // Starting today: the florist is told about her own pending orders on those days
+      await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click(); await q.locator("#editProfileBtn").click();
+      await setDate(q.locator(".sheet .absence input[type=date]").first(), mnl(0));
+      await q.locator(".sheet .notice").getByText(/3 pending order/).waitFor();
+      await q.close();
+    });
+    await step("Admin: banner lists pending orders during an absence; assigning to someone away asks first; Team shows and edits availability", async () => {
+      const q = await open("admin", { before: { __ana: { phone: "639171112222", away_from: mnl(0), away_until: null, away_reason: "rest" } } });
+      const banner = q.locator("#awayBanner");
+      await banner.getByText("Pending orders assigned during an absence: 3").waitFor();
+      assert.match(await banner.innerText(), /Ana · away until further notice/);
+      await capture(q, "away-banner");
+      await banner.getByRole("button", { name: /#0124/ }).click();
+      await q.locator(".sheet").waitFor(); await q.keyboard.press("Escape"); await q.locator(".sheet").waitFor({ state: "detached" });
+      const pick = q.locator(".entry", { hasText: "Elena Cruz" }).locator(".o-vendor select");
+      const opts = await pick.locator("option").allInnerTexts();
+      assert.match(opts[opts.length - 1], /Ana — away until further notice/, "away florists listed last and marked");
+      await pick.selectOption("ana@example.com");
+      await q.getByRole("alertdialog").getByText("Ana isn't available that day").waitFor();
+      await q.getByRole("alertdialog").getByRole("button", { name: "Cancel" }).click();
+      await q.getByRole("alertdialog").waitFor({ state: "detached" });
+      await q.waitForFunction(() => [...document.querySelectorAll(".entry")].find((e) => e.textContent.includes("Elena Cruz")).querySelector(".o-vendor select").value === "");
+      assert.equal(await q.evaluate(() => window.__orders.find((o) => o.num === "0125").vendor_email), null);
+      await pick.selectOption("ana@example.com");
+      await q.getByRole("alertdialog").getByRole("button", { name: "Assign anyway" }).click();
+      await q.waitForFunction(() => window.__orders.find((o) => o.num === "0125").vendor_email === "ana@example.com");
+      await q.locator("#tabTeam").click();
+      const row = q.locator(".member", { hasText: "Ana" });
+      assert.match(await row.locator(".avail").innerText(), /Away until further notice\s*· Rest/);
+      assert.match(await row.innerText(), /\+639171112222/);
+      assert.match(await row.innerText(), /48 total/);
+      await capture(q, "team-availability");
+      await q.getByRole("button", { name: /Edit person: Ana/ }).click();
+      await q.locator(".dialog .avail-pick").selectOption("yes");
+      await q.locator(".dialog").getByRole("button", { name: "Save" }).click();
+      await row.locator(".avail.available").waitFor();
+      await q.locator("#tabOrders").click(); await q.waitForTimeout(300);
+      assert(await banner.isHidden(), "no absence, no banner");
+      await q.reload(); await q.locator("#list").waitFor(); await q.waitForTimeout(300);
+      assert(await banner.isHidden(), "still available after a reload");
+      await q.close();
+    });
+    await step("Profiles on a phone: My account sheet and Team fit 390px", async () => {
+      const q = await open("vendor", { width: 390 });
+      await q.locator("#navOpen").click(); await q.waitForTimeout(300); await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
+      await q.locator("#editProfileBtn").click(); await q.locator(".sheet .avail-pick").selectOption("no");
+      await capture(q, "profile-florist-mobile");
+      await q.close();
+      const a = await open("admin", { width: 390, before: { __ana: { away_from: mnl(1), away_until: mnl(3) } } });
+      await a.evaluate(() => setTab("team")); await capture(a, "team-mobile");
+      assert.equal(await a.locator(".member", { hasText: "Ana" }).locator(".avail.upcoming").count(), 1);
+      await a.close();
+    });
+    await step("Without migration 017 the panel still works (no profile parts)", async () => {
+      const q = await open("admin", { before: { __noMigration: true } });
+      assert(await q.locator("#awayBanner").isHidden());
+      await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
+      assert.equal(await q.locator("#editProfileBtn").count(), 0);
       await q.close();
     });
     await step("No uncaught JavaScript errors", async () => { assert.deepEqual(errors, []); });

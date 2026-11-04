@@ -402,7 +402,13 @@ function phoneBox(input) {
   const setOpen = (open, focus = true) => {
     if (panel.hidden === !open) return;
     panel.hidden = !open; trigger.setAttribute("aria-expanded", String(open));
-    if (open) { search.value = ""; renderList(); search.focus(); results.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" }); document.addEventListener("pointerdown", onDoc, true); }
+    if (open) {
+      search.value = ""; renderList(); search.focus({ preventScroll: true });
+      results.querySelector("[aria-selected=true]")?.scrollIntoView({ block: "nearest" });
+      // Inside a sheet the list could open under the fixed footer: bring all of it into view
+      requestAnimationFrame(() => panel.scrollIntoView({ block: "nearest", behavior: prefersReducedMotion() ? "auto" : "smooth" }));
+      document.addEventListener("pointerdown", onDoc, true);
+    }
     else { document.removeEventListener("pointerdown", onDoc, true); if (focus) trigger.focus(); }
   };
   const choose = (c) => { input.dataset.cc = c; paint(); ph(); sync(); setOpen(false, false); input.focus(); };
@@ -454,7 +460,9 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: 2 }, f.delivery_note);
   const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh"), rows: 3 }, f.notes);
   const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "2500", value: f.amount ?? "" });
-  const iVend = sel("f-vendor", [["", t("unassigned")], ...S.members.filter((m) => m.role !== "carrier").map((m) => [m.email, m.name + (m.role !== "vendor" ? " (" + t("role_" + m.role) + ")" : "")])], f.vendor_email);
+  // Florists: available on the order's date first, absences marked; redone when the date changes
+  const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
+  iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
   const iCarr = S.cap.carrier ? sel("f-carrier", [["", t("anyCarrier")], ...S.members.filter((m) => m.role === "carrier").map((m) => [m.email, m.name])], f.carrier_email) : null;
   const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true });
   const bouquet = photoPicker({ current: o?.bouquet_path, hint: t("bouquetHint"), alt: t("bouquetPhoto"), onErr: setErr });
@@ -545,6 +553,9 @@ function openEditor(o, { copyFrom, draft } = {}) {
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
     delete dbRow.amount;
+    // Giving it to someone away on that date (or moving it into their absence) asks first
+    if (dbRow.vendor_email && (isNew || dbRow.vendor_email !== (initial.vendor_email || null) || dbRow.date !== initial.date)
+      && !(await okToAssign(dbRow.vendor_email, [dbRow.date]))) return;
 
     let saved, error;
     if (isNew) ({ data: saved, error } = await sb.from("cdf_orders").insert(dbRow).select().single());

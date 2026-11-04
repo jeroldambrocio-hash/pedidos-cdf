@@ -48,14 +48,14 @@ function stop() {
 
 async function start(user) {
   const email = user.email.toLowerCase();
-  const { data, error } = await sb.from("cdf_members").select("email,name,role").eq("email", email).maybeSingle();
+  const { data, error } = await sb.from("cdf_members").select("*").eq("email", email).maybeSingle();
   if (error || !data) {
     S.me = null; S.email = email;
     $("noaccessTxt").textContent = t("noAccessTxt", { email });
     $("tabStats").hidden = $("tabTeam").hidden = true;
     renderSub(); show("noaccess"); return;
   }
-  S.me = data;
+  S.me = data; S.uid = user.id; // the avatar folder is the auth user id
   invalidateStats();
   document.body.dataset.role = data.role;
   $("tabStats").hidden = $("tabTeam").hidden = !isAdmin();
@@ -74,7 +74,7 @@ async function start(user) {
 function renderSub() {
   const name = S.me?.name || S.email || "", role = S.me ? t("role_" + S.me.role) : "";
   $("sub").textContent = S.me ? t({ admin: "subAdmin", moderator: "subModerator", carrier: "subCarrier" }[S.me.role] || "subVendor", { name: S.me.name }) : "";
-  $("userAvatar").textContent = $("menuAvatar").textContent = name.trim().charAt(0).toUpperCase();
+  fillAvatar($("userAvatar"), { name, avatar_path: S.me?.avatar_path }); fillAvatar($("menuAvatar"), { name, avatar_path: S.me?.avatar_path });
   $("userName").textContent = $("menuName").textContent = name;
   $("userRole").textContent = role;
   $("menuSub").textContent = role || S.email || "";
@@ -82,6 +82,7 @@ function renderSub() {
   $("accountBtn").dataset.tip = name;
   $("pwBtn").hidden = !S.me;
   $("myAccountBtn").hidden = !S.me;
+  renderMyCard();
   // Prices are a per-browser view choice of the admin (localStorage "cdf-prices"), so the switch sits with the order view controls
   $("pricesBtn").hidden = !(isAdmin() && S.cap.amount);
   $("pricesBtn").dataset.tip = $("pricesBtn").title = t("showPrices");

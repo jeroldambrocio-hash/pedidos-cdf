@@ -162,13 +162,14 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m] = await Promise.all([
+  const [a, c, e, m, p] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
     sb.from("cdf_order_prices").select("order_id").limit(1),
+    sb.from("cdf_members").select("away_from").limit(1), // 017: photo, phone and availability
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
@@ -184,7 +185,7 @@ const inScope = (o) => !(S.cap.archive && o.archived_at) && (inRange(o.date) || 
 
 let loading = null;
 async function loadOrders() {
-  invalidateStats();
+  invalidateStats(); awayAt = 0;
   if (loading) return loading;
   loading = (async () => {
     const [from, to] = wantedRange();
@@ -210,7 +211,7 @@ async function loadOrders() {
   try { return await loading; } catch(e) { S.loadError=true;setConnection("error");render();return false; } finally { loading = null; }
 }
 async function loadMembers() {
-  const { data } = await sb.from("cdf_members").select("email,name,role").order("name");
+  const { data } = await sb.from("cdf_members").select("*").order("name");
   if (data) S.members = data;
 }
 // Realtime: apply the one row that changed instead of reloading everything
@@ -218,6 +219,7 @@ function applyChange(p) {
   invalidateStats();
   const row = p.new && p.new.id ? p.new : null, id = row?.id || p.old?.id;
   if (!id) return;
+  awayTouched(row || p.old);
   const i = S.orders.findIndex((o) => o.id === id);
   if (p.eventType === "DELETE" || !row || !inScope(row)) { if (i >= 0) S.orders.splice(i, 1); }
   else if (i >= 0) S.orders[i] = { ...S.orders[i], ...row };
@@ -238,7 +240,7 @@ function subscribe() {
 const byId = (id) => S.orders.find((o) => o.id === id);
 // Merge a row the server just returned (after a save) without waiting for realtime
 function upsertLocal(row) {
-  invalidateStats();
+  invalidateStats(); awayTouched(row);
   if (!row?.id) return;
   const i = S.orders.findIndex((o) => o.id === row.id);
   if (!inScope(row)) { if (i >= 0) S.orders.splice(i, 1); }
@@ -264,6 +266,7 @@ function render() {
   if (S.tab === "team") renderTeam();
   else if (S.tab === "stats") renderStats();
   else renderOrders();
+  refreshAwayConflicts();
 }
 
 let requests = 0;

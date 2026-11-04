@@ -27,6 +27,8 @@ function editMember(m) {
   const back = document.activeElement, scrim = el("div", { class: "scrim center-scrim" });
   const iName = el("input", { id: "eName", value: m.name, autocomplete: "off", required: true, maxlength: 80 });
   const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", "carrier", "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
+  // Availability: florists only; the admin can set anyone's (the server checks it too)
+  const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
   const err = el("div", { class: "err", role: "alert" });
   const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(140); scrim.remove(); back?.focus?.(); };
   const save = el("button", { class: "btn primary", type: "submit" }, t("save"));
@@ -34,18 +36,25 @@ function editMember(m) {
     e.preventDefault(); err.textContent = "";
     const name = iName.value.trim(), role = self ? m.role : iRole.value;
     if (!name) { err.textContent = t("fillRequired"); iName.focus(); return; }
-    if (name === m.name && role === m.role) { close(); return; }
+    const bad = avail?.check(); if (bad) { err.textContent = bad; return; }
+    const basics = name !== m.name || role !== m.role, away = !!avail?.changed();
+    if (!basics && !away) { close(); return; }
     save.disabled = true;
-    const { error } = await sb.from("cdf_members").update({ name, role }).eq("email", m.email);
+    try {
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role }).eq("email", m.email); if (error) throw new Error(t("editFail")); }
+      if (away) await saveAvailability(m.email, avail.value());
+    } catch (x) { save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;
-    if (error) { err.textContent = t("editFail"); return; }
-    await close(); toast(t("memberSaved", { name })); await loadMembers(); renderTeam(); render();
+    await close(); toast(t("memberSaved", { name })); await loadMembers();
+    if (self) { Object.assign(S.me, S.members.find((x) => x.email === m.email) || {}); renderSub(); }
+    renderTeam(); render(); refreshAwayConflicts(true);
   } },
     el("div", { class: "sheet-body" },
       el("h2", { id: "eTitle", class: "dialog-text" }, t("editMember")),
       el("label", { class: "field" }, el("span", {}, t("name")), iName),
       el("label", { class: "field" }, el("span", {}, t("role")), iRole),
       el("div", { class: "hint" }, self ? t("ownRoleHint") : m.email),
+      avail ? el("h3", { class: "grp" }, t("availability")) : null, avail?.node,
       err),
     el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: close }, t("cancel")), save));
   scrim.append(form);
@@ -62,9 +71,12 @@ function renderTeam() {
   for (const m of S.members) {
     const self = m.email === S.me.email;
     const load = m.role === "carrier" ? open.filter((o) => o.carrier_email === m.email).length : open.filter((o) => o.vendor_email === m.email).length;
-    box.append(el("div", { class: "member" },
-      el("span", { class: "avatar", "aria-hidden": "true" }, m.name.trim().charAt(0).toUpperCase()),
+    const florist = m.role === "vendor";
+    box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
+      avatarNode(m),
       el("div", {}, el("b", {}, m.name), el("small", {}, m.email),
+        m.phone ? el("a", { class: "m-phone", href: "tel:+" + m.phone }, icon("phone"), "+" + m.phone) : null,
+        florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
         m.role === "vendor" ? doneLine(m.email) : null),
       el("span", { class: "role-tag role-" + m.role }, t("role_" + m.role)),

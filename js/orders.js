@@ -226,11 +226,11 @@ function stepper(o) {
 }
 // Change the florist straight from the card (the server emails them when assigned)
 function floristPicker(o) {
-  const vendors = S.members.filter((m) => m.role !== "carrier");
   const s = el("select", { "aria-label": t("vendor") + " · #" + o.num },
-    el("option", { value: "" }, t("unassigned")), ...vendors.map((m) => el("option", { value: m.email, selected: m.email === o.vendor_email }, m.name)));
+    el("option", { value: "" }, t("unassigned")), ...vendorOptions(o.date, o.vendor_email));
   s.addEventListener("change", async () => {
     const before = o.vendor_email || null, v = s.value || null;
+    if (v && !(await okToAssign(v, [o.date]))) { s.value = before || ""; return; }
     const { data, error } = await sb.from("cdf_orders").update({ vendor_email: v }).eq("id", o.id).select().single();
     if (error) { s.value = before || ""; toast(t("saveFail", { msg: error.message }), { type: "error" }); return; }
     upsertLocal(data); render();
@@ -254,8 +254,12 @@ function renderBulk() {
   bar.hidden = !S.selecting;
   if (!S.selecting) return;
   const vend = el("select", { class: "input", "aria-label": t("assignFlorist") }, el("option", { value: "" }, t("assignFlorist") + "…"),
-    el("option", { value: "-" }, t("unassigned")), ...S.members.filter((m) => m.role !== "carrier").map((m) => el("option", { value: m.email }, m.name)));
-  vend.onchange = () => { if (vend.value) bulkUpdate(picked, { vendor_email: vend.value === "-" ? null : vend.value }); };
+    el("option", { value: "-" }, t("unassigned")), ...vendorOptions(picked.map((o) => o.date)));
+  vend.onchange = async () => {
+    const v = vend.value; if (!v) return;
+    if (v !== "-" && !(await okToAssign(v, picked.map((o) => o.date)))) { vend.value = ""; return; }
+    bulkUpdate(picked, { vendor_email: v === "-" ? null : v });
+  };
   fill(bar, 
     el("span", { class: "num" }, t("nSelected", { n: picked.length })),
     el("button", { class: "btn", type: "button", onclick: () => { [...document.querySelectorAll("#list .entry[data-id]")].forEach((c) => S.selected.add(c.dataset.id)); renderDay(); } }, t("selectAll")),
