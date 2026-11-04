@@ -1293,7 +1293,21 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 @keyframes blade-a { 0%, 70%, 100% { transform: rotate(0); } 35% { transform: rotate(-28deg); } }
 @keyframes blade-b { 0%, 70%, 100% { transform: rotate(0); } 35% { transform: rotate(28deg); } }
 .tracking-page.tracking-motion-paused .tl li.cur[data-s="prep"] .blade { animation-play-state: paused; }
-.tl li.cur[data-s="ready"] svg { transform-origin: 50% 100%; animation: sway 3s ease-in-out infinite; }
+/* Ready: the bouquet opens a little and two green sparkles twinkle in turn beside the circle, "fresh and ready to go" */
+.tl li.cur[data-s="ready"] .bouquet { transform-box: view-box; transform-origin: 12px 21px; animation: bloom 3s cubic-bezier(.45, 0, .55, 1) infinite; }
+.tl li.cur[data-s="ready"] .dot { position: relative; }
+.tl li.cur[data-s="ready"] .dot::before, .tl li.cur[data-s="ready"] .dot::after {
+  content: "\2726"; position: absolute; color: var(--step-done); line-height: 1; pointer-events: none; opacity: 0;
+  animation: twinkle 3s ease-in-out infinite;
+}
+.tl li.cur[data-s="ready"] .dot::before { top: -10px; right: -12px; font-size: 14px; }
+.tl li.cur[data-s="ready"] .dot::after { bottom: -4px; left: -12px; font-size: 10px; animation-delay: 1.5s; }
+@keyframes bloom { 0%, 100% { transform: scale(1); } 45% { transform: scale(1.06); } }
+@keyframes twinkle { 0%, 55%, 100% { opacity: 0; transform: scale(.4) rotate(0); } 25% { opacity: 1; transform: scale(1) rotate(20deg); } }
+:root[data-motion="reduced"] .tl li.cur[data-s="ready"] .dot::before, :root[data-motion="reduced"] .tl li.cur[data-s="ready"] .dot::after { display: none; }
+.tracking-page.tracking-motion-paused .tl li.cur[data-s="ready"] .bouquet,
+.tracking-page.tracking-motion-paused .tl li.cur[data-s="ready"] .dot::before,
+.tracking-page.tracking-motion-paused .tl li.cur[data-s="ready"] .dot::after { animation-play-state: paused; }
 .tl li.cur[data-s="transit"] svg { animation: drive 1.8s ease-in-out infinite; }
 
 /* Active delivery: a soft green halo slowly grows and fades over 2.2s, then rests before repeating. */

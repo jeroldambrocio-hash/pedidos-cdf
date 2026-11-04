@@ -486,10 +486,10 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Integration: one tracking logo in every theme, animated current state, Reduced disables loops", async () => {
       const q=await open("track",{width:390});
       for(const theme of ["dark","light","auto"]){await q.evaluate(v=>{savePref("cdf-theme",v);applyPrefs()},theme);await q.waitForTimeout(250);assert.equal(await q.locator(".logo img:visible").count(),1)}
-      for(const [delivery,status,animation] of [["-","Preparing","blade-a"],["-","Ready","sway"],["In transit","Ready","drive"],["Delivered","Ready","beat"],["Failed","Ready","blink"]]){
+      for(const [delivery,status,animation] of [["-","Preparing","blade-a"],["-","Ready","bloom"],["In transit","Ready","drive"],["Delivered","Ready","beat"],["Failed","Ready","blink"]]){
        await q.evaluate(([d,s])=>{last.o.delivery=d;last.o.status=s;render()},[delivery,status]);
        // Preparing animates the scissor blades themselves; the other steps animate the whole icon
-       assert.equal(await q.locator(status==="Preparing"?".tl li.cur .blade.a":".tl li.cur svg,.tl li.fail svg").evaluate(n=>getComputedStyle(n).animationName),animation);
+       assert.equal(await q.locator(status==="Preparing"?".tl li.cur .blade.a":status==="Ready"&&delivery==="-"?".tl li.cur .bouquet":".tl li.cur svg,.tl li.fail svg").evaluate(n=>getComputedStyle(n).animationName),animation);
       }
       await q.evaluate(()=>{savePref("cdf-motion","reduced");applyPrefs()});assert.equal(await q.locator(".tl .fail svg").evaluate(n=>getComputedStyle(n).animationIterationCount),"1");await q.close();
     });
