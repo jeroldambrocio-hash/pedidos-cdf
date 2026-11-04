@@ -734,8 +734,8 @@ dl.ro .pic { max-width: 260px; }
   --surface: var(--bg-dialog); --surface-hover: #303030; --sunk: #1C1C1C; --input: #1C1C1C;
   --line: #383838; --line-2: #3D3D3D; --line-soft: #303030; --faint: #9A9A9A; --muted: #B0B0B0; /* legibles sobre #262626 */
 }
-:root[data-theme="dark"] .sheet .btn:not(.primary):not(.danger):not(.ghost),
-:root[data-theme="dark"] .dialog .btn:not(.primary):not(.danger):not(.ghost) { background: #2D2D2D; border-color: #3D3D3D; }
+:root[data-theme="dark"] .sheet .btn:not(.primary):not(.danger):not(.danger-solid):not(.ghost),
+:root[data-theme="dark"] .dialog .btn:not(.primary):not(.danger):not(.danger-solid):not(.ghost) { background: #2D2D2D; border-color: #3D3D3D; }
 :root[data-theme="dark"] .toast { background: var(--bg-menu); border-color: #343434; }
 @media (prefers-color-scheme: dark) {
 :root:not([data-theme]) .app-header { background: var(--bg-appbar); border-bottom-color: var(--border-subtle); }
@@ -747,8 +747,8 @@ dl.ro .pic { max-width: 260px; }
   --surface: var(--bg-dialog); --surface-hover: #303030; --sunk: #1C1C1C; --input: #1C1C1C;
   --line: #383838; --line-2: #3D3D3D; --line-soft: #303030; --faint: #9A9A9A; --muted: #B0B0B0; /* legibles sobre #262626 */
 }
-:root:not([data-theme]) .sheet .btn:not(.primary):not(.danger):not(.ghost),
-:root:not([data-theme]) .dialog .btn:not(.primary):not(.danger):not(.ghost) { background: #2D2D2D; border-color: #3D3D3D; }
+:root:not([data-theme]) .sheet .btn:not(.primary):not(.danger):not(.danger-solid):not(.ghost),
+:root:not([data-theme]) .dialog .btn:not(.primary):not(.danger):not(.danger-solid):not(.ghost) { background: #2D2D2D; border-color: #3D3D3D; }
 :root:not([data-theme]) .toast { background: var(--bg-menu); border-color: #343434; }
 }
 
@@ -1120,8 +1120,9 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .dialog .sheet-body { gap: 10px; }
 .dialog-text { margin: 0; font-size: 0.9375rem; font-weight: 600; line-height: 1.4; }
 .dialog .sheet-foot { justify-content: flex-end; }
-.btn.danger-solid { background: var(--fail-solid); border-color: var(--fail-solid); color: var(--fail-on); }
-.btn.danger-solid:hover { background: color-mix(in srgb, var(--fail-solid) 88%, #fff); }
+/* Delete / remove confirms: clearly red in every theme, a stronger red on hover */
+.btn.danger-solid { background: #C2413A; border-color: #C2413A; color: #fff; transition: background-color .18s ease, border-color .18s ease; }
+.btn.danger-solid:hover, .btn.danger-solid:focus-visible { background: #DD3B31; border-color: #DD3B31; }
 .btn.busy { pointer-events: none; }
 .btn.busy::after { content: ""; position: absolute; width: 16px; height: 16px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: rot .7s linear infinite; }
 .btn.busy > * { opacity: 0; }
