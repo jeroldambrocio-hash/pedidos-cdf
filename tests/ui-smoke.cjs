@@ -454,6 +454,18 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.waitForFunction(() => window.__orders.find((o) => o.num === "0125").buyer_phone === "+34691089459");
       await q.close();
     });
+    await step("Team: edit a member's name and role; your own role is locked", async () => {
+      const q = await open("admin");
+      await q.locator("#tabTeam").click();
+      await q.getByRole("button", { name: /Edit person: Jerold/ }).click();
+      assert(await q.locator("#eRole").isDisabled());
+      await q.keyboard.press("Escape");
+      await q.getByRole("button", { name: /Edit person: Ana/ }).click();
+      await q.locator("#eName").fill("Ana Cruz"); await q.locator("#eRole").selectOption("carrier");
+      await q.locator(".dialog").getByRole("button", { name: "Save" }).click();
+      await q.locator(".member", { hasText: "Ana Cruz" }).getByText("Driver").waitFor();
+      await q.close();
+    });
     await step("No uncaught JavaScript errors", async () => { assert.deepEqual(errors, []); });
   } finally { await browser.close(); server.close(); }
   fs.writeFileSync(path.join(out, "verification.json"), JSON.stringify({ results, errors, fixture: "Fake Supabase in the browser; no real requests." }, null, 2));

@@ -1385,3 +1385,10 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .cc-code { color: var(--muted); font-variant-numeric: tabular-nums; }
 .cc-tick { color: var(--primary-text, var(--fg)); font-weight: 700; }
 .cc-empty { padding: 10px; color: var(--muted); }
+/* Team row actions: Edit next to Remove (or "You") */
+.m-acts { display: flex; align-items: center; gap: 8px; justify-content: flex-end; }
+.dialog form, form.dialog .sheet-body { display: grid; gap: 14px; }
+form.dialog h2.dialog-text { margin: 0; font-weight: 600; font-size: 1.05rem; }
+@media (max-width: 560px) { .member .m-acts { grid-column: 2 / -1; justify-content: flex-start; } }
+@media (max-width: 860px) { .team-grid > main { order: -1; } }
+.field select:disabled { opacity: .55; cursor: not-allowed; }

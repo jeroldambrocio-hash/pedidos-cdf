@@ -20,6 +20,41 @@ function doneLine(email) {
       .map(([k, n]) => el("span", {}, el("b", {}, String(+n || 0)), " " + t(k))));
 }
 
+// Edit a member's name and role (admins only; RLS allows it). Your own role can't be changed here,
+// so an admin can't lock themselves out. The email is the login, so it stays as it is.
+function editMember(m) {
+  const self = m.email === S.me.email;
+  const back = document.activeElement, scrim = el("div", { class: "scrim center-scrim" });
+  const iName = el("input", { id: "eName", value: m.name, autocomplete: "off", required: true, maxlength: 80 });
+  const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", "carrier", "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
+  const err = el("div", { class: "err", role: "alert" });
+  const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(140); scrim.remove(); back?.focus?.(); };
+  const save = el("button", { class: "btn primary", type: "submit" }, t("save"));
+  const form = el("form", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "eTitle", onsubmit: async (e) => {
+    e.preventDefault(); err.textContent = "";
+    const name = iName.value.trim(), role = self ? m.role : iRole.value;
+    if (!name) { err.textContent = t("fillRequired"); iName.focus(); return; }
+    if (name === m.name && role === m.role) { close(); return; }
+    save.disabled = true;
+    const { error } = await sb.from("cdf_members").update({ name, role }).eq("email", m.email);
+    save.disabled = false;
+    if (error) { err.textContent = t("editFail"); return; }
+    await close(); toast(t("memberSaved", { name })); await loadMembers(); renderTeam(); render();
+  } },
+    el("div", { class: "sheet-body" },
+      el("h2", { id: "eTitle", class: "dialog-text" }, t("editMember")),
+      el("label", { class: "field" }, el("span", {}, t("name")), iName),
+      el("label", { class: "field" }, el("span", {}, t("role")), iRole),
+      el("div", { class: "hint" }, self ? t("ownRoleHint") : m.email),
+      err),
+    el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: close }, t("cancel")), save));
+  scrim.append(form);
+  scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
+  scrim.addEventListener("dismiss", close);
+  $("dialogRoot").append(scrim);
+  queueMicrotask(() => { iName.focus(); iName.select(); });
+}
+
 function renderTeam() {
   refreshMemberStats(() => { if (S.tab === "team") renderTeam(); });
   const box = $("team"); box.replaceChildren();
@@ -33,6 +68,8 @@ function renderTeam() {
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
         m.role === "vendor" ? doneLine(m.email) : null),
       el("span", { class: "role-tag role-" + m.role }, t("role_" + m.role)),
+      el("div", { class: "m-acts" },
+      el("button", { class: "btn", type: "button", "aria-label": t("editMember") + ": " + m.name, onclick: () => editMember(m) }, t("edit")),
       self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn danger", type: "button", onclick: async (e) => {
         const b = e.currentTarget;
         if (!(await askConfirm(t("removeAsk", { name: m.name }), t("remove"), { danger: true, detail: t("removeHint") }))) return;
@@ -40,7 +77,7 @@ function renderTeam() {
         const { data, error } = await sb.functions.invoke("cdf-users", { body: { action: "remove", email: m.email } });
         if (error || data?.error) { b.disabled = false; toast(data?.error || t("removeFail"), { type: "error" }); return; }
         toast(t("removed", { name: m.name })); await loadMembers(); renderTeam();
-      } }, t("remove"))));
+      } }, t("remove")))));
   }
   stagger(box);
 }
