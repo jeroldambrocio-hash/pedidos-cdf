@@ -1788,3 +1788,22 @@ select option { background: var(--surface); color: var(--fg); }
 .rail:is([data-expanded="true"], .drawer-open) .studio-logo img { width: 57px; margin-left: 0; }
 :root[data-theme="light"] .studio-logo img { filter: invert(1) grayscale(1); }
 @media (prefers-color-scheme: light) { :root:not([data-theme]) .studio-logo img { filter: invert(1) grayscale(1); } }
+
+/* ---------- Installed app (iPhone / Android) and notifications ---------- */
+.install-steps { display: grid; gap: 12px; margin: 0; padding: 0; list-style: none; }
+.install-steps li { display: grid; grid-template-columns: 28px 1fr; gap: 10px; align-items: start; line-height: 1.5; animation: msg-in 460ms var(--ease-soft) both; }
+.install-steps li:nth-child(2) { animation-delay: 90ms; }
+.install-steps li:nth-child(3) { animation-delay: 180ms; }
+.install-steps .step-n { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; background: var(--sunk); color: var(--fg); font-weight: 700; font-size: 0.8125rem; }
+.notif-row { align-items: center; }
+.notif-label { display: grid; gap: 1px; min-width: 0; }
+.notif-label small { color: var(--muted); font-size: 0.75rem; }
+.notif-btn { min-height: 34px; padding: 0 12px; margin-left: auto; font-size: 0.8125rem; }
+.notif-btn[data-state="on"] { border-color: var(--done-solid); color: var(--fg); }
+/* Opened from the home screen: keep clear of the notch and the home bar */
+@media (display-mode: standalone) {
+  .app-header { padding-top: max(env(safe-area-inset-top), 0px); }
+  .sheet-foot { padding-bottom: max(env(safe-area-inset-bottom), 12px); }
+  .rail-foot { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
+}
+:root[data-motion="reduced"] .install-steps li { animation: none; }

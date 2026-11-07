@@ -44,7 +44,8 @@ window.__reads = JSON.parse(sessionStorage.getItem("__reads") || "null") || [
   { member_email: "admin@example.com", thread: "22222222-2222-2222-2222-222222222222", last_read_at: ago(190) },
 ];
 const keepChat = () => { sessionStorage.setItem("__messages", JSON.stringify(window.__messages)); sessionStorage.setItem("__reads", JSON.stringify(window.__reads)); };
-const tables = () => ({ cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
+window.__pushSubs = [];
+const tables = () => ({ cdf_push_subs: window.__pushSubs, cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
   let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*";
@@ -67,6 +68,7 @@ function query(table) {
       if (table === "cdf_messages" && (window.__role === "vendor" || window.__role === "carrier")) { const seen = new Set(window.__orders.filter((o) => window.__role === "vendor" ? o.vendor_email === "ana@example.com" : o.status === "Ready" && o.delivery !== "Delivered").map((o) => o.id)); data = data.filter((m) => !m.order_id || seen.has(m.order_id)); }
       if (window.__noChat && /^cdf_message/.test(table)) return Promise.resolve({ data: null, error: { code: "42P01", message: "relation does not exist" } }).then(resolve, reject);
       data = data.filter((o) => filters.every((f) => f(o)));
+      if (action === "upsert" && table === "cdf_push_subs") { const r = window.__pushSubs.find((x) => x.endpoint === row.endpoint); if (r) Object.assign(r, row); else window.__pushSubs.push({ ...row }); data = [row]; }
       if (action === "upsert" && table === "cdf_message_reads") { const r = window.__reads.find((x) => x.member_email === row.member_email && x.thread === row.thread); if (r) Object.assign(r, row); else window.__reads.push({ ...row }); keepChat(); data = [row]; }
       if(action === "upsert" && table === "cdf_order_prices") {
         if(window.__role && window.__role !== "admin")return Promise.resolve({data:null,error:{message:"denied"}}).then(resolve,reject);
@@ -77,7 +79,8 @@ function query(table) {
         if (action === "insert" && table === "cdf_messages") { const item = { ...row, id: "m" + Date.now(), created_at: new Date().toISOString() }; window.__messages.push(item); keepChat(); data = [item]; window.__chatReply && window.__chatReply(item); }
         else if (action === "insert") { const item = table === "cdf_orders" ? { ...base, ...row, id: "99999999-9999-9999-9999-" + String(Date.now()).slice(-12), code: "newcode1234", updated_at: new Date().toISOString() } : { ...row, ok: true, created_at: new Date().toISOString() }; tables()[table].push(item); data = [item]; }
         if (action === "update") data.forEach((o) => Object.assign(o, row, { updated_at: new Date().toISOString() }));
-        if (action === "delete") window.__orders = window.__orders.filter((o) => !data.includes(o));
+        if (action === "delete" && table === "cdf_push_subs") window.__pushSubs = window.__pushSubs.filter((o) => !data.includes(o));
+        else if (action === "delete") window.__orders = window.__orders.filter((o) => !data.includes(o));
       }
       if (lim) data = data.slice(offset, offset+lim);
       return Promise.resolve({ data: JSON.parse(JSON.stringify(data)), error: null }).then(resolve, reject);
@@ -139,7 +142,7 @@ window.supabase = { createClient: () => ({
 // EXPORT_MOCK=file writes the fake Supabase out, to look at the panel with it in a normal browser
 if (process.env.EXPORT_MOCK) { fs.writeFileSync(process.env.EXPORT_MOCK, mock); process.exit(0); }
 
-const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp" };
+const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".json": "application/json", ".webmanifest": "application/manifest+json" };
 const server = http.createServer((req, res) => {
   let name = req.url.split("?")[0];
   if (name === "/" || name.startsWith("/p/")) name = name.startsWith("/p/") ? "/seguimiento.html" : "/index.html";
@@ -210,11 +213,11 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Profile menu: four entries, Preferences and My account views, Back, Escape returns focus", async () => {
       await p.locator("#accountBtn").click();
       const main = p.locator('#account .mview[data-view="main"]');
-      assert.deepEqual(await main.locator(".mitem").allInnerTexts(), ["Preferences", "My account", "Send a suggestion", "Sign out"]);
+      assert.deepEqual(await main.locator(".mitem").allInnerTexts(), ["Preferences", "My account", "Send a suggestion", "Install the app", "Sign out"]);
       assert.equal(await main.locator(".mhead small").innerText(), "Admin");
       assert.equal(await p.locator("#account .mrow:visible").count(), 0);
       await p.locator('#account [data-goto="prefs"]').click();
-      assert.equal(await p.locator("#account .mrow:visible").count(), 4);
+      assert.equal(await p.locator("#account .mrow:visible").count(), 5);
       assert.equal(await p.evaluate(() => document.activeElement.classList.contains("mback")), true);
       const row = await p.locator('#account .mview[data-view="prefs"] .mrow').first().evaluate((r) => { const a = r.firstElementChild.getBoundingClientRect(), b = r.lastElementChild.getBoundingClientRect(); return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 4 && b.left > a.right; });
       assert(row, "label and control side by side on desktop");
@@ -346,7 +349,10 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert(await p.locator(".toast").last().innerText().then((s) => s.includes("Undo")));
     });
     await step("At-risk orders are flagged and filterable", async () => {
-      assert(await p.locator("#filters .filter", { hasText: "At risk" }).isVisible());
+      // Deterministic at any hour: an undelivered order from yesterday is always "late"
+      await p.evaluate(() => { const row = { ...window.__orders[0], id: "risk-late", num: "0777", date: addDays(S.today, -1), status: "Ready", delivery: "-" }; window.__orders.push(row); window.__realtime({ eventType: "INSERT", new: row }); });
+      await p.locator("#filters .filter", { hasText: "At risk" }).waitFor();
+      await p.evaluate(() => { window.__orders = window.__orders.filter((o) => o.id !== "risk-late"); window.__realtime({ eventType: "DELETE", old: { id: "risk-late" } }); });
     });
     await step("Server search across dates (phones by their last digits)", async () => {
       await p.locator("#q").fill("9171234567"); await p.waitForTimeout(500);
@@ -441,7 +447,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
         const q = await open(role, { width: 360 });
         assert.equal(await q.locator("#pricesBtn").isVisible(), role === "admin");
         await q.locator("#navOpen").click(); await q.waitForTimeout(650); await q.locator("#accountBtn").click();
-        assert.equal(await q.locator('#account .mview[data-view="main"] .mitem:visible').count(), 4);
+        assert.equal(await q.locator('#account .mview[data-view="main"] .mitem:visible').count(), 5);
         await q.locator('#account [data-goto="prefs"]').click(); await q.waitForTimeout(600);
         const fits = await q.locator("#account .menu").evaluate((m) => { const r = m.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0; });
         assert(fits, "menu inside the viewport");
@@ -539,6 +545,21 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.deepEqual(await v.locator(".thread b").allInnerTexts(), ["#team", "#0126 · Maria Santos"]);await v.close();
       const n = await open("admin", { before: { __noChat: true } });await n.locator("#list").waitFor();await n.waitForTimeout(400);
       assert.equal(await n.locator("#tabChat").isHidden(), true, "no chat tables: no chat, nothing breaks");await n.close();
+    });
+    await step("Installable app: manifest and icons, service worker, install entry, notifications row, notification links", async () => {
+      const q = await open("admin");await q.locator("#list").waitFor();
+      const man = await q.evaluate(async () => { const href = document.querySelector("link[rel=manifest]").href; const m = await (await fetch(href)).json(); const ok = await Promise.all(m.icons.map(async (i) => (await fetch(i.src)).ok)); return { name: m.short_name, display: m.display, icons: m.icons.length, ok: ok.every(Boolean), maskable: m.icons.some((i) => i.purpose === "maskable") }; });
+      assert.deepEqual(man, { name: "Pedidos", display: "standalone", icons: 3, ok: true, maskable: true });
+      assert.equal(await q.locator('link[rel="apple-touch-icon"]').getAttribute("href"), "/img/apple-touch-icon.png");
+      assert.equal(await q.evaluate(async () => !!(await navigator.serviceWorker.ready).active), true, "service worker active");
+      await q.locator("#accountBtn").click();assert(await q.locator("#installBtn").isVisible(), "install entry in the account menu");
+      await q.locator("#installBtn").click();await q.locator(".sheet .install-steps li").first().waitFor();
+      assert.equal(await q.locator(".sheet .install-steps li").count(), 3);await q.keyboard.press("Escape");await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      await q.locator("#accountBtn").click();await q.locator('#account [data-goto="prefs"]').click();
+      assert(await q.locator("#notifBtn").isVisible());assert.notEqual(await q.locator("#notifState").innerText(), "");await q.keyboard.press("Escape");
+      await q.evaluate(() => openDeepLink(new URLSearchParams("chat=team")));await q.locator("#chatView:visible .thread.on", { hasText: "#team" }).waitFor();
+      await q.evaluate(() => openDeepLink(new URLSearchParams("order=33333333-3333-3333-3333-333333333333")));await q.locator(".sheet h2", { hasText: "0126" }).waitFor();
+      await q.close();
     });
     await step("New version: notice, then reloads by itself once no sheet is open", async () => {
       const q = await open("admin");let v="a";

@@ -5,3 +5,6 @@ node_modules/
 
 .netlify/
 supabase/.temp/
+
+# Local secrets to paste into Supabase (never committed)
+.secrets/

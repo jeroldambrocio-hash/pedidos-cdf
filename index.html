@@ -10,7 +10,13 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Newsreader:ital,opsz,wght@0,6..72,400;0,6..72,500;1,6..72,400&display=swap">
 <link rel="stylesheet" href="/styles.css">
 <link rel="icon" type="image/png" href="/img/favicon.png">
-<link rel="apple-touch-icon" href="/img/emblem.png">
+<link rel="apple-touch-icon" href="/img/apple-touch-icon.png">
+<!-- Installable app: Android reads the manifest; iPhone uses these tags when added to the home screen -->
+<link rel="manifest" href="/manifest.webmanifest">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Pedidos">
+<meta name="apple-mobile-web-app-status-bar-style" content="black">
 </head>
 <body>
 <a class="skip-link" href="#workspace" data-i18n="skipContent">Skip to orders</a>
@@ -42,6 +48,7 @@
           <button class="mitem" type="button" data-goto="prefs"><span class="svg-icon" aria-hidden="true"><svg class="i ic-prefs" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle class="knob a" cx="16" cy="7" r="2"/><circle class="knob b" cx="8" cy="17" r="2"/></svg></span><span data-i18n="preferences">Preferences</span><span class="svg-icon" aria-hidden="true"><svg class="i mchev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>
           <button class="mitem" id="myAccountBtn" type="button" data-goto="account"><span class="svg-icon" aria-hidden="true"><svg class="i ic-account" viewBox="0 0 24 24"><circle class="head" cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span data-i18n="myAccount">My account</span><span class="svg-icon" aria-hidden="true"><svg class="i mchev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>
           <button class="mitem" id="fbBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i ic-spark" viewBox="0 0 24 24"><path d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"/><path d="M20 2v4"/><path d="M22 4h-4"/><circle cx="4" cy="20" r="2"/></svg></span><span data-i18n="sendFeedback">Send a suggestion</span></button>
+          <button class="mitem" id="installBtn" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M12 7v7m-3-3 3 3 3-3M11 18h2"/></svg></span><span data-i18n="installApp">Install app</span></button>
           <div class="msep"></div>
           <button class="mitem danger" id="logout" type="button"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M15 4h4v16h-4M10 8l-4 4 4 4M6 12h10"/></svg></span><span data-i18n="logout">Sign out</span></button>
         </div>
@@ -52,6 +59,7 @@
           <div class="mrow"><span data-i18n="theme">Mode</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Light</button><button type="button" data-theme-set="dark" data-i18n="dark">Dark</button></div></div>
           <div class="mrow"><span data-i18n="textSize">Text size</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Large</button></div></div>
           <div class="mrow"><span data-i18n="motion">Animations</span><div class="seg"><button type="button" data-motion-set="full" data-i18n="motionFull">Full</button><button type="button" data-motion-set="reduced" data-i18n="motionReduced">Reduced</button></div></div>
+          <div class="mrow notif-row"><span class="notif-label"><span data-i18n="notifications">Notifications</span><small id="notifState"></small></span><button class="btn notif-btn" id="notifBtn" type="button"></button></div>
         </div>
         <div class="mview" data-view="account" hidden>
           <div class="mback-row"><button class="mback" type="button" data-goto="main"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="m15 6-6 6 6 6"/></svg></span><span data-i18n="back">Back</span></button><b data-i18n="myAccount">My account</b></div>
@@ -218,6 +226,7 @@
 <script src="/js/team.js"></script>
 <script src="/js/stats.js"></script>
 <script src="/js/chat.js"></script>
+<script src="/js/pwa.js"></script>
 <script src="/js/main.js"></script>
 </body>
 </html>

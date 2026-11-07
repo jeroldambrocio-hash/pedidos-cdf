@@ -7,7 +7,7 @@ const root = path.resolve(__dirname, ".."), port = +process.argv[2] || 4324;
 const mockFile = path.join(os.tmpdir(), "pedidos-cdf-demo-mock.js");
 execFileSync(process.execPath, [path.join(__dirname, "ui-smoke.cjs")], { env: { ...process.env, EXPORT_MOCK: mockFile, NODE_PATH: path.join(root, ".test-tools", "node_modules") }, stdio: "inherit" });
 const mock = fs.readFileSync(mockFile, "utf8");
-const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".json": "application/json" };
+const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".png": "image/png", ".webp": "image/webp", ".json": "application/json", ".webmanifest": "application/manifest+json" };
 // Customer email preview with sample data (nothing is sent): /email lists every step,
 // /email/<step> shows one; ?photo=0 leaves the photo out, ?note=… adds a shop note, ?format=text shows the plain text
 const STEPS = ["prep", "ready", "transit", "done", "fail"];

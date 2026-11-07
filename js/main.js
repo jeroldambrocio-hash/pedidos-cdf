@@ -34,6 +34,7 @@ $("loginForm").addEventListener("submit", async (e) => {
 $("logout").onclick = async () => {
   if (sheet && !(await closeSheet())) return;
   $("logout").disabled = true;
+  await Promise.race([forgetPush(), wait(2500)]); // this device stops receiving the notifications of whoever signs out
   try { await sb.auth.signOut({ scope: "local" }); } catch { /* cleared below anyway */ }
   try { for (const k of Object.keys(localStorage)) if (k.startsWith("sb-")) localStorage.removeItem(k); } catch {}
   $("logout").disabled = false;
@@ -88,6 +89,7 @@ async function start(user) {
   await loadOrders();
   subscribe();
   await loadChat();
+  syncPush(); paintPwa(); openDeepLink(); // this device's notifications follow whoever signs in; open what a notification pointed at
 }
 
 // Who is signed in: rail footer, account menu and the thin mobile header
@@ -218,6 +220,8 @@ $("forgotBtn").onclick = () => {
   }, { dirty: () => !!mail.value && mail.value !== typed });
   requestAnimationFrame(() => mail.focus());
 };
+$("installBtn").onclick = () => installApp();
+$("notifBtn").onclick = () => onNotifBtn();
 $("fbBtn").onclick = () => {
   const to = window.CDF_CONFIG.feedbackTo;
   let kind = "fbIdea";
@@ -277,6 +281,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 document.addEventListener("langchange", () => {
+  paintPwa();
   renderSub(); setRail($("rail").dataset.expanded === "true", false);
   if (S.me) render();
   // Reopen the sheet in the new language only when nothing typed would be lost

@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 SITE=79c4bd06-b12f-4f92-9b06-8be1c54cbae0
-FILES="index.html seguimiento.html styles.css config.js i18n.js tracking.js js img _redirects netlify.toml"
+FILES="index.html seguimiento.html styles.css config.js i18n.js tracking.js sw.js manifest.webmanifest js img _redirects netlify.toml"
 
 if [ -n "$(git status --porcelain -- $FILES)" ]; then
   echo "There are uncommitted changes in the web files; commit them first (this publishes HEAD)." >&2

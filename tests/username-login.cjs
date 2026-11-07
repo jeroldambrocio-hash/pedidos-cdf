@@ -8,7 +8,7 @@ async function edge({ username = 'ANA', password = 'test-password', member = { e
   let handler; const calls = [];
   const service = { rpc: async () => ({ data: quota, error: quotaError }), from: () => ({ select: () => ({ eq: (k,v) => { calls.push(['lookup',v]); return { maybeSingle: async () => ({ data: member, error: null }) }; } }) }) };
   const auth = { auth: { signInWithPassword: async input => { calls.push(['auth',input]); return { error: authError, data: { session: { access_token:'access', refresh_token:'refresh' } } }; } } };
-  let source = readFileSync(root + '/supabase/functions/cdf-login/index.ts','utf8').replace(/^import .*;\n/m,'').replace('export async function','async function');
+  let source = readFileSync(root + '/supabase/functions/cdf-login/index.ts','utf8').replace(/\r\n/g,'\n').replace(/^import .*;\n/gm,'').replace('export async function','async function');
   source = stripTypeScriptTypes(source);
   vm.runInNewContext(source, { createClient: (_,key) => key === 'service' ? service : auth, Deno: { env: { get: k => k === 'SUPABASE_SERVICE_ROLE_KEY' ? 'service' : 'anon' }, serve: fn => handler=fn }, Response, TextEncoder, crypto: globalThis.crypto, Uint8Array });
   const response = await handler(new Request('https://test.invalid', { method:'POST', body:JSON.stringify({username,password}) }));
