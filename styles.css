@@ -1637,3 +1637,17 @@ option.is-away { color: var(--prep); }
 .hbar:nth-child(5) .chan-logo.lit, .hbar:nth-child(5) .chan-logo.lit img { animation-delay: 320ms; }
 @keyframes chan-lit { from { background: var(--sunk); } }
 :root[data-motion="reduced"] .hbar .chan-logo.lit, :root[data-motion="reduced"] .hbar .chan-logo.lit img { animation: none; }
+
+/* Step buttons: on hover they take the colour of the state they lead to,
+   the same as its badge (Marcar listo → Listo, Salir a repartir → En reparto, Entregado → Entregado). */
+.btn[class*="to-"] { transition: background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), transform var(--dur-press) var(--ease-std), box-shadow 200ms var(--ease-out); }
+.btn[class*="to-"] svg.i { transition: transform 220ms var(--ease-out); }
+.btn.primary.to-ready:is(:hover, :active):not(:disabled) { background: var(--ready-solid); border-color: var(--ready-solid); color: var(--ready-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ready-solid) 25%, transparent); }
+.btn.primary.to-transit:is(:hover, :active):not(:disabled) { background: var(--transit-solid); border-color: var(--transit-solid); color: var(--transit-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--transit-solid) 25%, transparent); }
+.btn.primary.to-done:is(:hover, :active):not(:disabled) { background: var(--done-solid); border-color: var(--done-solid); color: var(--done-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--done-solid) 25%, transparent); }
+.btn.primary.to-transit:hover:not(:disabled) svg.i { transform: translateX(3px); }
+.btn.primary:is(.to-ready, .to-done):hover:not(:disabled) svg.i { transform: scale(1.12); }
+:root[data-motion="reduced"] .btn[class*="to-"] svg.i { transform: none !important; }
+.btn.to-fail:is(:hover, :active):not(:disabled) { background: var(--fail-solid); border-color: var(--fail-solid); color: var(--fail-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fail-solid) 25%, transparent); }
+.btn.to-fail:hover:not(:disabled) svg.i { animation: nudge 220ms var(--ease-std); }
+:root[data-motion="reduced"] .btn.to-fail svg.i { animation: none; }

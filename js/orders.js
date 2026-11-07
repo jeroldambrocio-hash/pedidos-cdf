@@ -205,9 +205,9 @@ function orderCard(o) {
     el("div", { class: "o-bottom" }, stepper(o),
       el("div", { class: "actions" },
         el("button", { class: "btn icon", type: "button", "aria-label": t("notify"), title: t("notify"), onclick: async () => { await openFresh(o); document.querySelector(".sheet #f-link")?.scrollIntoView({ block: "center" }); } }, icon("message")),
-        cur === 2 && !archived ? el("button", { class: "btn", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("actMissed")) : null,
+        cur === 2 && !archived ? el("button", { class: "btn to-fail", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("actMissed")) : null,
         cur === 4 && !archived ? el("button", { class: "btn danger", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("reschedule")) : null,
-        next != null && !archived ? el("button", { class: "btn primary", type: "button", disabled: busy, onclick: () => requestStep(o, next) }, t(NEXT_LABEL[cur])) : null,
+        next != null && !archived ? el("button", { class: "btn primary to-" + STEPS[next].k, type: "button", disabled: busy, onclick: () => requestStep(o, next) }, t(NEXT_LABEL[cur])) : null,
         el("button", { class: "btn", type: "button", onclick: open }, t("details")))));
   return card;
 }

@@ -47,12 +47,13 @@ function workCard(o, withDate, late) {
   const cur = stepOf(o), k = STEPS[cur].k, busy = S.pending.has(o.id);
   const big = (label, glyph, fn, cls = "primary") => el("button", { class: "btn block " + cls, type: "button", onclick: fn, disabled: busy }, icon(glyph), label);
   const acts = [];
-  if (cur === 0 && !isCarrier()) acts.push(big(t("actReady"), "check", () => readyDialog(o)));
+  // to-<step>: on hover the button takes the colour of the state it leads to (styles.css)
+  if (cur === 0 && !isCarrier()) acts.push(big(t("actReady"), "check", () => readyDialog(o), "primary to-ready"));
   if (cur === 1 || cur === 4) acts.push(big(t(cur === 4 ? "actOutAgain" : "actOut"), "truck", async () => {
     const to = (o.customer_email || "").trim();
     if (await askConfirm(t("confirmTransit", { num: o.num }), t("markTransit"), { detail: to ? t("transitMailTo", { to }) : t("transitNoMail") })) advance(o, 2);
-  }));
-  if (cur === 2) acts.push(big(t("actDelivered"), "check", () => deliverDialog(o)), big(t("actMissed"), "alert", () => missedDialog(o), ""));
+  }, "primary to-transit"));
+  if (cur === 2) acts.push(big(t("actDelivered"), "check", () => deliverDialog(o), "primary to-done"), big(t("actMissed"), "alert", () => missedDialog(o), "to-fail"));
   const phone = o.customer_phone && cur !== 3 ? intlPhone(o.customer_phone) : "";
   const small = [
     phone ? el("a", { class: "btn", href: "tel:+" + phone }, icon("phone"), t("call")) : null,

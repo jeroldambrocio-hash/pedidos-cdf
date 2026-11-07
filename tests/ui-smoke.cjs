@@ -478,6 +478,14 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       const q = await open("login"); await capture(q, "login-desktop"); await q.close();
       const m = await open("login", { width: 390 }); await capture(m, "login-mobile"); await m.close();
     });
+    await step("Step buttons take their next state's colour on hover", async () => {
+      const q = await open("vendor");await q.locator("#list .work").first().waitFor();
+      for (const [cls, rgb] of [["to-ready","rgb(141, 183, 201)"],["to-transit","rgb(169, 159, 230)"],["to-done","rgb(101, 189, 145)"],["to-fail","rgb(224, 123, 123)"]]) {
+        const b=q.locator(".btn."+cls).first();await b.scrollIntoViewIfNeeded();await b.hover();await q.waitForTimeout(260);
+        assert.equal(await b.evaluate(n=>getComputedStyle(n).backgroundColor),rgb,cls);
+      }
+      await q.close();
+    });
     await step("Forgotten password: email link request, then a new password on return", async () => {
       const q = await open("login");
       await q.locator("#lEmail").fill("ana.alias");await q.locator("#forgotBtn").click();
