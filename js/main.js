@@ -118,7 +118,8 @@ $("brandHome").onclick = goHome;
 $("brandHomeMobile").onclick = goHome;
 $("tabTeam").onclick = () => setTab("team");
 $("tabStats").onclick = () => setTab("stats");
-$("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { statsDays = +b.dataset.days; renderStats(); } });
+$("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { setStatsPeriod(b.dataset.days); } });
+for (const id of ["statsFrom", "statsTo"]) $(id).addEventListener("change", setStatsDates);
 
 // ---------- sidebar: collapsed (56px) or open (200px) on desktop, remembered; a drawer on phones ----------
 const mobileNav = matchMedia("(max-width: 860px)");

@@ -499,7 +499,12 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       const q=await open("admin");await q.locator("#tabStats").click();await q.locator("table.top").waitFor();
       assert(await q.getByRole("heading",{name:"Ideas to grow"}).isVisible());assert(await q.getByRole("heading",{name:"Top customers"}).isVisible());
       const before=await q.locator(".kpi b").first().innerText();await q.evaluate(()=>{const row={...window.__orders[0],id:"new-stats",num:"9999"};window.__orders.push(row);window.__realtime({eventType:"INSERT",new:row})});await q.waitForTimeout(500);assert.notEqual(await q.locator(".kpi b").first().innerText(),before);
-      await q.locator('#statsPeriod [data-days="90"]').click();await q.waitForTimeout(350);assert(await q.getByRole("heading",{name:"Orders per week"}).isVisible());await q.close();
+      await q.locator('#statsPeriod [data-days="90"]').click();await q.waitForTimeout(350);assert(await q.getByRole("heading",{name:"Orders per week"}).isVisible());
+      assert.match(await q.locator("#statsAvail").innerText(),/^Data available: .+ to .+ · \d+ orders$/);
+      await q.locator('#statsPeriod [data-days="custom"]').click();assert(await q.locator("#statsFrom").isVisible());
+      const min=await q.locator("#statsFrom").getAttribute("min"),max=await q.locator("#statsTo").getAttribute("max");assert(min<=max);
+      await q.locator("#statsFrom").fill(max);await q.locator("#statsFrom").dispatchEvent("change");await q.waitForTimeout(350);
+      assert.match(await q.locator(".chart-card .chart-head small").first().innerText(),/· 1 days$/);await q.close();
     });
     await step("Phone country picker: Philippine flag and +63 by default, search, another country is kept", async () => {
       const q = await open("admin");
