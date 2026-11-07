@@ -3,6 +3,7 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    viewProfile: "Ver perfil", profileStatsUnavailable: "Estadísticas no disponibles", openOrders: "Abiertos",
     expandPhoto: "Ampliar foto de referencia",
     chatOrderTitle: "Conversación interna", chatOrderPrivacy: "Solo visible para el equipo con acceso a este pedido.",
     chatEdit: "Editar mensaje", chatEdited: "Editado", chatEditFail: "No se pudo guardar el cambio. Si editaste el mensaje en otro dispositivo, vuelve a abrirlo.",
@@ -205,6 +206,7 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    viewProfile: "View profile", profileStatsUnavailable: "Statistics unavailable", openOrders: "Open",
     expandPhoto: "Enlarge reference photo",
     chatOrderTitle: "Internal conversation", chatOrderPrivacy: "Only visible to team members who can access this order.",
     chatEdit: "Edit message", chatEdited: "Edited", chatEditFail: "Couldn't save the change. If you edited the message on another device, reopen it.",

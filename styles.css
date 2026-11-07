@@ -2017,3 +2017,55 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
   .bloom .plant svg { height: 166px; }
   .bloom .stage-list { gap: 5px; font-size: .76rem; }
 }
+
+/* Employee profile */
+.rail-foot { grid-template-columns: minmax(0, 1fr); }
+#account { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; }
+.rail[data-expanded="false"]:not(.drawer-open) #account { grid-template-columns: minmax(0, 1fr); justify-items: center; }
+.rail #account .account-settings-btn { display: grid; place-items: center; width: 36px; min-height: 36px; padding: 0; }
+.profile-trigger { border: 0; background: none; color: inherit; font: inherit; text-align: left; }
+.profile-trigger:is(.profile-name, .profile-avatar) { padding: 0; }
+.profile-name { overflow-wrap: anywhere; }
+.profile-name:hover { text-decoration: underline; text-underline-offset: .2em; }
+.profile-avatar { border-radius: 50%; }
+.profile-avatar:hover { outline: 1px solid var(--muted); }
+.mhead.profile-trigger { width: 100%; border-radius: 8px; }
+.mhead.profile-trigger:hover { background: var(--hover); }
+
+.employee-profile {
+  color-scheme: dark;
+  --surface: #232323; --fg: #f1f1f1; --muted: #b5b5b5; --line: #3d3d3d; --hover: #303030;
+  box-sizing: border-box;
+  width: min(420px, calc(100% - 28px));
+  max-height: calc(100dvh - 28px);
+  margin: auto;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  background: var(--surface);
+  color: var(--fg);
+  box-shadow: 0 18px 64px #0008;
+  overflow: auto;
+  animation: employee-in 210ms ease-out;
+}
+.employee-profile::backdrop { background: #0009; animation: fade-in 210ms ease-out; }
+@keyframes employee-in { from { opacity: 0; transform: translateY(8px) scale(.985); } }
+:root[data-motion="reduced"] .employee-profile,
+:root[data-motion="reduced"] .employee-profile::backdrop { animation: none; }
+.employee-header { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 12px; }
+.employee-header h2 { margin: 0 0 4px; font-size: 1.2rem; overflow-wrap: anywhere; }
+.employee-header .profile-close { align-self: start; width: 40px; height: 40px; padding: 0; font-size: 1.35rem; color: var(--fg); }
+.employee-header .role-tag { display: inline-block; color: var(--fg); background: var(--hover); }
+.employee-handle { margin-inline-start: 8px; overflow-wrap: anywhere; }
+.employee-handle, .employee-contact, .employee-growth small, .employee-metrics dt { color: var(--muted); font-size: .8125rem; }
+.employee-contact { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 14px; overflow-wrap: anywhere; }
+.employee-contact a { color: inherit; }
+.employee-stats { display: grid; gap: 14px; margin-top: 14px; border-top: 1px solid var(--line); padding-top: 14px; }
+.employee-growth { display: grid; grid-template-columns: clamp(62px, 21vw, 88px) minmax(0, 1fr); align-items: center; gap: 12px; }
+.employee-growth small { display: block; }
+.employee-plant svg { display: block; width: 100%; }
+.employee-profile h3 { margin: 0 0 4px; font-size: .975rem; }
+.employee-growth progress { width: 100%; height: 9px; margin: 4px 0; accent-color: #65bd91; }
+.employee-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; margin: 6px 0 0; }
+.employee-metrics > div { display: flex; justify-content: space-between; gap: 6px; padding: 6px 0; border-top: 1px solid var(--line); }
+.employee-metrics dd { margin: 0; font-variant-numeric: tabular-nums; }

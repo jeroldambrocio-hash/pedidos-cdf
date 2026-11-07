@@ -83,8 +83,8 @@ function renderTeam() {
     const load = m.role === "carrier" ? open.filter((o) => o.carrier_email === m.email).length : open.filter((o) => o.vendor_email === m.email).length;
     const florist = m.role === "vendor";
     box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
-      avatarNode(m),
-      el("div", {}, el("b", {}, m.name, bloomTag(m)), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
+      employeeProfileButton(m, avatarNode(m), "profile-avatar"),
+      el("div", {}, el("b", {}, employeeProfileButton(m, m.name, "profile-name"), bloomTag(m)), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
         phone ? el("a", { class: "m-phone", href: "tel:+" + phone }, icon("phone"), "+" + phone) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,

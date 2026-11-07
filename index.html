@@ -36,14 +36,15 @@
   </nav>
   <div class="rail-foot">
     <div class="settings" id="account">
-      <button class="avatar-btn" id="accountBtn" type="button" data-settings aria-expanded="false" aria-haspopup="dialog" data-i18n-aria="accountMenu" aria-label="Account and settings">
+      <button class="avatar-btn" id="userProfileBtn" type="button" aria-haspopup="dialog" data-i18n-aria="viewProfile" aria-label="View profile">
         <span class="avatar" id="userAvatar"></span>
         <span class="rail-label"><b id="userName"></b><small id="userRole"></small></span>
       </button>
+      <button class="btn ghost account-settings-btn" id="accountBtn" type="button" data-settings aria-expanded="false" aria-haspopup="dialog" data-i18n-aria="accountMenu" aria-label="Account and settings"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="var(--surface)"/><circle cx="15" cy="17" r="2.5" fill="var(--surface)"/></svg></span></button>
       <div class="menu account" role="dialog" data-i18n-aria="accountMenu" aria-label="Account and settings">
         <!-- Menú de perfil: una lista corta; Preferencias y Mi cuenta abren su propia vista dentro del menú -->
         <div class="mview" data-view="main">
-          <div class="mhead"><span class="avatar" id="menuAvatar"></span><div><b id="menuName"></b><small id="menuSub"></small></div></div>
+          <button class="mhead profile-trigger" id="menuProfileBtn" type="button" aria-haspopup="dialog" data-i18n-aria="viewProfile" aria-label="View profile"><span class="avatar" id="menuAvatar"></span><span><b id="menuName"></b><small id="menuSub"></small></span></button>
           <div class="msep"></div>
           <button class="mitem" type="button" data-goto="prefs"><span class="svg-icon" aria-hidden="true"><svg class="i ic-prefs" viewBox="0 0 24 24"><path d="M4 7h16M4 17h16"/><circle class="knob a" cx="16" cy="7" r="2"/><circle class="knob b" cx="8" cy="17" r="2"/></svg></span><span data-i18n="preferences">Preferences</span><span class="svg-icon" aria-hidden="true"><svg class="i mchev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>
           <button class="mitem" id="myAccountBtn" type="button" data-goto="account"><span class="svg-icon" aria-hidden="true"><svg class="i ic-account" viewBox="0 0 24 24"><circle class="head" cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/></svg></span><span data-i18n="myAccount">My account</span><span class="svg-icon" aria-hidden="true"><svg class="i mchev" viewBox="0 0 24 24"><path d="m9 6 6 6-6 6"/></svg></span></button>

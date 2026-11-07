@@ -269,3 +269,87 @@ async function openBloom() {
   const r = await myStats();
   journey.update(bloomTotal(r, kind));
 }
+
+function employeeProfileButton(member, content, className) {
+  return el("button", {
+    type: "button", class: "profile-trigger " + className, "aria-haspopup": "dialog",
+    "aria-label": t("viewProfile") + " · " + member.name,
+    onclick: (event) => showEmployeeProfile(member, event.currentTarget),
+  }, content);
+}
+
+async function showEmployeeProfile(member, trigger) {
+  if (!S.me || !member || document.querySelector(".employee-profile[open]")) return;
+  const viewer = S.me;
+  const self = member.email === viewer.email;
+  if (!self && !isAdmin()) return;
+  if (self) member = viewer;
+
+  const menu = openMenu();
+  if (menu) setMenu(menu, false);
+  const back = menu?.contains(trigger) ? menuOpener(menu) : trigger;
+  const phone = intlPhone(member.phone);
+  const close = el("button", { class: "btn ghost profile-close", type: "button",
+    "aria-label": t("close"), autofocus: true, onclick: () => dialog.close() }, "×");
+  const stats = el("div", { class: "employee-stats", "aria-live": "polite" }, t("loading"));
+  const dialog = el("dialog", { class: "employee-profile", "aria-labelledby": "employeeProfileTitle" },
+    el("header", { class: "employee-header" }, profilePic(member),
+      el("div", {},
+        el("h2", { id: "employeeProfileTitle" }, member.name),
+        el("span", { class: "role-tag role-" + member.role }, t("role_" + member.role)),
+        member.username ? el("span", { class: "employee-handle" }, "@" + member.username) : null),
+      close),
+    el("div", { class: "employee-contact" },
+      el("span", {}, member.email),
+      phone ? el("a", { href: "tel:+" + phone }, "+" + phone) : null,
+      member.role === "vendor" && S.cap.profiles ? awayBadge(member) : null),
+    stats);
+  dialog.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" || event.key === "Tab") event.stopPropagation();
+  });
+  dialog.addEventListener("close", () => {
+    dialog.remove();
+    (back?.isConnected ? back : $(self ? "userProfileBtn" : "tabTeam")).focus();
+  });
+  dialog.addEventListener("click", (event) => {
+    if (event.target !== dialog) return;
+    const { left, right, top, bottom } = dialog.getBoundingClientRect();
+    if (event.clientX < left || event.clientX > right || event.clientY < top || event.clientY > bottom) dialog.close();
+  });
+  document.body.append(dialog);
+  dialog.showModal();
+
+  let row;
+  try {
+    const { data } = await sb.rpc("cdf_member_stats");
+    row = data?.find((entry) => entry.email === member.email);
+  } catch {
+    // Profile details are still usable when the statistics request fails.
+  }
+  if (!dialog.open) return;
+  if (S.me !== viewer) { dialog.close(); return; }
+  if (!row) { stats.textContent = t("profileStatsUnavailable"); return; }
+
+  const kind = bloomKind(member.role);
+  const total = kind ? bloomTotal(row, kind) : 0;
+  const level = bloomStage(total);
+  const stage = BLOOM_STAGES[level];
+  const next = BLOOM_STAGES[level + 1];
+  const format = new Intl.NumberFormat(LANG);
+  const plant = el("div", { class: "employee-plant", "aria-hidden": "true" });
+  if (kind) plant.innerHTML = bloomPlant(level);
+  const growth = kind ? el("section", { class: "employee-growth" },
+    plant,
+    el("div", {},
+      el("small", {}, bloomT("level", { n: level + 1, of: BLOOM_STAGES.length })),
+      el("h3", {}, stage.name),
+      el("progress", { max: BLOOM_MAX, value: Math.min(total, BLOOM_MAX), "aria-label": bloomT("progress") }),
+      el("small", {}, next ? bloomT("next", { n: next.min - total, stage: next.name }) : bloomT("max")),
+      el("small", {}, format.format(total) + " " + bloomT(kind)))) : null;
+  const metrics = [["doneWeek", row.done_week], ["doneMonth", row.done_month],
+    ["doneTotal", row.done_total], ["openOrders", row.open_now]].filter(([, value]) => value != null);
+  stats.replaceChildren(...[growth, metrics.length ? el("section", {},
+    el("h3", {}, t("tabOrders")),
+    el("dl", { class: "employee-metrics" }, ...metrics.map(([label, value]) =>
+      el("div", {}, el("dt", {}, t(label)), el("dd", {}, format.format(value)))))) : null].filter(Boolean));
+}

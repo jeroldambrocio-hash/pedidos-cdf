@@ -206,7 +206,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
   const calls = (p) => p.evaluate(() => window.__calls);
   async function capture(p, name) {
     await p.waitForTimeout(400);
-    await p.screenshot({ path: path.join(out, name + ".png"), animations: "disabled", fullPage: (await p.locator(".scrim").count()) === 0 });
+    await p.screenshot({ path: path.join(out, name + ".png"), animations: "disabled", fullPage: (await p.locator(".scrim, dialog[open]").count()) === 0 });
     assert(!(await p.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)), "Horizontal overflow on " + name);
   }
   // A failed step reports the action and what blocked it, then closes any open layer so the next step starts clean
@@ -227,6 +227,42 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await p.locator(".board").count(), 0);
       assert(await p.locator(".chan img").count() >= 2);
       await capture(p, "desktop");
+    });
+    await step("Employee profile: Team, account, privacy, mobile and motion", async () => {
+      await p.locator("#tabTeam").click();
+      const ana = p.locator(".member", { hasText: "ana@example.com" });
+      await ana.locator(".profile-name").click();
+      const dialog = p.getByRole("dialog", { name: "Ana", exact: true });
+      await dialog.locator(".employee-plant svg").waitFor();
+      assert.equal(await dialog.locator("progress").getAttribute("value"), "48");
+      assert.equal(await dialog.locator(".employee-metrics dd").allInnerTexts().then((n) => n.join(",")), "3,12,48,4");
+      await capture(p, "employee-profile-desktop");
+      await p.keyboard.press("Escape");
+      await dialog.waitFor({ state: "hidden" });
+      await ana.locator(".profile-avatar").click();
+      await dialog.getByRole("button", { name: "Close" }).click();
+      await p.locator("#tabOrders").click();
+
+      const q = await open("vendor", { width: 390 });
+      await q.locator("#navOpen").click();
+      await q.locator("#userAvatar").click();
+      const own = q.getByRole("dialog", { name: "Ana", exact: true });
+      await own.locator("progress").waitFor();
+      assert(await q.locator("#tabTeam").isHidden());
+      assert.equal(await own.evaluate((node) => getComputedStyle(node).animationName), "employee-in");
+      assert(await own.evaluate((node) => Math.abs(node.getBoundingClientRect().left + node.getBoundingClientRect().right - innerWidth) < 2));
+      await capture(q, "employee-profile-mobile");
+      await q.keyboard.press("Escape");
+      await q.locator("#accountBtn").click();
+      await q.locator('#account [data-goto="prefs"]').click();
+      await q.locator("#account [data-motion-set=reduced]").click();
+      await q.keyboard.press("Escape");
+      await q.locator("#accountBtn").click();
+      await q.locator("#menuName").click();
+      await own.waitFor();
+      assert.equal(await own.evaluate((node) => getComputedStyle(node).animationName), "none");
+      assert.equal(await own.getByText("driver@example.com").count(), 0);
+      await q.context().close();
     });
     await step("Animations full by default even with OS reduce; Settings turns them down and remembers", async () => {
       assert.equal(await p.evaluate(() => document.documentElement.dataset.motion), "full");

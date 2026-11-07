@@ -46,6 +46,7 @@ sb.auth.onAuthStateChange((ev, session) => {
   if (ev === "PASSWORD_RECOVERY") recovering = true;
   const id = session?.user?.id || null;
   if (id === booted) { if (id) maybeRecover(); return; }
+  document.querySelector(".employee-profile[open]")?.close();
   booted = id;
   setTimeout(async () => { if (id) { await start(session.user); maybeRecover(); } else stop(); }, 0);
 });
@@ -94,6 +95,10 @@ async function start(user) {
 }
 
 // Who is signed in: rail footer, account menu and the thin mobile header
+for (const id of ["userProfileBtn", "menuProfileBtn"]) {
+  $(id).addEventListener("click", (e) => showEmployeeProfile(S.me, e.currentTarget));
+}
+
 function renderSub() {
   const name = S.me?.name || S.email || "", role = S.me ? t("role_" + S.me.role) : "";
   $("sub").textContent = S.me ? t({ admin: "subAdmin", carrier: "subCarrier" }[S.me.role] || "subVendor", { name: S.me.name }) : "";
@@ -102,7 +107,9 @@ function renderSub() {
   $("userRole").textContent = role;
   $("menuSub").textContent = role || S.email || "";
   $("menuEmail").textContent = [S.me?.username, S.me?.email || S.email].filter(Boolean).join(" · ");
-  $("accountBtn").dataset.tip = name;
+  $("userProfileBtn").dataset.tip = name;
+  $("userProfileBtn").hidden = $("menuProfileBtn").hidden = !S.me;
+  $("accountBtn").title = t("accountMenu");
   $("pwBtn").hidden = !S.me;
   $("myAccountBtn").hidden = !S.me;
   renderMyCard();
