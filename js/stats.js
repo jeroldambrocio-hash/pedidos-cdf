@@ -46,12 +46,13 @@ async function renderStats(){
  // An unsuccessful attempt belongs in the denominator, even before eventual delivery.
  const attempted=rows.filter(o=>o.delivery==="Delivered"||o.delivery==="Failed"||o.attempts>0),first=attempted.length?attempted.filter(o=>o.delivery==="Delivered"&&!o.attempts).length/attempted.length:null;
  const delta=(a,b)=>b?Math.round((a-b)/b*100):null;
- const kpi=(glyph,label,value,d,hint)=>el("div",{class:"kpi"},el("span",{class:"ic"},icon(glyph)),el("small",{},label),el("b",{},value),el("span",{class:"delta"},d==null?hint||"":t("statsDelta",{n:(d>0?"+":"")+d,days})));
+ const kpiIcon={orders:"kOrders",trend:"kTrend",star:"kStar",check:"kCheck",user:"kUser",alert:"kAlert"};
+ const kpi=(glyph,label,value,d,hint)=>el("div",{class:"kpi k-"+glyph},el("span",{class:"ic"},icon(kpiIcon[glyph]||glyph)),el("small",{},label),el("b",{},value),el("span",{class:"delta"},d==null?hint||"":t("statsDelta",{n:(d>0?"+":"")+d,days})));
  const card=(title,sub,...kids)=>el("section",{class:"panel chart-card"},el("div",{class:"chart-head"},el("h3",{},title),sub?el("small",{},sub):null),...kids);
  const channels=[...CHANNELS,...(rows.some(o=>!o.channel)?[t("noChannel")]:[])].map(ch=>{const os=rows.filter(o=>(o.channel||t("noChannel"))===ch);return{ch,os,value:metric(os)}}).sort((a,b)=>b.value-a.value);
  const bars=(entries,format=String,logos=false)=>{
   const max=Math.max(1,...entries.map(e=>e.value));
-  return entries.length?el("div",{class:"hbars"},entries.map(e=>el("div",{class:"hbar",tabindex:"0",title:e.name+": "+format(e.value),"aria-label":e.name+": "+format(e.value)},el("span",{class:"hbar-label"},logos&&CHANNELS.includes(e.name)?el("span",{class:"chan-logo sm"},chanMark(e.name)):null,e.name),el("span",{class:"hbar-track"},el("span",{class:"hbar-fill",style:`--w:${100*e.value/max}%`})),el("span",{class:"hbar-val"},el("b",{},format(e.value)),e.detail?el("small",{},e.detail):null)))):el("p",{class:"hint"},t("noData"));
+  return entries.length?el("div",{class:"hbars"},entries.map(e=>el("div",{class:"hbar",tabindex:"0",title:e.name+": "+format(e.value),"aria-label":e.name+": "+format(e.value)},el("span",{class:"hbar-label"},logos&&CHANNELS.includes(e.name)?el("span",{class:"chan-logo sm"+(e.value?" lit":""),style:"--cc:"+chanColor(e.name)},chanMark(e.name)):null,e.name),el("span",{class:"hbar-track"},el("span",{class:"hbar-fill",style:`--w:${100*e.value/max}%`})),el("span",{class:"hbar-val"},el("b",{},format(e.value)),e.detail?el("small",{},e.detail):null)))):el("p",{class:"hint"},t("noData"));
  };
  // Long ranges are grouped so the chart keeps readable columns: days → weeks → 30-day blocks.
  const step=days<=45?1:days<=400?7:30,buckets=[];
@@ -82,5 +83,8 @@ async function renderStats(){
  const panels=[daily,card(t(prices?"bySales":"byChannel"),null,bars(channels.map(c=>({name:c.ch,value:c.value,detail:prices?dayCount(c.os.length)+" · "+t("statsTicket")+" "+(ticket(c.os)==null?"—":peso(ticket(c.os))):pct(rows.length?c.os.length/rows.length:null)})),fmt,true)),card(t("statsHours"),t("statsHoursHint"),hourChart),card(t("byFlorist"),null,bars([...vendors].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value))),card(t("statsCustomers"),t("statsHistoryHint"),best.length?customers:el("p",{class:"hint"},t("noData"))),card(t("statsIdeas"),t("statsIdeasHint"),el("ul",{class:"ideas"},ideas.map(([glyph,title,detail])=>el("li",{},el("span",{class:"ic"},icon(glyph)),el("div",{},el("b",{},title),el("small",{},detail))))))];
  box.replaceChildren(el("div",{class:"kpis six"},...primary,kpi("check",t("kpiFirstTry"),pct(first),null,t("statsFirstHint")),kpi("user",t("kpiRepeat"),pct(repeat),null,t("statsRepeatHint")),kpi("alert",t("kpiAttempts"),String(rows.reduce((n,o)=>n+(o.attempts||0),0)),null,t("kpiAttemptsHint"))),el("div",{class:"chart-grid"},...panels));
  stagger(box.querySelector(".kpis"));
+ // Card icons play once as the cards arrive, and again whenever the pointer enters a card.
+ const play=k=>{k.classList.remove("play");void k.offsetWidth;k.classList.add("play");};
+ box.querySelectorAll(".kpi").forEach((k,i)=>{k.style.setProperty("--kd",i*70+"ms");k.addEventListener("pointerenter",()=>{if(prefersReducedMotion())return;k.style.setProperty("--kd","0ms");play(k);});if(!prefersReducedMotion())play(k);});
  if(!prefersReducedMotion())box.querySelectorAll(".hbar-fill,.col-fill").forEach((n,i)=>n.animate([{transform:n.classList.contains("hbar-fill")?"scaleX(0)":"scaleY(0)"},{transform:"none"}],{duration:420,delay:Math.min(i,30)*12,easing:"cubic-bezier(.16,1,.3,1)",fill:"backwards"}));
 }

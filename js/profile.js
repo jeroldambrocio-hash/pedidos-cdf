@@ -111,7 +111,7 @@ function openProfile() {
   const iName = el("input", { id: "pName", value: me.name, required: true, maxlength: 60, autocomplete: "name" });
   const iPhone = el("input", { id: "pPhone", type: "tel", inputmode: "tel", value: phLocal(me.phone), "data-cc": phSplit(me.phone).cc, autocomplete: "tel" });
   // Sign-in username: each person sets their own here; the database keeps it unique.
-  const iUser = el("input", { id: "pUsername", value: me.username || "", autocomplete: "off", autocapitalize: "none", spellcheck: "false", pattern: "[A-Za-z0-9][A-Za-z0-9._-]{2,29}", minlength: 3, maxlength: 30, placeholder: t("usernamePh") });
+  const iUser = el("input", { id: "pUsername", value: me.username || "", autocomplete: "off", autocapitalize: "none", spellcheck: "false", pattern: "[A-Za-z0-9][A-Za-z0-9._\\-]{2,29}", minlength: 3, maxlength: 30, placeholder: t("usernamePh") });
   const userNow = () => iUser.value.trim().toLowerCase() || null;
   const done = el("b", {}, "…");
   myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });

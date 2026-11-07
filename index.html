@@ -175,7 +175,7 @@
       <form class="panel" id="addForm">
         <h2 data-i18n="addPerson">Add person</h2>
         <label class="field"><span data-i18n="name">Name</span><input id="aName" required autocomplete="off"></label>
-        <label class="field"><span data-i18n="username">Username</span><input id="aUsername" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" pattern="[A-Za-z0-9][A-Za-z0-9._-]{2,29}" minlength="3" maxlength="30"><small data-i18n="usernameHint">Optional. 3–30 letters, numbers, dots, underscores or hyphens.</small></label>
+        <label class="field"><span data-i18n="username">Username</span><input id="aUsername" type="text" autocomplete="off" autocapitalize="none" spellcheck="false" pattern="[A-Za-z0-9][A-Za-z0-9._\-]{2,29}" minlength="3" maxlength="30"><small data-i18n="usernameHint">Optional. 3–30 letters, numbers, dots, underscores or hyphens.</small></label>
         <label class="field"><span data-i18n="email">Email</span><input id="aEmail" type="email" required autocomplete="off"></label>
         <label class="field"><span data-i18n="role">Role</span><select id="aRole"><option value="vendor" data-i18n="role_vendor">Florist</option><option value="carrier" data-i18n="role_carrier">Driver</option><option value="admin" data-i18n="role_admin">Admin</option></select></label>
         <div class="hint" data-i18n="roleHint">Florist: their own orders. Driver: deliveries. Admin: everything, including the team.</div>

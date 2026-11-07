@@ -42,6 +42,13 @@ const ICONS = {
   gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1Z"/>',
   bouquet: '<circle cx="12" cy="6" r="2.6"/><circle cx="7" cy="9" r="2.6"/><circle cx="17" cy="9" r="2.6"/><path d="M12 8.6V15m-5-3.4L11 16m6-4.4L13 16"/><path d="m9 16 3 6 3-6H9Z"/><path d="M10.5 18.5c-1.5-.5-2.5.5-2 1.5m5-1.5c1.5-.5 2.5.5 2 1.5"/>',
   star: '<path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  // Statistics cards: same drawings with named parts so styles.css can animate them (.kpi.play)
+  kOrders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2"/><path class="ln l1" pathLength="1" d="M9 9h6"/><path class="ln l2" pathLength="1" d="M9 13h6"/><path class="ln l3" pathLength="1" d="M9 17h3"/>',
+  kTrend: '<path class="area" d="M3 17l6-6 4 4 8-8v14H3Z"/><path class="ln" pathLength="1" d="m3 17 6-6 4 4 8-8m0 0h-5m5 0v5"/>',
+  kStar: '<path class="fill" d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/><path class="edge" d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  kCheck: '<circle class="ring" cx="12" cy="12" r="9"/><path class="ln" pathLength="1" d="m7 12 3 3 7-7"/>',
+  kUser: '<g class="who"><circle cx="11" cy="8" r="4"/><path d="M3 22v-3a8 8 0 0 1 16 0v3"/></g><path class="heart" d="M19.5 3.6c-.7-1-2.2-.8-2.5.4-.3-1.2-1.8-1.4-2.5-.4-.6.9 0 2 2.5 3.8 2.5-1.8 3.1-2.9 2.5-3.8Z"/>',
+  kAlert: '<path class="tri" d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"/>',
 };
 // Laid out like text inside its parent (display: contents), so buttons and labels need no wrapper rules
 const icon = (name, cls = "i") => {

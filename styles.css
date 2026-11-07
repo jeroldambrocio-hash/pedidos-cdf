@@ -1581,3 +1581,59 @@ option.is-away { color: var(--prep); }
 @keyframes sparkGlow { from { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--ic-yellow) 50%, transparent)); } to { filter: drop-shadow(0 0 5px var(--ic-yellow)); } }
 :root[data-motion="reduced"] .mitem .ic-prefs .knob, :root[data-motion="reduced"] .mitem svg.ic-spark { animation: none !important; }
 :root[data-motion="reduced"] .mitem .ic-account .head, :root[data-motion="reduced"] .mitem .ic-spark path:first-child { transform: none !important; }
+
+/* Statistics cards: each icon tells its number's story once as the cards arrive (and again on hover).
+   Orders: the list lines write themselves. Average/sales: a green trend draws upward over a rising green area.
+   Leading channel: the star fills with gold. First-try deliveries: the tick draws in green.
+   Returning customers: the person nods and a heart floats up. Failed visits: the warning blinks red.
+   --kd staggers the cards; "Reduced" animations skip it all (stats.js doesn't add .play). */
+.kpis { --k-green: #2E7D57; --k-gold: #B7860B; --k-pink: #D9467A; }
+:root[data-theme="dark"] .kpis { --k-green: #5CC489; --k-gold: #F5C542; --k-pink: #F27BA5; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .kpis { --k-green: #5CC489; --k-gold: #F5C542; --k-pink: #F27BA5; } }
+.kpi .ic svg.i * { transform-box: fill-box; transform-origin: center; }
+.kpi .ln { stroke-dasharray: 1; stroke-dashoffset: 0; }
+.kpi .area, .kpi .star-fill, .kpi .fill { fill: currentColor; stroke: none; opacity: 0; }
+.kpi .heart { fill: var(--k-pink); stroke: none; opacity: 0; }
+.kpi .ic { transition: background-color 250ms var(--ease-out), color 250ms var(--ease-out); }
+/* Orders */
+.kpi.k-orders.play .ln { animation: k-draw 260ms var(--ease-out) backwards; }
+.kpi.k-orders.play .l1 { animation-delay: calc(var(--kd) + 120ms); }
+.kpi.k-orders.play .l2 { animation-delay: calc(var(--kd) + 300ms); }
+.kpi.k-orders.play .l3 { animation-delay: calc(var(--kd) + 480ms); }
+/* Average per day / sales */
+.kpi.k-trend.play .ic { color: var(--k-green); background: color-mix(in srgb, var(--k-green) 14%, var(--sunk)); }
+.kpi.k-trend.play .ln { animation: k-draw 520ms var(--ease-out) calc(var(--kd) + 120ms) backwards; }
+.kpi.k-trend.play .area { opacity: .22; animation: k-rise 560ms var(--ease-out) calc(var(--kd) + 120ms) backwards; }
+/* Leading channel / average ticket */
+.kpi.k-star.play .ic { color: var(--k-gold); background: color-mix(in srgb, var(--k-gold) 14%, var(--sunk)); }
+.kpi.k-star.play .fill { opacity: 1; animation: k-fill 520ms var(--ease-out) calc(var(--kd) + 120ms) backwards; }
+.kpi.k-star.play svg.i { animation: k-pop 260ms var(--ease-out) calc(var(--kd) + 620ms) backwards; }
+/* Delivered first time */
+.kpi.k-check.play .ic { color: var(--k-green); background: color-mix(in srgb, var(--k-green) 14%, var(--sunk)); }
+.kpi.k-check.play .ln { animation: k-draw 380ms var(--ease-out) calc(var(--kd) + 160ms) backwards; }
+.kpi.k-check.play .ring { animation: k-pop 260ms var(--ease-out) calc(var(--kd) + 520ms) backwards; }
+/* Returning customers */
+.kpi.k-user.play .who { animation: k-nod 520ms ease-in-out calc(var(--kd) + 100ms) backwards; }
+.kpi.k-user.play .heart { animation: k-heart 1100ms var(--ease-out) calc(var(--kd) + 300ms) backwards; }
+/* Failed visits */
+.kpi.k-alert.play .ic { color: var(--fail); background: color-mix(in srgb, var(--fail) 14%, var(--sunk)); }
+.kpi.k-alert.play .tri { animation: k-blink 900ms steps(1, end) calc(var(--kd) + 150ms) backwards; }
+
+@keyframes k-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
+@keyframes k-rise { from { opacity: 0; transform: translateY(6px) scaleY(.4); } to { opacity: .22; transform: none; } }
+@keyframes k-fill { from { clip-path: inset(100% 0 0 0); } to { clip-path: inset(0 0 0 0); } }
+@keyframes k-pop { 50% { transform: scale(1.14); } }
+@keyframes k-nod { 0%, 100% { transform: none; } 30% { transform: translateY(-1.2px) rotate(-6deg); } 65% { transform: translateY(0) rotate(4deg); } }
+@keyframes k-heart { 0% { opacity: 0; transform: translateY(3px) scale(.3); } 25% { opacity: 1; transform: translateY(0) scale(1.1); } 70% { opacity: 1; transform: translateY(-2px) scale(1); } 100% { opacity: 0; transform: translateY(-5px) scale(.9); } }
+@keyframes k-blink { 0%, 34%, 67% { opacity: 1; } 17%, 50%, 84% { opacity: .15; } 100% { opacity: 1; } }
+
+/* "By channel": channels with orders light up in their brand colour, the same pop as picking one in a new order */
+.hbar .chan-logo.lit { background: var(--cc); color: #fff; animation: chan-lit 260ms var(--ease-out) backwards; }
+.hbar .chan-logo.lit img { filter: brightness(0) invert(1); animation: chan-pop var(--dur-base) var(--ease-out) backwards; }
+.hbar .chan-logo.lit:has(svg) { background: var(--primary); color: var(--on-primary); }
+.hbar:nth-child(2) .chan-logo.lit, .hbar:nth-child(2) .chan-logo.lit img { animation-delay: 80ms; }
+.hbar:nth-child(3) .chan-logo.lit, .hbar:nth-child(3) .chan-logo.lit img { animation-delay: 160ms; }
+.hbar:nth-child(4) .chan-logo.lit, .hbar:nth-child(4) .chan-logo.lit img { animation-delay: 240ms; }
+.hbar:nth-child(5) .chan-logo.lit, .hbar:nth-child(5) .chan-logo.lit img { animation-delay: 320ms; }
+@keyframes chan-lit { from { background: var(--sunk); } }
+:root[data-motion="reduced"] .hbar .chan-logo.lit, :root[data-motion="reduced"] .hbar .chan-logo.lit img { animation: none; }
