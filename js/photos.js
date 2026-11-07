@@ -10,9 +10,23 @@ async function photoUrl(path, bkt = bucket) {
   S.photoUrls[key] = { url: data.signedUrl, exp: Date.now() + 50 * 60e3 };
   return data.signedUrl;
 }
-const imgOf = (path, bkt, alt) => {
+function photoPreview(src, alt, expand) {
+  const image = el("img", { src, alt, loading: "lazy" });
+  if (!expand) return image;
+  return el("button", { class: "photo-preview", type: "button", "aria-label": t("expandPhoto"), onclick: () => {
+    const close = el("button", { class: "btn", type: "button", autofocus: true, onclick: () => viewer.close() }, t("close"));
+    const viewer = el("dialog", { class: "photo-viewer", "aria-label": alt,
+      onkeydown: (event) => { if (event.key === "Escape" || event.key === "Tab") event.stopPropagation(); },
+      onclick: (event) => { if (event.target === viewer) viewer.close(); },
+      onclose: () => viewer.remove()
+    }, el("div", {}, close, el("img", { src, alt })));
+    document.body.append(viewer);
+    viewer.showModal();
+  } }, image);
+}
+const imgOf = (path, bkt, alt, expand = false) => {
   const box = el("div", { class: "drop ro-photo" }, t("loadingPhoto"));
-  photoUrl(path, bkt).then((u) => box.replaceChildren(u ? el("img", { src: u, alt, loading: "lazy" }) : t("photoFail")));
+  photoUrl(path, bkt).then((u) => box.replaceChildren(u ? photoPreview(u, alt, expand) : t("photoFail")));
   return box;
 };
 // The bouquet once it exists, otherwise the reference photo, otherwise the emblem
@@ -65,7 +79,7 @@ function toJpeg(file) {
 // upload(dest) puts a new photo in storage and returns its path, null when it was removed, or undefined when
 // nothing changed. The previous file is only deleted by cleanup(), once the order row points at the new one,
 // so a failed save never leaves an order pointing at a deleted photo.
-function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = false }) {
+function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = false, expand = false }) {
   let blob = null, removed = false, preview = null, oldPath = null;
   const input = el("input", { type: "file", accept: "image/*,.heic,.heif", hidden: true });
   const box = el("div", { class: "drop" });
@@ -74,7 +88,7 @@ function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = f
     if (blob) preview = URL.createObjectURL(blob);
     const src = preview || (!removed && current ? await photoUrl(current, bkt) : null);
     fill(box, 
-      src ? el("img", { src, alt }) : el("div", {}, hint),
+      src ? photoPreview(src, alt, expand) : el("div", {}, hint),
       el("div", { class: "drop-acts" },
         el("button", { class: "btn", type: "button", onclick: () => input.click() }, src ? t("changePhoto") : t("uploadPhoto")),
         src ? el("button", { class: "btn", type: "button", onclick: () => { blob = null; removed = true; picker.dirty = true; draw(); } }, t("remove")) : null));

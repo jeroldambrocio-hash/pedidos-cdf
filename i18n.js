@@ -3,6 +3,7 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    expandPhoto: "Ampliar foto de referencia",
     loginIdentity: "Usuario o correo", username: "Usuario", usernameHint: "Opcional. De 3 a 30 letras sin acentos, números, puntos, guiones o guiones bajos.", usernameTaken: "Ese usuario ya está en uso. Elige otro.",
     statsTicket: "Ticket medio",
     statsAverage: "Media por día",
@@ -202,6 +203,7 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    expandPhoto: "Enlarge reference photo",
     loginIdentity: "Username or email", username: "Username", usernameHint: "Optional. 3–30 letters, numbers, dots, underscores or hyphens.", usernameTaken: "That username is already taken. Choose another.",
     statsTicket: "Average order value",
     statsAverage: "Average per day",

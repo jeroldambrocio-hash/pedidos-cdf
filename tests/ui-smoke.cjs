@@ -618,6 +618,24 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await n.locator(".chat-pane .cmsg").first().waitFor();
       assert.equal(await n.locator(".chat-pane .tool-e").count(), 0, "no reactions table: no reaction buttons");await n.close();
     });
+    await step("Reference photo opens with one tap and Escape leaves the order open", async () => {
+      const q = await open("admin", { width: 390 });
+      for (const show of ["openEditor", "openOrderView"]) {
+        await q.evaluate((show) => {
+          const order = { ...S.orders[0], photo_path: "reference.jpg" };
+          if (show === "openEditor") openEditor(order);
+          else openOrderView(order);
+        }, show);
+        await q.getByRole("button", { name: "Enlarge reference photo" }).click();
+        await q.getByRole("dialog", { name: "Reference photo" }).waitFor();
+        await q.keyboard.press("Escape");
+        await q.locator(".photo-viewer").waitFor({ state: "detached" });
+        assert(await q.locator("#sheetRoot .sheet").isVisible());
+        await q.keyboard.press("Escape");
+        await q.locator("#sheetRoot .sheet").waitFor({ state: "detached" });
+      }
+      await q.close();
+    });
     await step("Direct chat: a florist can open and reuse a private conversation with a driver", async () => {
       const q = await open("vendor");
       await q.locator("#tabChat").click();

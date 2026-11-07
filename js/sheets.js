@@ -345,7 +345,7 @@ function openOrderView(o) {
         o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "link-out" }, o.customer_phone))] : null,
         o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, o.card_message)] : null,
         el("dt", {}, t("note")), el("dd", {}, o.notes || t("noNotes")),
-        el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"))) : t("noPhoto")),
+        el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"), true)) : t("noPhoto")),
         o.bouquet_path ? [el("dt", {}, t("bouquetPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.bouquet_path, ENTREGAS, t("bouquetPhoto"))))] : null,
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
@@ -465,7 +465,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
   iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
   const iCarr = S.cap.carrier ? sel("f-carrier", [["", t("anyCarrier")], ...S.members.filter((m) => m.role === "carrier").map((m) => [m.email, m.name])], f.carrier_email) : null;
-  const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true });
+  const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true, expand: true });
   const bouquet = photoPicker({ current: o?.bouquet_path, hint: t("bouquetHint"), alt: t("bouquetPhoto"), onErr: setErr });
   const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr });
   const hist = isNew ? null : historyBlock(o);
