@@ -83,10 +83,15 @@ function query(table) {
       }
       if (action !== "read") {
         window.__calls.push({ table, action, row, ids: data.map((o) => o.id) });
-        if (action === "insert" && table === "cdf_messages") { const item = { ...row, id: "m" + Date.now(), created_at: new Date().toISOString() }; window.__messages.push(item); keepChat(); data = [item]; window.__chatReply && window.__chatReply(item); }
-        else if (action === "insert" && table === "cdf_direct_messages") { const item = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString() }; directMessages.push(item); data = [item]; }
+        if (action === "insert" && table === "cdf_messages") { const item = { ...row, id: "m" + Date.now(), created_at: new Date().toISOString(), edited_at: null }; window.__messages.push(item); keepChat(); data = [item]; window.__chatReply && window.__chatReply(item); }
+        else if (action === "insert" && table === "cdf_direct_messages") { const item = { ...row, id: crypto.randomUUID(), created_at: new Date().toISOString(), edited_at: null }; directMessages.push(item); data = [item]; }
         else if (action === "insert") { const item = table === "cdf_orders" ? { ...base, ...row, id: "99999999-9999-9999-9999-" + String(Date.now()).slice(-12), code: "newcode1234", updated_at: new Date().toISOString() } : { ...row, ok: true, created_at: new Date().toISOString() }; tables()[table].push(item); data = [item]; }
-        if (action === "update") data.forEach((o) => Object.assign(o, row, { updated_at: new Date().toISOString() }));
+        if (action === "update") {
+          const time = new Date().toISOString();
+          const chat = ["cdf_messages", "cdf_direct_messages"].includes(table);
+          data.forEach((o) => Object.assign(o, row, chat ? { edited_at: time } : { updated_at: time }));
+          if (table === "cdf_messages") keepChat();
+        }
         if (action === "insert" && table === "cdf_message_reactions") keepChat();
         if (action === "delete" && table === "cdf_message_reactions") { window.__reactions = window.__reactions.filter((o) => !data.includes(o)); keepChat(); }
         else if (action === "delete" && table === "cdf_push_subs") window.__pushSubs = window.__pushSubs.filter((o) => !data.includes(o));
@@ -115,7 +120,7 @@ window.supabase = { createClient: () => ({
   storage: { from: (b) => ({ createSignedUrl: async (p) => ({ data: { signedUrl: "/img/emblem.webp" } }),
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
-  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages")window.__realtimeMsg=cb;else if(config.table==="cdf_message_reactions")window.__realtimeReact=cb;else if(_a==="broadcast")window.__typingCb=cb;else if(config.table==="cdf_orders")window.__realtime=cb; return this; }, subscribe() { return this; }, send(m) { (window.__calls ||= []).push({ broadcast: m.event, payload: m.payload }); return Promise.resolve("ok"); } }), removeChannel() {},
+  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages"&&config.event==="INSERT")window.__realtimeMsg=cb;else if(config.table==="cdf_messages"&&config.event==="UPDATE")window.__realtimeEdit=cb;else if(config.table==="cdf_message_reactions")window.__realtimeReact=cb;else if(_a==="broadcast")window.__typingCb=cb;else if(config.table==="cdf_orders")window.__realtime=cb; return this; }, subscribe() { return this; }, send(m) { (window.__calls ||= []).push({ broadcast: m.event, payload: m.payload }); return Promise.resolve("ok"); } }), removeChannel() {},
   functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args }); return { data: { ok: true }, error: null }; } },
   rpc: (name, args) => {
     if (name === "cdf_open_direct") return { single: async () => {
@@ -626,7 +631,11 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
           if (show === "openEditor") openEditor(order);
           else openOrderView(order);
         }, show);
-        await q.getByRole("button", { name: "Enlarge reference photo" }).click();
+        const preview = q.getByRole("button", { name: "Enlarge reference photo" });
+        await preview.locator(".photo-preview-zoom").waitFor();
+        await q.locator("#chatSection").getByRole("heading", { name: "Internal conversation" }).waitFor();
+        assert.equal(await q.locator("#chatSection .chat-privacy").innerText(), "Only visible to team members who can access this order.");
+        await preview.click();
         await q.getByRole("dialog", { name: "Reference photo" }).waitFor();
         await q.keyboard.press("Escape");
         await q.locator(".photo-viewer").waitFor({ state: "detached" });
@@ -652,6 +661,34 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await picker.selectOption("driver@example.com");
       await bubble.waitFor();
       assert.equal(await q.locator(".thread b").getByText("Luis", { exact: true }).count(), 1);
+      await q.close();
+    });
+    await step("Edit only your own messages in team, order and direct chats", async () => {
+      const q = await open("admin");
+      await q.locator("#tabChat").click();
+      assert.equal(await q.locator(".cmsg:not(.mine) .tool-edit").count(), 0);
+      const compose = q.locator(".chat-pane .chat-input");
+      for (const title of ["#team", "#0126 · Maria Santos", "Luis"]) {
+        if (title === "Luis") await q.getByRole("combobox", { name: "New private message" }).selectOption("driver@example.com");
+        else await q.locator(".thread b").getByText(title, { exact: true }).click();
+        await compose.fill("Original message");
+        await q.locator(".chat-pane .chat-send").click();
+        const message = q.locator(".chat-pane .cmsg.mine").last();
+        await message.hover();
+        await message.getByRole("button", { name: "Edit message" }).click();
+        const editor = message.getByRole("textbox", { name: "Edit message" });
+        assert.equal(await editor.inputValue(), "Original message");
+        await editor.fill("Corrected message");
+        await message.getByRole("button", { name: "Save", exact: true }).click();
+        await message.getByText("Corrected message").waitFor();
+        await message.getByText("Edited", { exact: true }).waitFor();
+        await message.hover();
+        await message.getByRole("button", { name: "Edit message" }).click();
+        await editor.fill("Unsaved");
+        await editor.press("Escape");
+        await message.getByText("Corrected message").waitFor();
+        assert.equal(await editor.count(), 0);
+      }
       await q.close();
     });
     await step("Installable app: manifest and icons, service worker, install entry, notifications row, notification links", async () => {

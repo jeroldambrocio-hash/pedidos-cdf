@@ -4,6 +4,8 @@
 const I18N = {
   es: {
     expandPhoto: "Ampliar foto de referencia",
+    chatOrderTitle: "Conversación interna", chatOrderPrivacy: "Solo visible para el equipo con acceso a este pedido.",
+    chatEdit: "Editar mensaje", chatEdited: "Editado", chatEditFail: "No se pudo guardar el cambio. Si editaste el mensaje en otro dispositivo, vuelve a abrirlo.",
     loginIdentity: "Usuario o correo", username: "Usuario", usernameHint: "Opcional. De 3 a 30 letras sin acentos, números, puntos, guiones o guiones bajos.", usernameTaken: "Ese usuario ya está en uso. Elige otro.",
     statsTicket: "Ticket medio",
     statsAverage: "Media por día",
@@ -204,6 +206,8 @@ const I18N = {
   },
   en: {
     expandPhoto: "Enlarge reference photo",
+    chatOrderTitle: "Internal conversation", chatOrderPrivacy: "Only visible to team members who can access this order.",
+    chatEdit: "Edit message", chatEdited: "Edited", chatEditFail: "Couldn't save the change. If you edited the message on another device, reopen it.",
     loginIdentity: "Username or email", username: "Username", usernameHint: "Optional. 3–30 letters, numbers, dots, underscores or hyphens.", usernameTaken: "That username is already taken. Choose another.",
     statsTicket: "Average order value",
     statsAverage: "Average per day",

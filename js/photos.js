@@ -22,7 +22,7 @@ function photoPreview(src, alt, expand) {
     }, el("div", {}, close, el("img", { src, alt })));
     document.body.append(viewer);
     viewer.showModal();
-  } }, image);
+  } }, image, el("span", { class: "photo-preview-zoom", "aria-hidden": "true" }, icon("search")));
 }
 const imgOf = (path, bkt, alt, expand = false) => {
   const box = el("div", { class: "drop ro-photo" }, t("loadingPhoto"));

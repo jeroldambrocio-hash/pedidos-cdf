@@ -36,6 +36,7 @@ function chatSubscribe() {
   if (CH.channel) sb.removeChannel(CH.channel);
   let ch = sb.channel("cdf-chat")
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_messages" }, (p) => addMessage(p.new, true))
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "cdf_messages" }, (p) => updateMessage(p.new))
     .on("broadcast", { event: "typing" }, (p) => onTyping(p.payload || p));
   if (CH.reactOn) ch = ch.on("postgres_changes", { event: "*", schema: "public", table: "cdf_message_reactions" }, onReactChange);
   if (CH.directOn) ch = ch
@@ -43,7 +44,8 @@ function chatSubscribe() {
       CH.directs.set(p.new.id, p.new);
       if (S.tab === "chat") renderChatList();
     })
-    .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_direct_messages" }, (p) => receiveDirect(p.new));
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_direct_messages" }, (p) => receiveDirect(p.new))
+    .on("postgres_changes", { event: "UPDATE", schema: "public", table: "cdf_direct_messages" }, (p) => updateMessage(p.new));
   CH.channel = ch.subscribe();
 }
 function stopChat() {
@@ -94,6 +96,23 @@ async function sendMessage(thread, body) {
   CH.reads.set(thread, data.created_at);
   sb.from("cdf_message_reads").upsert({ member_email: S.me.email, thread, last_read_at: data.created_at }, { onConflict: "member_email,thread" }).then(() => {});
   paintChatCounts();
+}
+function updateMessage(message) {
+  const i = CH.msgs.findIndex((m) => m.id === message.id && threadOf(m) === threadOf(message));
+  if (i < 0 || !message.edited_at || (CH.msgs[i].edited_at || "") >= message.edited_at) return;
+  CH.msgs[i] = message;
+  for (const view of CH.views) {
+    if (view.node.isConnected && view.thread === threadOf(message)) view.edit(message);
+  }
+  if (S.tab === "chat") renderChatList();
+}
+async function saveMessageEdit(message, body) {
+  const table = message.direct_id ? "cdf_direct_messages" : "cdf_messages";
+  const request = sb.from(table).update({ body }).eq("id", message.id);
+  const unchanged = message.edited_at ? request.eq("edited_at", message.edited_at) : request.is("edited_at", null);
+  const { data, error } = await unchanged.select().maybeSingle();
+  if (error || !data) throw new Error(t("chatEditFail"));
+  return data;
 }
 
 // ---------- "is typing…" (a broadcast, nothing is stored) ----------
@@ -248,7 +267,7 @@ function threadView(thread, { autofocus = false } = {}) {
   const pop = el("div", { class: "mention-pop", role: "listbox", hidden: true });
   const err = el("div", { class: "err", role: "alert" });
   const node = el("div", { class: "chat", "data-thread": thread }, el("div", { class: "chat-scroll" }, log, jump), typing, el("div", { class: "chat-compose" }, pop, emojiBtn, input, send), err);
-  const view = { thread, node, refresh: null, typing: null };
+  const view = { thread, node, refresh: null, typing: null, edit: null };
   let shown = 0, picks = [], pickAt = 0, newMark = false;
 
   const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
@@ -261,15 +280,19 @@ function threadView(thread, { autofocus = false } = {}) {
     const joined = prev && prev.author_email === m.author_email && manilaDay(prev.created_at) === day && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60000;
     const big = onlyEmoji(m.body);
     const canReact = CH.reactOn && !m.direct_id;
+    const canEdit = mine && Object.hasOwn(m, "edited_at");
     const tools = el("div", { class: "msg-tools", role: "toolbar", "aria-label": t("chatReact") },
       canReact ? QUICK.map((e) => el("button", { type: "button", class: "tool-e", "aria-label": t("chatReact") + " " + e, onclick: () => { toggleReact(m, e); r.classList.remove("tools-on"); } }, e)) : null,
       canReact ? el("button", { type: "button", class: "tool-more", "aria-label": t("chatMoreReact"), title: t("chatMoreReact"), onclick: (ev) => openEmoji(ev.currentTarget, (e) => toggleReact(m, e)) }, "＋") : null,
+      canEdit ? el("button", { type: "button", class: "tool-edit", "aria-label": t("chatEdit"), title: t("chatEdit"), onclick: () => editRow(r, m) }, icon("edit")) : null,
       el("button", { type: "button", class: "tool-copy", "aria-label": t("chatCopy"), title: t("chatCopy"), onclick: () => navigator.clipboard?.writeText(m.body).then(() => toast(t("chatCopied")), () => {}) }, icon("copy")));
     const r = el("div", { class: "cmsg" + (joined ? " joined" : "") + (mine ? " mine" : "") + (!mine && mentionsMe(m.body) ? " for-me" : "") + (big ? " jumbo" : ""), "data-id": m.id },
       mine ? null : joined ? el("span", { class: "msg-gap" }) : avatarNode(p, "avatar msg-pic"),
       el("div", { class: "msg-main" },
         !mine && !joined ? el("div", { class: "msg-head" }, el("b", {}, p.name)) : null,
-        el("div", { class: "msg-bubble" }, el("p", { class: "msg-body" }, messageText(m.body)), el("time", { class: "msg-time", datetime: m.created_at, title: longDate(manilaDay(m.created_at)) + " · " + clock(m.created_at) }, clock(m.created_at))),
+        el("div", { class: "msg-bubble" }, el("p", { class: "msg-body" }, messageText(m.body)),
+          m.edited_at ? el("small", { class: "msg-time" }, t("chatEdited")) : null,
+          el("time", { class: "msg-time", datetime: m.created_at, title: longDate(manilaDay(m.created_at)) + " · " + clock(m.created_at) }, clock(m.created_at))),
         reactsNode(m)),
       tools);
     // Phones: hold a message to react or copy
@@ -277,6 +300,44 @@ function threadView(thread, { autofocus = false } = {}) {
     r.addEventListener("touchstart", () => { hold = setTimeout(() => { document.querySelectorAll(".cmsg.tools-on").forEach((x) => x.classList.remove("tools-on")); r.classList.add("tools-on"); navigator.vibrate?.(10); }, 450); }, { passive: true });
     for (const ev of ["touchend", "touchmove", "touchcancel"]) r.addEventListener(ev, () => clearTimeout(hold), { passive: true });
     return r;
+  }
+  function editRow(messageRow, message) {
+    if (messageRow.querySelector(".msg-edit")) return;
+    const field = el("textarea", { class: "input", rows: 3, maxlength: 4000, required: true, "aria-label": t("chatEdit") });
+    field.value = message.body;
+    const error = el("div", { class: "err", role: "alert" });
+    const save = el("button", { class: "btn primary", type: "submit", disabled: true }, t("save"));
+    const cancel = el("button", { class: "btn", type: "button", onclick: () => finish() }, t("cancel"));
+    const form = el("form", { class: "msg-edit", onsubmit: async (event) => {
+      event.preventDefault();
+      if (save.disabled) return;
+      const body = field.value.trim();
+      save.disabled = cancel.disabled = field.disabled = true;
+      error.textContent = "";
+      try {
+        updateMessage(await saveMessageEdit(message, body));
+        finish();
+      } catch {
+        save.disabled = cancel.disabled = field.disabled = false;
+        error.textContent = t("chatEditFail");
+        field.focus();
+      }
+    } }, field, error, el("div", {}, cancel, save));
+    function finish() {
+      form.remove();
+      const current = CH.msgs.find((m) => m.id === message.id && threadOf(m) === thread);
+      if (current) view.edit(current)?.querySelector(".tool-edit")?.focus({ preventScroll: true });
+    }
+    field.oninput = () => { save.disabled = !field.value.trim() || field.value.trim() === message.body; };
+    form.onkeydown = (event) => {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      if (!cancel.disabled) finish();
+    };
+    messageRow.querySelector(".msg-bubble").hidden = true;
+    messageRow.querySelector(".msg-main").prepend(form);
+    field.focus();
   }
   function paint(animate) {
     const msgs = CH.msgs.filter((m) => threadOf(m) === thread);
@@ -302,6 +363,14 @@ function threadView(thread, { autofocus = false } = {}) {
     else jump.hidden = false;
   }
   view.refresh = () => paint(true);
+  view.edit = (message) => {
+    const existing = log.querySelector(`.cmsg[data-id="${CSS.escape(message.id)}"]`);
+    if (!existing || existing.querySelector(".msg-edit")) return;
+    const msgs = CH.msgs.filter((m) => threadOf(m) === thread);
+    const updated = row(message, msgs[msgs.indexOf(message) - 1]);
+    existing.replaceWith(updated);
+    return updated;
+  };
   view.typing = () => { const s = typingText(thread); typing.classList.toggle("on", !!s); if (s) typing.replaceChildren(el("span", { class: "dots", "aria-hidden": "true" }, el("i"), el("i"), el("i")), el("span", {}, s)); };
 
   // Autocomplete: after "@" the team, after "#" the orders (by number or by the recipient's name)
@@ -369,7 +438,10 @@ function refreshViews(thread) {
 document.addEventListener("pointerdown", (e) => { if (!e.target.closest?.(".cmsg.tools-on")) document.querySelectorAll(".cmsg.tools-on").forEach((x) => x.classList.remove("tools-on")); });
 
 // The conversation section inside an order sheet
-const chatSection = (o) => (CH.on && o?.id ? el("section", { class: "chat-sec", id: "chatSection" }, el("h3", {}, icon("message"), t("chatTitle")), threadView(o.id)) : null);
+const chatSection = (o) => (CH.on && o?.id ? el("section", { class: "chat-sec", id: "chatSection" },
+  el("h3", {}, icon("message"), t("chatOrderTitle")),
+  el("p", { class: "chat-privacy" }, t("chatOrderPrivacy")),
+  threadView(o.id)) : null);
 // The 💬 chip on order cards: how many messages, and the unread ones highlighted
 function chatChip(o) {
   if (!CH.on) return null;

@@ -9,7 +9,7 @@ const ICONS = {
   truck: '<path d="M2 5h12v13H2V5Zm12 4h4l4 5v4h-8"/><circle cx="6" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
   user: '<circle cx="12" cy="7" r="4"/><path d="M4 22v-3a8 8 0 0 1 16 0v3"/>',
   box: '<path d="m12 2 9 5v10l-9 5-9-5V7l9-5Zm0 10v10M3 7l9 5 9-5"/>',
-  check: '<circle cx="12" cy="12" r="9"/><path d="m7 12 3 3 7-7"/>',
+  check: '<circle cx="12" cy="12" r="9"/><path d="m7 12.5 3 3 7-7"/>',
   tick: '<path d="m5 12.5 4.5 4.5L19 7.5"/>',
   alert: '<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"/>',
   note: '<path d="M5 3h14v18H5V3Zm3 5h8m-8 4h8m-8 4h5"/>',
