@@ -1558,3 +1558,26 @@ button.brand-home { margin: 0; font: inherit; }
 option.is-away { color: var(--prep); }
 .dialog .grp, .sheet .grp { margin: 8px 0 0; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
 .dialog .sheet-body { max-height: min(78vh, 720px); overflow: auto; }
+
+/* Account menu icons: a small personality on hover / keyboard focus.
+   Preferences: the slider knobs turn blue and glide. My account: the person turns green.
+   Send a suggestion: the sparkle glows yellow. "Reduced" keeps the colours, drops the movement. */
+.menu { --menu-bg: var(--surface); --ic-blue: #2F6FD6; --ic-green: #2E7D57; --ic-yellow: #B7860B; }
+:root[data-theme="dark"] .menu { --menu-bg: var(--bg-menu); --ic-blue: #6AA6FF; --ic-green: #5CC489; --ic-yellow: #F5C542; }
+@media (prefers-color-scheme: dark) { :root:not([data-theme]) .menu { --menu-bg: var(--bg-menu); --ic-blue: #6AA6FF; --ic-green: #5CC489; --ic-yellow: #F5C542; } }
+.mitem svg.i { transition: color 200ms var(--ease-out), filter 250ms var(--ease-out); }
+.ic-prefs .knob { fill: var(--menu-bg); transform-box: fill-box; transform-origin: center; transition: fill 200ms var(--ease-out), stroke 200ms var(--ease-out); }
+.ic-account .head { transform-box: fill-box; transform-origin: center; transition: transform 220ms var(--ease-out); }
+.ic-spark path:first-child { transform-box: fill-box; transform-origin: center; transition: transform 250ms var(--ease-out); }
+.mitem:is(:hover, :active) .ic-prefs .knob { stroke: var(--ic-blue); fill: color-mix(in srgb, var(--ic-blue) 35%, var(--surface-hover)); }
+.mitem:is(:hover, :active) .ic-prefs .knob.a { animation: knobA 1.1s ease-in-out infinite alternate; }
+.mitem:is(:hover, :active) .ic-prefs .knob.b { animation: knobB 1.1s ease-in-out infinite alternate; }
+@keyframes knobA { from { transform: translateX(0); } to { transform: translateX(-8px); } }
+@keyframes knobB { from { transform: translateX(0); } to { transform: translateX(8px); } }
+.mitem:is(:hover, :active) svg.ic-account { color: var(--ic-green); }
+.mitem:is(:hover, :active) .ic-account .head { transform: translateY(-1px) scale(1.06); }
+.mitem:is(:hover, :active) svg.ic-spark { color: var(--ic-yellow); animation: sparkGlow 1.4s ease-in-out infinite alternate; }
+.mitem:is(:hover, :active) .ic-spark path:first-child { transform: scale(1.08) rotate(8deg); }
+@keyframes sparkGlow { from { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--ic-yellow) 50%, transparent)); } to { filter: drop-shadow(0 0 5px var(--ic-yellow)); } }
+:root[data-motion="reduced"] .mitem .ic-prefs .knob, :root[data-motion="reduced"] .mitem svg.ic-spark { animation: none !important; }
+:root[data-motion="reduced"] .mitem .ic-account .head, :root[data-motion="reduced"] .mitem .ic-spark path:first-child { transform: none !important; }
