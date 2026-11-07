@@ -1679,3 +1679,13 @@ select option { background: var(--surface); color: var(--fg); }
   select option:disabled { color: var(--faint); }
   :root[data-motion="reduced"] ::picker(select) { transition: none; transform: none; }
 }
+
+/* HI—Q Studio credit beneath the account control. */
+.studio-footer { margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--line-soft); }
+.rail .studio-link { gap: 8px; min-height: 44px; padding-inline: 8px; }
+.studio-logo { flex: 0 0 23px; display: block; overflow: hidden; }
+.studio-logo img { display: block; width: 78px; max-width: none; margin-left: -5px; }
+.studio-handle { font-size: .75rem; }
+.rail:is([data-expanded="true"], .drawer-open) .studio-logo { flex-basis: 57px; }
+.rail:is([data-expanded="true"], .drawer-open) .studio-logo img { width: 57px; margin-left: 0; }
+:root[data-theme="light"] .studio-logo img { filter: invert(1) grayscale(1); }
