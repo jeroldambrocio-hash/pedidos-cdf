@@ -64,6 +64,7 @@ function stop() {
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
   renderSub();
   closeSheet(true); setConnection(null); show("login");
+  if (linkError) { $("lErr").textContent = t(linkError === "otp_expired" ? "linkExpired" : "linkFailed"); linkError = null; try { history.replaceState(null, "", location.pathname); } catch {} }
 }
 
 async function start(user) {

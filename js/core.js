@@ -2,6 +2,8 @@
 const { url, anonKey, bucket } = window.CDF_CONFIG;
 // Read before the client consumes the URL: a "reset password" email link lands here with type=recovery.
 let recovering = /[#&?]type=recovery\b/.test(location.hash + location.search);
+// An email link used twice or too late comes back as #error_code=otp_expired: say so on the sign-in screen
+let linkError = (/[#&?]error_code=([\w-]+)/.exec(location.hash + location.search) || [])[1] || null;
 const sb = supabase.createClient(url, anonKey, {global:{fetch:async (...args)=>{
  beginRequest();try{return await fetch(...args)}finally{endRequest()}
 }}});
