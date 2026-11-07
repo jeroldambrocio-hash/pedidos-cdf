@@ -74,6 +74,8 @@ function query(table) {
       if (table === "cdf_messages" && (window.__role === "vendor" || window.__role === "carrier")) { const seen = new Set(window.__orders.filter((o) => window.__role === "vendor" ? o.vendor_email === "ana@example.com" : o.status === "Ready" && o.delivery !== "Delivered").map((o) => o.id)); data = data.filter((m) => !m.order_id || seen.has(m.order_id)); }
       if (table === "cdf_message_reactions" && (window.__role === "vendor" || window.__role === "carrier")) { const ok = new Set(tables().cdf_messages.filter((m) => !m.order_id || window.__orders.some((o) => o.id === m.order_id && (window.__role === "vendor" ? o.vendor_email === "ana@example.com" : o.status === "Ready" && o.delivery !== "Delivered"))).map((m) => m.id)); data = data.filter((r) => ok.has(r.message_id)); }
       if ((window.__noChat && /^cdf_message/.test(table)) || (window.__noReactions && table === "cdf_message_reactions")) return Promise.resolve({ data: null, error: { code: "42P01", message: "relation does not exist" } }).then(resolve, reject);
+      // A03: lets a test land another admin's save between this client's read and its write
+      if (action === "update" && table === "cdf_orders" && window.__race) { const r = window.__race; window.__race = null; r(); }
       data = data.filter((o) => filters.every((f) => f(o)));
       if (action === "upsert" && table === "cdf_push_subs") { const r = window.__pushSubs.find((x) => x.endpoint === row.endpoint); if (r) Object.assign(r, row); else window.__pushSubs.push({ ...row }); data = [row]; }
       if (action === "upsert" && table === "cdf_message_reads") { const r = window.__reads.find((x) => x.member_email === row.member_email && x.thread === row.thread); if (r) Object.assign(r, row); else window.__reads.push({ ...row }); keepChat(); data = [row]; }
@@ -406,6 +408,18 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
     });
+    await step("A03 · Another admin saving between the check and the write is caught, not overwritten", async () => {
+      await p.locator(".order", { hasText: "#0127" }).locator(".o-name").click();
+      await p.locator("#f-addr").fill("Mine again");
+      // The other save lands after this client's conflict check, right before its write
+      await p.evaluate(() => { window.__race = () => { const o = window.__orders.find((x) => x.num === "0127"); o.address = "Theirs, at the same moment"; o.updated_at = "2032-01-01T00:00:00Z"; }; });
+      await p.locator(".sheet button[type=submit]").click();
+      await p.locator(".dialog", { hasText: "Someone else changed" }).waitFor();
+      assert.equal(await p.evaluate(() => window.__orders.find((x) => x.num === "0127").address), "Theirs, at the same moment");
+      await p.locator(".dialog").getByRole("button", { name: "Save mine" }).click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      assert.equal(await p.evaluate(() => window.__orders.find((x) => x.num === "0127").address), "Mine again");
+    });
     await step("B5 · Replacing a photo deletes the old file only after the order points at the new one", async () => {
       await p.evaluate(() => (window.__calls = []));
       await p.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
@@ -449,10 +463,15 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.waitForTimeout(600);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.archived_at));
     });
-    await step("CSV export downloads a file", async () => {
+    await step("CSV export downloads a file; formulas and line breaks are neutralised (A12)", async () => {
+      await p.evaluate(() => Object.assign(window.__orders.find((x) => x.num === "0124"), { notes: "\t=1+1", card_message: "X\rY", address: " @SUM(A1)" }));
       await p.locator("#adminTools").getByRole("button", { name: "Export CSV" }).click();
       const [dl] = await Promise.all([p.waitForEvent("download"), p.locator(".sheet").getByRole("button", { name: "Download" }).click()]);
       assert(dl.suggestedFilename().endsWith(".csv"));
+      const csv = fs.readFileSync(await dl.path(), "utf8");
+      assert(csv.includes("'\t=1+1"), "tab-prefixed formula gets an apostrophe");
+      assert(csv.includes('"X\rY"'), "a lone CR is quoted");
+      assert(csv.includes("' @SUM(A1)"), "space-prefixed formula gets an apostrophe");
     });
     await step("Change history and notices in the order sheet", async () => {
       await p.locator(".order", { hasText: "#0126" }).locator(".o-name").click();

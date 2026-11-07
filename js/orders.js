@@ -356,7 +356,9 @@ function downloadCsv(rows, name) {
     [(o) => memberName(o.vendor_email || ""), "vendor"], ["buyer_name", "buyerName"], ["buyer_phone", "buyerPhone"], ["customer_email", "email"],
     ["customer_name", "customerName"], ["customer_phone", "phone"], ["address", "deliveryAddr"], ["card_message", "cardMsg"], ["notes", "note"],
     ["attempts", "attempts"], ...(pricesOn() ? [["amount", "amount"]] : []), [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];
-  const cell = (v) => { const raw = String(v ?? ""); const s = /^[=+@-]/.test(raw) ? "\'" + raw : raw; return /[",\n;]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
+  // A cell a spreadsheet could read as a formula (also behind leading tabs, spaces or other control
+  // characters) gets an apostrophe; any comma, quote, semicolon or line break (CR or LF) is quoted.
+  const cell = (v) => { const raw = String(v ?? ""); const s = /^[\s\x00-\x1f]*[=+@-]|^[\t\r]/.test(raw) ? "\'" + raw : raw; return /[",;\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };
   const lines = [cols.map(([, h]) => cell(t(h))).join(","), ...rows.map((o) => cols.map(([c]) => cell(typeof c === "function" ? c(o) : o[c])).join(","))];
   const blob = new Blob(["﻿" + lines.join("\r\n")], { type: "text/csv;charset=utf-8" });
   const a = el("a", { href: URL.createObjectURL(blob), download: name });

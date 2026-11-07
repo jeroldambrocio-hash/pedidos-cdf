@@ -574,14 +574,26 @@ function openEditor(o, { copyFrom, draft } = {}) {
     else {
       // Only what this person changed, so a status set meanwhile by the florist or driver is never undone.
       const changed = Object.fromEntries(Object.entries(dbRow).filter(([k, v]) => JSON.stringify(v ?? "") !== JSON.stringify(initial[k] ?? "")));
-      const { data: server } = await sb.from("cdf_orders").select("*").eq("id", o.id).maybeSingle();
-      if (!server) return t("goneMeanwhile");
-      if (server.updated_at !== o.updated_at) {
-        const clash = Object.keys(changed).filter((k) => JSON.stringify(server[k] ?? "") !== JSON.stringify(o[k] ?? ""));
-        if (clash.length && !(await askConfirm(t("conflictAsk"), t("conflictKeepMine"), { detail: clash.map((k) => t(EV_FIELDS[k] || k)).join(", ") }))) return;
-      }
       if (!Object.keys(changed).length && !shot.dirty && !bouquet.dirty && !proof.dirty && (!pricesOn() || row.amount === initial.amount)) { await closeSheet(true); return; }
-      ({ data: saved, error } = Object.keys(changed).length ? await sb.from("cdf_orders").update(changed).eq("id", o.id).select().single() : { data: server, error: null });
+      // The write only lands on the version this person was shown (updated_at), so two admins saving
+      // at the same moment can't silently overwrite each other: if the row moved in between, it is
+      // read again and anything that now clashes with these edits is asked about once more.
+      let seen = o;
+      for (let tries = 0; ; tries++) {
+        const { data: server, error: readErr } = await sb.from("cdf_orders").select("*").eq("id", o.id).maybeSingle();
+        if (readErr) return t("saveFail", { msg: readErr.message });
+        if (!server) return t("goneMeanwhile");
+        if (server.updated_at !== seen.updated_at) {
+          const clash = Object.keys(changed).filter((k) => JSON.stringify(server[k] ?? "") !== JSON.stringify(seen[k] ?? ""));
+          if (clash.length && !(await askConfirm(t("conflictAsk"), t("conflictKeepMine"), { detail: clash.map((k) => t(EV_FIELDS[k] || k)).join(", ") }))) return;
+          seen = server;
+        }
+        if (!Object.keys(changed).length) { saved = server; break; }
+        const r = await sb.from("cdf_orders").update(changed).eq("id", o.id).eq("updated_at", server.updated_at).select();
+        if (r.error) { error = r.error; break; }
+        if (r.data?.length) { saved = r.data[0]; break; }
+        if (tries >= 4) return t("busyRetry");
+      }
     }
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
