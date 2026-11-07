@@ -563,11 +563,13 @@ function renderChatList() {
     const peer = directPeer(th);
     const o = team ? null : byId(th) || CH.info.get(th);
     const k = o ? STEPS[stepOf(o)]?.k : null;
+    const hasChannel = CHANNELS.includes(o?.channel);
+    const deliveredPackage = k === "done" && !hasChannel;
     const who = m ? (m.author_email === S.me.email ? t("chatYou") : handleOf(p)) + ": " : "";
     return el("button", { type: "button", class: "thread" + (CH.open === th ? " on" : "") + (u ? " unread" : ""), "aria-current": CH.open === th ? "true" : "false", onclick: () => openThread(th) },
-      el("span", { class: "thread-ic" + (team ? " team" : "") },
-        team ? "#" : peer ? icon("message") : o?.channel && CHANNELS.includes(o.channel) ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon("orders"),
-        k ? el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)", title: stepName(stepOf(o)) }) : null),
+      el("span", { class: "thread-ic" + (team ? " team" : ""), ...(deliveredPackage ? { title: t("st_done"), role: "img", "aria-label": t("st_done") } : {}) },
+        team ? "#" : peer ? icon("message") : hasChannel ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon(deliveredPackage ? "deliveredPackage" : "orders"),
+        k && !deliveredPackage ? el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)", title: stepName(stepOf(o)) }) : null),
       el("span", { class: "thread-main" },
         el("span", { class: "thread-top" }, el("b", {}, threadTitle(th)), m ? el("time", {}, manilaDay(m.created_at) === S.today ? clock(m.created_at) : shortDate(manilaDay(m.created_at))) : null),
         el("small", {}, typingText(th) ? el("em", { class: "thread-typing" }, typingText(th)) : m ? who + m.body : t(peer ? "chatDirect" : "chatTeamDesc"))),

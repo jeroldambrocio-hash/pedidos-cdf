@@ -1759,6 +1759,7 @@ select option { background: var(--surface); color: var(--fg); }
 .thread.on { background: color-mix(in srgb, var(--fg) 8%, transparent); }
 .thread-ic { display: grid; place-items: center; width: 32px; height: 32px; flex: none; border-radius: 8px; background: var(--sunk); color: var(--muted); font-weight: 700; }
 .thread-ic.team { background: color-mix(in srgb, var(--transit-solid) 22%, var(--sunk)); color: var(--fg); }
+.thread-ic .package-check { stroke: var(--step-done); }
 .thread-ic .chan-logo { width: 32px; height: 32px; background: var(--cc); }
 .thread-ic .chan-logo img { width: 15px; height: 15px; filter: brightness(0) invert(1); }
 .thread-main { display: grid; gap: 1px; min-width: 0; flex: 1; }
