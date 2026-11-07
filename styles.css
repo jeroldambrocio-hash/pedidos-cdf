@@ -1627,16 +1627,6 @@ option.is-away { color: var(--prep); }
 @keyframes k-heart { 0% { opacity: 0; transform: translateY(3px) scale(.3); } 25% { opacity: 1; transform: translateY(0) scale(1.1); } 70% { opacity: 1; transform: translateY(-2px) scale(1); } 100% { opacity: 0; transform: translateY(-5px) scale(.9); } }
 @keyframes k-blink { 0%, 34%, 67% { opacity: 1; } 17%, 50%, 84% { opacity: .15; } 100% { opacity: 1; } }
 
-/* "By channel": channels with orders light up in their brand colour, the same pop as picking one in a new order */
-.hbar .chan-logo.lit { background: var(--cc); color: #fff; animation: chan-lit 260ms var(--ease-out) backwards; }
-.hbar .chan-logo.lit img { filter: brightness(0) invert(1); animation: chan-pop var(--dur-base) var(--ease-out) backwards; }
-.hbar .chan-logo.lit:has(svg) { background: var(--primary); color: var(--on-primary); }
-.hbar:nth-child(2) .chan-logo.lit, .hbar:nth-child(2) .chan-logo.lit img { animation-delay: 80ms; }
-.hbar:nth-child(3) .chan-logo.lit, .hbar:nth-child(3) .chan-logo.lit img { animation-delay: 160ms; }
-.hbar:nth-child(4) .chan-logo.lit, .hbar:nth-child(4) .chan-logo.lit img { animation-delay: 240ms; }
-.hbar:nth-child(5) .chan-logo.lit, .hbar:nth-child(5) .chan-logo.lit img { animation-delay: 320ms; }
-@keyframes chan-lit { from { background: var(--sunk); } }
-:root[data-motion="reduced"] .hbar .chan-logo.lit, :root[data-motion="reduced"] .hbar .chan-logo.lit img { animation: none; }
 
 /* Step buttons: on hover they take the colour of the state they lead to,
    the same as its badge (Marcar listo → Listo, Salir a repartir → En reparto, Entregado → Entregado). */
@@ -1651,3 +1641,13 @@ option.is-away { color: var(--prep); }
 .btn.to-fail:is(:hover, :active):not(:disabled) { background: var(--fail-solid); border-color: var(--fail-solid); color: var(--fail-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fail-solid) 25%, transparent); }
 .btn.to-fail:hover:not(:disabled) svg.i { animation: nudge 220ms var(--ease-std); }
 :root[data-motion="reduced"] .btn.to-fail svg.i { animation: none; }
+
+/* "By channel": logos rest in grey like the new-order channel picker; hovering a row (or focusing it)
+   gives its logo the picker's chosen look: brand colour, white mark, soft ring and the same pop. */
+.hbar .chan-logo { box-shadow: inset 0 0 0 1px var(--line); transition: background-color var(--dur-fast), box-shadow var(--dur-fast); }
+.hbar .chan-logo img { transition: filter var(--dur-fast); }
+.hbar:is(:hover, :focus-visible) .chan-logo { background: var(--cc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc) 30%, transparent); }
+.hbar:is(:hover, :focus-visible) .chan-logo img { filter: brightness(0) invert(1); animation: chan-pop var(--dur-base) var(--ease-out); }
+.hbar:is(:hover, :focus-visible) .chan-logo:has(svg) { background: var(--primary); color: var(--on-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
+.hbar:is(:hover, :focus-visible) .chan-logo:has(svg) svg { animation: chan-pop var(--dur-base) var(--ease-out); }
+:root[data-motion="reduced"] .hbar .chan-logo :is(img, svg) { animation: none !important; }

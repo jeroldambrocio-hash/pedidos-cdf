@@ -52,7 +52,7 @@ async function renderStats(){
  const channels=[...CHANNELS,...(rows.some(o=>!o.channel)?[t("noChannel")]:[])].map(ch=>{const os=rows.filter(o=>(o.channel||t("noChannel"))===ch);return{ch,os,value:metric(os)}}).sort((a,b)=>b.value-a.value);
  const bars=(entries,format=String,logos=false)=>{
   const max=Math.max(1,...entries.map(e=>e.value));
-  return entries.length?el("div",{class:"hbars"},entries.map(e=>el("div",{class:"hbar",tabindex:"0",title:e.name+": "+format(e.value),"aria-label":e.name+": "+format(e.value)},el("span",{class:"hbar-label"},logos&&CHANNELS.includes(e.name)?el("span",{class:"chan-logo sm"+(e.value?" lit":""),style:"--cc:"+chanColor(e.name)},chanMark(e.name)):null,e.name),el("span",{class:"hbar-track"},el("span",{class:"hbar-fill",style:`--w:${100*e.value/max}%`})),el("span",{class:"hbar-val"},el("b",{},format(e.value)),e.detail?el("small",{},e.detail):null)))):el("p",{class:"hint"},t("noData"));
+  return entries.length?el("div",{class:"hbars"},entries.map(e=>el("div",{class:"hbar",tabindex:"0",title:e.name+": "+format(e.value),"aria-label":e.name+": "+format(e.value)},el("span",{class:"hbar-label"},logos&&CHANNELS.includes(e.name)?el("span",{class:"chan-logo sm",style:"--cc:"+chanColor(e.name)},chanMark(e.name)):null,e.name),el("span",{class:"hbar-track"},el("span",{class:"hbar-fill",style:`--w:${100*e.value/max}%`})),el("span",{class:"hbar-val"},el("b",{},format(e.value)),e.detail?el("small",{},e.detail):null)))):el("p",{class:"hint"},t("noData"));
  };
  // Long ranges are grouped so the chart keeps readable columns: days → weeks → 30-day blocks.
  const step=days<=45?1:days<=400?7:30,buckets=[];

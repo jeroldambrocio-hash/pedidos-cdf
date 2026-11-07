@@ -486,6 +486,14 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       }
       await q.close();
     });
+    await step("By channel: logos rest grey and take the picker's chosen look on hover", async () => {
+      const q = await open("admin");await q.locator("#tabStats").click();await q.locator(".hbar .chan-logo").first().waitFor();
+      const row=q.locator(".hbar",{hasText:"Shopify"}).first(),logo=row.locator(".chan-logo");
+      assert.notEqual(await logo.evaluate(n=>getComputedStyle(n).backgroundColor),"rgb(35, 141, 97)");
+      await row.hover();await q.waitForTimeout(260);
+      assert.equal(await logo.evaluate(n=>getComputedStyle(n).backgroundColor),"rgb(35, 141, 97)");
+      assert.match(await logo.locator("img").evaluate(n=>getComputedStyle(n).filter),/invert\(1\)/);await q.close();
+    });
     await step("Forgotten password: email link request, then a new password on return", async () => {
       const q = await open("login");
       await q.locator("#lEmail").fill("ana.alias");await q.locator("#forgotBtn").click();
