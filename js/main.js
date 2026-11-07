@@ -41,12 +41,20 @@ $("logout").onclick = async () => {
 };
 
 let booted;
-sb.auth.onAuthStateChange((_ev, session) => {
+sb.auth.onAuthStateChange((ev, session) => {
+  if (ev === "PASSWORD_RECOVERY") recovering = true;
   const id = session?.user?.id || null;
-  if (id === booted) return;
+  if (id === booted) { if (id) maybeRecover(); return; }
   booted = id;
-  setTimeout(() => (id ? start(session.user) : stop()), 0);
+  setTimeout(async () => { if (id) { await start(session.user); maybeRecover(); } else stop(); }, 0);
 });
+// Back from the reset email: signed in by the link, so ask straight away for the new password.
+function maybeRecover() {
+  if (!recovering || !(S.me || S.email)) return;
+  recovering = false;
+  try { history.replaceState(null, "", location.pathname); } catch {}
+  openPasswordSheet(true);
+}
 
 function stop() {
   invalidateStats(); S.prices = {};
@@ -178,10 +186,11 @@ $("rail").addEventListener("focusout", hideTip);
 $("rail").addEventListener("click", hideTip);
 
 // ---------- account menu: password and suggestions ----------
-$("pwBtn").onclick = () => {
+$("pwBtn").onclick = () => openPasswordSheet(false);
+function openPasswordSheet(recovery) {
   const p1 = el("input", { type: "password", autocomplete: "new-password", minlength: 8 }), p2 = el("input", { type: "password", autocomplete: "new-password" });
-  const f1 = field(t("newPass"), p1), f2 = field(t("repeatPass"), p2);
-  miniSheet(t("changePassword"), [el("p", { class: "note", style: "margin:0" }, t("accountOf", { email: S.me.email })), f1, f2], t("savePassword"), async () => {
+  const f1 = field(t("newPass"), p1), f2 = field(t("repeatPass"), p2), email = S.me?.email || S.email;
+  miniSheet(t(recovery ? "resetTitle" : "changePassword"), [el("p", { class: "note", style: "margin:0" }, t(recovery ? "resetHelp" : "accountOf", { email })), f1, f2], t("savePassword"), async () => {
     [f1, f2].forEach((w) => w.classList.remove("invalid"));
     if (p1.value.length < 8) { f1.classList.add("invalid"); return t("passMin"); }
     if (p1.value !== p2.value) { f2.classList.add("invalid"); return t("passMismatch"); }
@@ -189,6 +198,23 @@ $("pwBtn").onclick = () => {
     if (error) return error.message;
     await closeSheet(true); toast(t("passChanged"));
   }, { dirty: () => !!p1.value });
+  requestAnimationFrame(() => p1.focus());
+}
+// Forgotten password: Supabase emails a one-time link back to this page.
+// The reply is the same whether or not the account exists, so the form can't be used to probe emails.
+$("forgotBtn").onclick = () => {
+  const typed = $("lEmail").value.trim();
+  const mail = el("input", { type: "email", autocomplete: "email", autocapitalize: "none", spellcheck: "false", required: true, maxlength: 254, value: typed.includes("@") ? typed : "" });
+  const f = field(t("email"), mail);
+  miniSheet(t("forgotTitle"), [el("p", { class: "note", style: "margin:0" }, t("forgotHelp")), f], t("forgotSend"), async () => {
+    f.classList.remove("invalid");
+    const email = mail.value.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) { f.classList.add("invalid"); return t("forgotBadEmail"); }
+    const { error } = await sb.auth.resetPasswordForEmail(email, { redirectTo: location.origin + "/" });
+    if (error) return t(error.status === 429 ? "forgotLimit" : "forgotFail");
+    await closeSheet(true); toast(t("forgotSent", { email }), { ms: 7000 });
+  }, { dirty: () => !!mail.value && mail.value !== typed });
+  requestAnimationFrame(() => mail.focus());
 };
 $("fbBtn").onclick = () => {
   const to = window.CDF_CONFIG.feedbackTo;

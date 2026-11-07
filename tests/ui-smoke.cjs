@@ -69,8 +69,10 @@ function query(table) {
 const steps = { prep: ["Preparing", "-"], ready: ["Ready", "-"], transit: ["Ready", "In transit"], done: ["Ready", "Delivered"], fail: ["Ready", "Failed"] };
 window.supabase = { createClient: () => ({
   from: query,
-  auth: { onAuthStateChange(cb) { queueMicrotask(() => cb("INITIAL_SESSION", window.__role === "login" ? null : { user: { id: "test", email: email[window.__role] || "admin@example.com" } })); },
-    async signInWithPassword() { return { error: { message: "invalid" } }; }, async signOut() { return { error: null }; } },
+  auth: { onAuthStateChange(cb) { queueMicrotask(() => { const session = window.__role === "login" ? null : { user: { id: "test", email: email[window.__role] || "admin@example.com" } }; cb("INITIAL_SESSION", session); if (window.__recovery && session) cb("PASSWORD_RECOVERY", session); }); },
+    async signInWithPassword() { return { error: { message: "invalid" } }; }, async signOut() { return { error: null }; },
+    async resetPasswordForEmail(mail, opts) { (window.__calls ||= []).push({ reset: mail, redirectTo: opts?.redirectTo }); return { error: null }; },
+    async updateUser(u) { (window.__calls ||= []).push({ updateUser: !!u.password }); return { error: null }; } },
   storage: { from: (b) => ({ createSignedUrl: async (p) => ({ data: { signedUrl: "/img/emblem.webp" } }),
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
@@ -474,6 +476,20 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Sign-in screens", async () => {
       const q = await open("login"); await capture(q, "login-desktop"); await q.close();
       const m = await open("login", { width: 390 }); await capture(m, "login-mobile"); await m.close();
+    });
+    await step("Forgotten password: email link request, then a new password on return", async () => {
+      const q = await open("login");
+      await q.locator("#lEmail").fill("ana.alias");await q.locator("#forgotBtn").click();
+      const mail=q.locator(".sheet input[type=email]");assert.equal(await mail.inputValue(),"");
+      await mail.fill("nope@x");await q.locator(".sheet button[type=submit]").click();assert.match(await q.locator(".sheet .err").innerText(),/valid email/);
+      await mail.fill("Ana@Example.com");await q.locator(".sheet button[type=submit]").click();await q.waitForTimeout(350);
+      const calls=await q.evaluate(()=>window.__calls.filter(c=>c.reset));assert.deepEqual(calls,[{reset:"ana@example.com",redirectTo:new URL(q.url()).origin+"/"}]);
+      assert.equal(await q.locator(".sheet").count(),0);await q.close();
+      const r = await open("admin",{before:{__recovery:true}});
+      await r.getByRole("heading",{name:"Choose a new password"}).waitFor();
+      const pw=r.locator(".sheet input[type=password]");await pw.nth(0).fill("brand-new-pass");await pw.nth(1).fill("brand-new-pass");
+      await r.locator(".sheet button[type=submit]").click();await r.waitForTimeout(350);
+      assert.deepEqual(await r.evaluate(()=>window.__calls.filter(c=>"updateUser" in c)),[{updateUser:true}]);await r.close();
     });
     await step("Integration: one tracking logo in every theme, animated current state, Reduced disables loops", async () => {
       const q=await open("track",{width:390});

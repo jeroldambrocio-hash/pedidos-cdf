@@ -1553,6 +1553,8 @@ button.brand-home { margin: 0; font: inherit; }
 .away-row { margin-top: 4px; color: var(--muted); display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
 .linkish { background: none; border: 0; padding: 2px 0; color: var(--fg); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; transition: color var(--dur-fast); }
 .linkish:hover { color: var(--prep); }
+#loginForm .forgot { justify-self: end; align-self: end; margin: -4px 0 0 auto; min-height: 32px; font-size: 0.8125rem; font-weight: 500; color: var(--muted); }
+#loginForm .forgot:hover { color: var(--fg); }
 option.is-away { color: var(--prep); }
 .dialog .grp, .sheet .grp { margin: 8px 0 0; font-size: 0.8125rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); font-weight: 600; }
 .dialog .sheet-body { max-height: min(78vh, 720px); overflow: auto; }

@@ -1,5 +1,7 @@
 // Core: Supabase client, shared state, helpers and order loading. Loaded first; every other script uses these.
 const { url, anonKey, bucket } = window.CDF_CONFIG;
+// Read before the client consumes the URL: a "reset password" email link lands here with type=recovery.
+let recovering = /[#&?]type=recovery\b/.test(location.hash + location.search);
 const sb = supabase.createClient(url, anonKey, {global:{fetch:async (...args)=>{
  beginRequest();try{return await fetch(...args)}finally{endRequest()}
 }}});
