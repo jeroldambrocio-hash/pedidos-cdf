@@ -2,6 +2,7 @@
 const ICONS = {
   web: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
   orders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6m-6 4h6"/>',
+  package: '<path d="m12 22-9-5V7l9-5 9 5v10l-9 5ZM3 7l9 5 9-5m-9 5v10m-4.5-17.5 9 5"/>',
   deliveredPackage: '<path d="m12 22-9-5V7l9-5 9 5v4m-18-4 9 5 9-5m-9 5v10m-4.5-17.5 9 5"/><path class="package-check" d="m15 17 2.5 2.5L22 15"/>',
   team: '<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3m1-17a3 3 0 0 1 0 6m2 4c2 1 3 2 3 5v2"/>',
   chart: '<path d="M4 20V10m6 10V4m6 16v-7m4 7H2"/>',

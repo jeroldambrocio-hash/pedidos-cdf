@@ -227,6 +227,18 @@ function openEmoji(anchor, onPick) {
 const handleOf = (m) => (m.name || "").trim().split(/\s+/)[0];
 const mentionsMe = (body) => { const h = handleOf(S.me || {}).toLowerCase(); return !!h && new RegExp("(^|\\s)@" + h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(body || ""); };
 const orderByNum = (num) => S.orders.find((o) => o.num === num) || [...CH.info.values()].find((o) => o.num === num) || null;
+function mentionedOrder(body) {
+  const mentions = [...(body || "").matchAll(/#(\d{3,6})\b/gu)];
+  return mentions.reverse().map((m) => orderByNum(m[1])).find(Boolean);
+}
+function internalChatIcon(o) {
+  if (!o) return el("span", { class: "thread-ic" }, icon("message"));
+  const step = stepOf(o), k = STEPS[step].k;
+  const label = "#" + o.num + " · " + stepName(step);
+  return el("span", { class: "thread-ic", title: label, role: "img", "aria-label": label },
+    icon(k === "done" ? "deliveredPackage" : "package"),
+    k === "done" ? null : el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)" }));
+}
 async function openOrderNum(num) {
   let o = orderByNum(num);
   if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("num", num).maybeSingle(); o = data; }
@@ -256,7 +268,7 @@ function messageText(body) {
 const onlyEmoji = (s) => /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|️|‍|\s)+$/u.test(s) && [...s.matchAll(/\p{Extended_Pictographic}/gu)].length <= 3;
 
 // ---------- a thread: the messages and the box to write ----------
-function threadView(thread, { autofocus = false } = {}) {
+function threadView(thread, { autofocus = false, onDraft = null } = {}) {
   const readAt = CH.reads.get(thread) || ""; // where the "New" line goes, before this view marks everything read
   const log = el("div", { class: "chat-log", role: "log", "aria-live": "polite", "aria-label": t("chatTitle") });
   const jump = el("button", { class: "chat-jump", type: "button", hidden: true, onclick: () => toBottom(true) }, icon("arrow", "i down"), el("span", {}, t("chatJump")));
@@ -273,7 +285,7 @@ function threadView(thread, { autofocus = false } = {}) {
   const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
   const toBottom = (smooth) => { log.scrollTo({ top: log.scrollHeight, behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto" }); jump.hidden = true; };
   log.addEventListener("scroll", () => { if (nearBottom()) jump.hidden = true; }, { passive: true });
-  const grow = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; send.disabled = !input.value.trim(); };
+  const grow = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; send.disabled = !input.value.trim(); onDraft?.(input.value); };
 
   function row(m, prev) {
     const p = person(m.author_email), mine = m.author_email === S.me.email, day = manilaDay(m.created_at);
@@ -567,8 +579,8 @@ function renderChatList() {
     const deliveredPackage = k === "done" && !hasChannel;
     const who = m ? (m.author_email === S.me.email ? t("chatYou") : handleOf(p)) + ": " : "";
     return el("button", { type: "button", class: "thread" + (CH.open === th ? " on" : "") + (u ? " unread" : ""), "aria-current": CH.open === th ? "true" : "false", onclick: () => openThread(th) },
-      el("span", { class: "thread-ic" + (team ? " team" : ""), ...(deliveredPackage ? { title: t("st_done"), role: "img", "aria-label": t("st_done") } : {}) },
-        team ? "#" : peer ? icon("message") : hasChannel ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon(deliveredPackage ? "deliveredPackage" : "orders"),
+      team || peer ? internalChatIcon(mentionedOrder(m?.body)) : el("span", { class: "thread-ic", ...(deliveredPackage ? { title: t("st_done"), role: "img", "aria-label": t("st_done") } : {}) },
+        hasChannel ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon(deliveredPackage ? "deliveredPackage" : "orders"),
         k && !deliveredPackage ? el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)", title: stepName(stepOf(o)) }) : null),
       el("span", { class: "thread-main" },
         el("span", { class: "thread-top" }, el("b", {}, threadTitle(th)), m ? el("time", {}, manilaDay(m.created_at) === S.today ? clock(m.created_at) : shortDate(manilaDay(m.created_at))) : null),
@@ -585,15 +597,22 @@ function renderChatPane() {
   const back = el("button", { class: "btn icon ghost chat-back", type: "button", "aria-label": t("chatBack"), onclick: () => { CH.open = null; renderChat(); } }, icon("left"));
   let head;
   const peer = directPeer(th);
+  let statusIcon = th === TEAM || peer ? internalChatIcon() : null;
+  const onDraft = statusIcon ? (body) => {
+    const next = internalChatIcon(mentionedOrder(body));
+    if (next.title === statusIcon.title) return;
+    statusIcon.replaceWith(next);
+    statusIcon = next;
+  } : null;
   if (th === TEAM) {
     const team = S.members.slice(0, 5);
     head = el("div", { class: "chat-head" }, back,
-      el("span", { class: "thread-ic team big" }, "#"),
+      statusIcon,
       el("div", { class: "chat-head-txt" }, el("b", {}, threadTitle(th)), el("small", {}, t("chatTeamDesc"))),
       el("span", { class: "spacer" }),
       el("span", { class: "avatar-stack", title: S.members.map((m) => m.name).join(", ") }, team.map((m) => avatarNode(m, "avatar xs")), el("small", {}, t("chatPeople", { n: S.members.length }))));
   } else if (peer) {
-    head = el("div", { class: "chat-head" }, back, avatarNode(peer),
+    head = el("div", { class: "chat-head" }, back, statusIcon,
       el("div", { class: "chat-head-txt" }, el("b", {}, peer.name), el("small", {}, t("chatDirect"))));
   } else {
     const k = o ? stepOf(o) : null;
@@ -606,7 +625,7 @@ function renderChatPane() {
       el("span", { class: "spacer" }),
       o ? el("button", { class: "btn", type: "button", onclick: () => openOrder(byId(th) || o) }, t("chatOpenOrder")) : null);
   }
-  pane.replaceChildren(head, threadView(th, { autofocus: !coarse() }));
+  pane.replaceChildren(head, threadView(th, { autofocus: !coarse(), onDraft }));
   pane.classList.remove("pane-in"); void pane.offsetWidth; pane.classList.add("pane-in");
 }
 function openThread(th) {
