@@ -95,9 +95,16 @@ async function saveAvailability(email, v) {
 }
 
 // ---------- My account ----------
-async function myStats() {
-  const { data } = await sb.rpc("cdf_member_stats");
-  return (data || []).find((r) => r.email === S.me.email) || null;
+// One request per minute at most: the account card redraws often (menu, language, profile edits).
+// invalidateStats() (any order change) resets myStatsAt so the count stays right.
+let myStatsP = null, myStatsAt = 0;
+function myStats() {
+  if (!myStatsP || Date.now() - myStatsAt > 60000) {
+    myStatsAt = Date.now();
+    const email = S.me.email;
+    myStatsP = sb.rpc("cdf_member_stats").then(({ data }) => (data || []).find((r) => r.email === email) || null, () => { myStatsAt = 0; return null; });
+  }
+  return myStatsP;
 }
 function openProfile() {
   const me = S.me, florist = me.role === "vendor";

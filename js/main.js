@@ -81,9 +81,9 @@ async function start(user) {
   $("newBtn").hidden = !isStaff();
   $("selectBtn").hidden = !isStaff();
   $("viewControls").hidden = !isStaff();
-  await detectSchema();
+  // Independent round trips go together: the database is far from Manila, so each one in a row costs a few hundred ms
+  await Promise.all([detectSchema(), isStaff() ? loadMembers() : null]);
   renderSub();
-  if (isStaff()) await loadMembers();
   setTab("orders");
   await loadOrders();
   subscribe();

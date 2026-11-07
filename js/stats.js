@@ -1,7 +1,7 @@
 // Delivery dates use Manila. History includes archived orders. No customer history is cached across accounts.
 // statsDays: 7 | 30 | 90 (last N days), "all" (first order → today) or "custom" (statsCustom.from → statsCustom.to).
 let statsDays=30, statsCustom=null, statsShown=null, statsRows=null, statsFor=null, statsVersion=0, statsRequest=0;
-function invalidateStats(){memberStatsAt=0;statsVersion++;statsFor=null;statsRows=null;statsRequest++;}
+function invalidateStats(){memberStatsAt=0;myStatsAt=0;statsVersion++;statsFor=null;statsRows=null;statsRequest++;}
 const statsSpan=(a,b)=>Math.round((fromIso(b)-fromIso(a))/864e5)+1;
 const yearDate=s=>fromIso(s).toLocaleDateString(locale(),{day:"numeric",month:"short",year:"numeric"});
 function setStatsPeriod(v){
