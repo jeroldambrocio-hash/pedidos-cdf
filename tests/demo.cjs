@@ -30,6 +30,8 @@ http.createServer((req, res) => {
   let name = new URL(req.url, "http://x").pathname;
   res.setHeader("Cache-Control", "no-store");
   if (name === "/__mock.js") { res.setHeader("Content-Type", "text/javascript"); return res.end(mock); }
+  // My Bloom Journey on its own, with fictitious data and simulation controls (never published)
+  if (name === "/bloom-demo") name = "/tests/bloom-demo.html";
   if (name === "/email" || name.startsWith("/email/")) { emailPreview(req, res).catch((e) => res.writeHead(500).end(String(e))); return; }
   if (name === "/" || name.startsWith("/p/")) name = name.startsWith("/p/") ? "/seguimiento.html" : "/index.html";
   const f = path.resolve(root, "." + decodeURIComponent(name));

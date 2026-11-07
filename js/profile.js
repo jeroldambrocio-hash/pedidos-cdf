@@ -202,14 +202,28 @@ function renderMyCard() {
   const box = $("menuProfile"); if (!box) return;
   const me = S.me; if (!me) { box.replaceChildren(); return; }
   const done = el("span", {}, "…");
-  if (S.cap.profiles) myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });
+  // My Bloom Journey (florists and drivers): the stage icon next to the name and an entry that opens the plant
+  const kind = bloomKind(me.role), nameIc = el("span", { class: "bloom-ic", "aria-hidden": "true" });
+  const bloomBtn = kind && S.cap.profiles ? el("button", { class: "my-bloom", type: "button", onclick: () => openBloom() },
+    el("span", { class: "mb-ic", "aria-hidden": "true" }, "…"), el("span", { class: "mb-main" }, el("b", {}, bloomT("title")), el("small", {}, "…"), el("span", { class: "mb-bar" }, el("i")))) : null;
+  if (S.cap.profiles) myStats().then((r) => {
+    done.textContent = t("doneOrders", { n: +r?.done_total || 0 });
+    if (!kind) return;
+    const total = bloomTotal(r, kind), stage = bloomStage(total), next = BLOOM_STAGES[stage + 1];
+    nameIc.textContent = BLOOM_STAGES[stage].icon; nameIc.title = BLOOM_STAGES[stage].name;
+    if (bloomBtn) {
+      bloomBtn.querySelector(".mb-ic").textContent = BLOOM_STAGES[stage].icon;
+      bloomBtn.querySelector("small").textContent = BLOOM_STAGES[stage].name + " · " + (next ? bloomT("next", { n: next.min - total, stage: next.name }) : bloomT("max"));
+      bloomBtn.querySelector(".mb-bar i").style.setProperty("--p", Math.min(total, BLOOM_MAX) / BLOOM_MAX);
+    }
+  });
   box.replaceChildren(...[
     el("div", { class: "my-id" },
       el("span", { class: "my-pic" }, profilePic(me), el("i", { class: "online", title: t("online") })),
-      el("div", { class: "my-names" }, el("b", {}, me.name), el("small", {}, t("myShop"))),
+      el("div", { class: "my-names" }, el("b", {}, me.name, kind ? nameIc : null), el("small", {}, t("myShop"))),
       S.cap.profiles ? el("button", { class: "my-gear", id: "editProfileBtn", type: "button", "aria-label": t("editProfile"), title: t("editProfile"), onclick: () => openProfile() }, icon("gear")) : null),
     S.cap.profiles && me.role === "vendor" ? el("div", { class: "my-avail" }, awayBadge(me)) : null,
-    S.cap.profiles ? el("div", { class: "my-done" }, icon("bouquet"), done) : null].filter(Boolean)); // DOM replaceChildren would print "null"
+    S.cap.profiles ? el("div", { class: "my-done" }, icon("bouquet"), done) : null, bloomBtn].filter(Boolean)); // DOM replaceChildren would print "null"
 }
 
 // ---------- the office: pending orders that fall inside an absence ----------
@@ -242,4 +256,16 @@ async function openConflict(c) {
   let o = S.orders.find((x) => x.id === c.id);
   if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("id", c.id).maybeSingle(); o = data; }
   if (o) openOrder(o);
+}
+
+// The compact My Bloom Journey page, in a side sheet. Only real numbers from the database; no simulation here.
+async function openBloom() {
+  const kind = bloomKind(S.me?.role); if (!kind) return;
+  const journey = bloomJourney(kind, 0);
+  const node = el("div", { class: "sheet bloom-sheet", role: "dialog", "aria-modal": "true", "aria-label": bloomT("title") },
+    el("div", { class: "sheet-head" }, el("h2", {}, bloomT("title")), el("span", { class: "spacer" }), closeBtn()),
+    el("div", { class: "sheet-body" }, el("p", { class: "bloom-sub" }, bloomT("sub")), journey.node));
+  openLayer(node);
+  const r = await myStats();
+  journey.update(bloomTotal(r, kind));
 }

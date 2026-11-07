@@ -1934,3 +1934,64 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 :root[data-motion="reduced"] :is(.react, .chat-jump, .chat-new, .chat-empty-ic, .emoji-pop, .chat-list-empty) { animation: none; }
 :root[data-motion="reduced"] .dots i { animation: none; opacity: .7; }
 .chat-head-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* ---------- My Bloom Journey (profile level). Reference: bloom-demo/bloom.css, scoped to .bloom ---------- */
+.bloom { --bloom: #9dd8ae; --bloom-time: 300ms; --growth-ease: cubic-bezier(.45,0,.55,1); --specimen-ink: var(--muted); --specimen-rule: var(--line); }
+:root[data-motion="reduced"] .bloom { --bloom-time: 0ms; }
+.bloom .journey { display: grid; grid-template-columns: .9fr 1.1fr; overflow: hidden; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface); }
+.bloom .specimen { color: var(--specimen-ink); background: transparent; padding: 13px 16px; display: grid; grid-template-rows: auto 1fr; min-height: 0; }
+.bloom .specimen-index { display: flex; justify-content: space-between; gap: 8px; font-size: .69rem; letter-spacing: .13em; border-bottom: 1px solid var(--specimen-rule); padding-bottom: 9px; }
+.bloom .plant { display: grid; place-items: center; }
+.bloom .plant svg { width: 240px; max-width: 90%; height: 182px; }
+.bloom .journey-copy { padding: clamp(15px, 2.3vw, 24px); align-self: center; }
+.bloom .journey-copy p { color: var(--muted); margin: 7px 0 0; }
+.bloom .journey-copy .level { color: var(--bloom); margin: 0 0 8px; font-size: .77rem; }
+.bloom .journey-copy h2 { margin: 0; font: 400 clamp(2rem, 4vw, 2.9rem)/1.05 var(--serif); letter-spacing: -.025em; }
+.bloom .progress-label { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; margin-top: 14px; color: var(--fg); }
+.bloom progress { display: block; width: 100%; height: 7px; border: 0; margin-top: 8px; border-radius: 8px; overflow: hidden; background: #3c423c; }
+.bloom progress::-webkit-progress-bar { background: #3c423c; }
+.bloom progress::-webkit-progress-value { background: var(--bloom); transition: width var(--bloom-time) var(--ease-out); }
+.bloom progress::-moz-progress-bar { background: var(--bloom); }
+.bloom .bloom-rule { font-size: .75rem; }
+.bloom .stage-list { display: grid; grid-template-columns: repeat(5, 1fr); list-style: none; padding: 0; margin: 9px 0 4px; gap: 8px; }
+.bloom .stage-list li { position: relative; min-width: 0; border-top: 2px solid var(--line); padding: 9px 2px 0; color: var(--muted); }
+.bloom .stage-list li[aria-current="step"] { color: var(--bloom); }
+.bloom .stage-list span { display: block; font-size: .8rem; font-variant-numeric: tabular-nums; }
+/* Each stage line fills across its own range */
+.bloom .stage-list li::before { content: ""; position: absolute; inset: -2px 0 auto; height: 2px; background: var(--bloom); opacity: .55; transform: scaleX(var(--stage-fill, 0)); transform-origin: left; transition: transform var(--bloom-time) var(--growth-ease); }
+.bloom .stage-list li[aria-current="step"]::before { opacity: 1; }
+/* The pot stays still while the plant settles into its new stage */
+.bloom .plant-stage { display: grid; place-items: center; min-height: 0; margin-block: 3px; background: transparent; border-radius: 6px; }
+.bloom .plant-stage .plant { width: 100%; position: relative; }
+.bloom .plant-growth { transform-box: view-box; transform-origin: 50% 81%; animation: plant-unfurl var(--bloom-time) var(--growth-ease) both; }
+.bloom .plant > .plant-outgoing { position: absolute; inset: 0; margin: auto; pointer-events: none; animation: plant-fade var(--bloom-time) var(--growth-ease) both; }
+.bloom .plant-outgoing .plant-growth { animation: none; }
+.bloom .bloom-crown { transform-box: fill-box; transform-origin: center; animation: bloom-open var(--bloom-time) var(--growth-ease) both; }
+.bloom .bloom-glints { animation: bloom-glint var(--bloom-time) var(--growth-ease) both; }
+.bloom .plant-outgoing :is(.bloom-crown, .bloom-glints) { animation: none; }
+@keyframes plant-unfurl { from { opacity: 0; transform: scale(.985, .975); } to { opacity: 1; transform: none; } }
+@keyframes plant-fade { to { opacity: 0; } }
+@keyframes bloom-open { from { transform: scale(.83); } to { transform: scale(1); } }
+@keyframes bloom-glint { 0%, 28% { opacity: 0; } 100% { opacity: 1; } }
+:root[data-theme="light"] .bloom progress, :root[data-theme="light"] .bloom progress::-webkit-progress-bar { background: #dfe6df; }
+:root[data-theme="light"] .bloom { --bloom: #2e7d57; }
+@media (prefers-color-scheme: light) { :root:not([data-theme]) .bloom { --bloom: #2e7d57; } :root:not([data-theme]) .bloom progress, :root:not([data-theme]) .bloom progress::-webkit-progress-bar { background: #dfe6df; } }
+
+/* In the app: a sheet with the journey, the stage icon next to names, and an entry in My account */
+.bloom-sheet .sheet-body { gap: 12px; }
+.bloom-sheet .bloom-sub { margin: 0; color: var(--muted); }
+.bloom-ic { margin-left: 4px; font-size: .9em; }
+.my-bloom { display: flex; align-items: center; gap: 10px; width: 100%; margin-top: 6px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); text-align: left; cursor: pointer; transition: background-color 300ms var(--ease-out), border-color 300ms var(--ease-out); }
+.my-bloom:hover { background: var(--surface-hover); border-color: var(--faint); }
+.my-bloom .mb-ic { font-size: 1.3rem; }
+.my-bloom .mb-main { display: grid; gap: 4px; flex: 1; min-width: 0; }
+.my-bloom .mb-main b { font-size: .8125rem; }
+.my-bloom .mb-main small { color: var(--muted); font-size: .72rem; }
+.my-bloom .mb-bar { height: 4px; border-radius: 4px; background: var(--sunk); overflow: hidden; }
+.my-bloom .mb-bar i { display: block; height: 100%; width: calc(var(--p, 0) * 100%); background: #9dd8ae; transition: width 300ms var(--ease-out); }
+.member .bloom-tag { margin-left: 6px; font-size: .8125rem; color: var(--muted); }
+@media (max-width: 650px) {
+  .bloom .journey { grid-template-columns: 1fr; }
+  .bloom .plant svg { height: 166px; }
+  .bloom .stage-list { gap: 5px; font-size: .76rem; }
+}

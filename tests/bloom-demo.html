@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="es" data-theme="dark" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>My Bloom Journey · demo</title>
+<!-- Isolated demo: the real js/bloom.js and styles.css with fictitious numbers and simulation controls.
+     It lives in tests/ and is never published (scripts/deploy-netlify.sh only ships the web files). -->
+<link rel="stylesheet" href="/styles.css">
+<style>
+  body { background: var(--bg); color: var(--fg); }
+  .demo-bar { min-height: 52px; padding: 10px max(16px, calc((100vw - 960px) / 2)); background: var(--rail-bg, #1c1c1c); border-bottom: 1px solid var(--line); display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+  .demo-brand { display: flex; gap: 10px; align-items: center; font: 1.4rem var(--serif); white-space: nowrap; }
+  .demo-brand img { width: 31px; height: 31px; object-fit: contain; }
+  .demo-brand small { display: block; margin-top: 2px; color: var(--muted); font: .7rem var(--sans); }
+  .demo-main { max-width: 1008px; margin: auto; padding: 22px 24px 16px; display: grid; gap: 14px; }
+  .demo-intro { display: flex; justify-content: space-between; align-items: end; gap: 12px; flex-wrap: wrap; }
+  .demo-intro h1 { margin: 0; font: 400 clamp(2.2rem, 4.6vw, 3.3rem)/1.05 var(--serif); letter-spacing: -.025em; }
+  .demo-intro p { color: var(--muted); margin: 6px 0 0; }
+  .who { display: flex; align-items: center; gap: 8px; color: var(--muted); }
+  .who b { color: var(--fg); }
+  .demo-tools { display: grid; gap: 10px; padding: 12px; border: 1px dashed var(--line); border-radius: 12px; }
+  .demo-tools .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .demo-tools label { color: var(--muted); display: flex; gap: 6px; align-items: center; }
+  .demo-tools select, .demo-tools input[type=number] { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; color: var(--fg); }
+  .demo-tools input[type=number] { width: 90px; }
+  .demo-tools .btn { min-height: 36px; }
+  .announce { min-height: 1.4em; color: #9dd8ae; margin: 0; }
+  .demo-note { color: var(--muted); font-size: .8rem; border-top: 1px solid var(--line); padding-top: 10px; }
+</style>
+</head>
+<body>
+<header class="demo-bar">
+  <div class="demo-brand"><img src="/img/emblem.webp" alt=""><span>Casa de Flores <small>Pedidos · demo</small></span></div>
+  <label class="who"><input id="motion" type="checkbox"> Reducir movimiento</label>
+</header>
+<main class="demo-main">
+  <div class="demo-intro">
+    <div><h1>My Bloom Journey</h1><p>Tu nivel sube con cada pedido completado.</p></div>
+    <div class="who" id="who"></div>
+  </div>
+  <div id="journey"></div>
+  <section class="demo-tools" aria-label="Controles de simulación (solo demo)">
+    <div class="row">
+      <label>Perfil <select id="role"><option value="florist">Florista · Ana</option><option value="courier">Repartidor · Luis</option></select></label>
+      <button class="btn primary" id="plus" type="button">+1 completado</button>
+      <button class="btn" id="minus" type="button">−1 (pedido vuelto atrás)</button>
+      <label>Total <input id="set" type="number" min="0" step="1"></label>
+      <button class="btn" id="reset" type="button">Reiniciar perfil</button>
+    </div>
+    <div class="row" id="jumps"></div>
+    <p class="announce" id="announce" role="status"></p>
+  </section>
+  <p class="demo-note">Vista de demostración · datos ficticios en este navegador · usa el mismo js/bloom.js y styles.css que la app.</p>
+</main>
+<script src="/js/bloom.js"></script>
+<script>
+  // Simulation only: in the app the totals come from the database (cdf_member_stats).
+  const profiles = { florist: { name: "Ana", initial: 48 }, courier: { name: "Luis", initial: 114 } };
+  const key = (k) => "cdf-bloom-demo." + k;
+  const read = (k) => { try { return localStorage.getItem(key(k)); } catch { return null; } };
+  const write = (k, v) => { try { localStorage.setItem(key(k), v); } catch {} };
+  const totals = Object.fromEntries(Object.entries(profiles).map(([k, p]) => { const v = Number(read(k)); return [k, read(k) !== null && Number.isSafeInteger(v) && v >= 0 ? v : p.initial]; }));
+  const $ = (id) => document.getElementById(id);
+  // Animations: full by default even if the system asks to reduce motion; the manual choice is remembered (same key as the app)
+  const motionPref = (() => { try { return localStorage.getItem("cdf-motion"); } catch { return null; } })();
+  document.documentElement.dataset.motion = motionPref === "reduced" ? "reduced" : "full";
+  $("motion").checked = document.documentElement.dataset.motion === "reduced";
+  $("motion").addEventListener("change", (e) => { document.documentElement.dataset.motion = e.target.checked ? "reduced" : "full"; try { localStorage.setItem("cdf-motion", document.documentElement.dataset.motion); } catch {} });
+  let role = read("role") === "courier" ? "courier" : "florist", journey;
+  function mount() { journey = bloomJourney(role, totals[role]); $("journey").replaceChildren(journey.node); paint(); }
+  function paint(msg = "") {
+    const t = totals[role], s = BLOOM_STAGES[bloomStage(t)];
+    $("who").innerHTML = ""; const b = document.createElement("b"); b.textContent = profiles[role].name + " " + s.icon; $("who").append(role === "florist" ? "Florista · " : "Repartidor · ", b);
+    for (const o of $("role").options) o.textContent = (o.value === "florist" ? "Florista · Ana " : "Repartidor · Luis ") + bloomIcon(totals[o.value]);
+    $("set").value = t; $("announce").textContent = msg;
+  }
+  function setTotal(n, msg) {
+    const before = totals[role]; totals[role] = Math.max(0, Math.floor(n)); write(role, totals[role]); journey.update(totals[role]);
+    const reached = bloomStage(totals[role]) > bloomStage(before) ? BLOOM_STAGES[bloomStage(totals[role])] : null;
+    paint(msg ?? (reached ? (reached.min === BLOOM_MAX ? "¡Has alcanzado Full Bloom!" : "Nueva etapa: " + reached.name) : ""));
+  }
+  $("role").value = role;
+  $("role").addEventListener("change", (e) => { role = e.target.value; write("role", role); mount(); });
+  $("plus").addEventListener("click", () => setTotal(totals[role] + 1));
+  $("minus").addEventListener("click", () => setTotal(totals[role] - 1, "Un pedido volvió atrás: se resta."));
+  $("set").addEventListener("change", (e) => setTotal(+e.target.value || 0));
+  $("reset").addEventListener("click", () => setTotal(profiles[role].initial, "Perfil de demo reiniciado."));
+  for (const n of [0, 49, 50, 99, 100, 149, 150, 249, 250, 300]) {
+    const b = document.createElement("button"); b.className = "btn"; b.type = "button"; b.textContent = n; b.addEventListener("click", () => setTotal(n)); $("jumps").append(b);
+  }
+  mount();
+</script>
+</body>
+</html>

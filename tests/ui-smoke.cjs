@@ -126,8 +126,8 @@ window.supabase = { createClient: () => ({
       return {data:[{n:os.length,total:window.__role==="admin"?os.reduce((n,o)=>n+(window.__prices.find(p=>p.order_id===o.id)?.amount||0),0):0}],error:null};
     }
     if(name === "cdf_member_stats") {
-      const rows=[{email:"ana@example.com",done_week:3,done_month:12,done_total:48,open_now:4},{email:"admin@example.com",done_week:0,done_month:1,done_total:5,open_now:0}];
-      return {data:window.__role==="vendor"||window.__role==="admin"||!window.__role?rows:[],error:null};
+      const rows=[{email:"ana@example.com",done_week:3,done_month:12,done_total:48,open_now:4,arranged_total:48,delivered_total:0},{email:"driver@example.com",done_week:5,done_month:20,done_total:114,open_now:2,arranged_total:0,delivered_total:114},{email:"admin@example.com",done_week:0,done_month:1,done_total:5,open_now:0,arranged_total:0,delivered_total:0}];
+      return {data:window.__role==="admin"||!window.__role?rows:rows.filter((r)=>r.email===(email[window.__role]||"")),error:null};
     }
     if (name === "cdf_team_directory") return { data: members.map(({ email, name, role, avatar_path, username }) => ({ email, name, role, avatar_path: avatar_path || null, username: username || null })), error: null };
     const me = email[window.__role] || "admin@example.com";
@@ -554,6 +554,35 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.deepEqual(await v.locator(".thread b").allInnerTexts(), ["#team", "#0126 · Maria Santos"]);await v.close();
       const n = await open("admin", { before: { __noChat: true } });await n.locator("#list").waitFor();await n.waitForTimeout(400);
       assert.equal(await n.locator("#tabChat").isHidden(), true, "no chat tables: no chat, nothing breaks");await n.close();
+    });
+    await step("My Bloom Journey: thresholds, 249→250, stage lines, back subtracts, profiles, office view, no simulation in the app", async () => {
+      // Isolated demo (tests/ only): the real js/bloom.js with fictitious numbers
+      const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, reducedMotion: "reduce" });
+      const d = await ctx.newPage();await d.goto("http://127.0.0.1:" + port + "/tests/bloom-demo.html");
+      await d.locator(".bloom .bloom-stage").waitFor();
+      assert.equal(await d.evaluate(() => getComputedStyle(document.querySelector(".bloom")).getPropertyValue("--bloom-time").trim()), "300ms", "full motion by default even with OS reduce");
+      const at = (n) => d.evaluate((n) => { const j = bloomJourney("florist", n), q = (s) => j.node.querySelector(s); return { stage: q(".bloom-stage").textContent, count: q(".bloom-count").textContent, bar: q("progress").value, fills: [...j.node.querySelectorAll(".stage-list li")].map((li) => +li.style.getPropertyValue("--stage-fill")), next: q(".bloom-next").textContent, desc: q(".bloom-desc").textContent }; }, n);
+      for (const [n, stage] of [[0, "Seed"], [49, "Seed"], [50, "Sprout"], [99, "Sprout"], [100, "Growing"], [149, "Growing"], [150, "Budding"], [249, "Budding"], [250, "Full Bloom"], [300, "Full Bloom"]]) assert.equal((await at(n)).stage, stage, "stage at " + n);
+      const s249 = await at(249), s250 = await at(250), s300 = await at(300);
+      assert.deepEqual([s249.count, s249.bar, s249.fills.map((x) => +x.toFixed(2))], ["249 / 250", 249, [1, 1, 1, 0.99, 0]]);
+      assert.deepEqual([s250.count, s250.bar, s250.fills], ["250 / 250", 250, [1, 1, 1, 1, 1]]);
+      assert.equal(s300.bar, 250, "the bar stops at 250");assert.match(s300.desc, /^300 /, "the total keeps counting after 250");
+      await d.locator("#jumps .btn", { hasText: /^249$/ }).click();await d.locator("#plus").click();
+      await d.locator(".bloom .bloom-crown").waitFor();assert.match(await d.locator("#announce").innerText(), /Full Bloom/);
+      await d.locator("#minus").click();await d.locator(".bloom .bloom-stage", { hasText: "Budding" }).waitFor();
+      await d.locator("#motion").check();assert.equal(await d.evaluate(() => getComputedStyle(document.querySelector(".bloom")).getPropertyValue("--bloom-time").trim()), "0ms", "manual Reduce turns it off");
+      await d.reload();assert.equal(await d.locator("#motion").isChecked(), true, "the manual choice is remembered");
+      await ctx.close();
+      // In the app: florist and driver profiles, the office list; no simulation controls
+      const v = await open("vendor");await v.locator("#list").waitFor();await v.locator("#accountBtn").click();await v.locator("#myAccountBtn").click();
+      await v.locator(".my-bloom small", { hasText: "Seed" }).waitFor();assert.match(await v.locator(".my-names b").innerText(), /Ana\s*🌰/);
+      await v.locator(".my-bloom").click();await v.locator(".bloom-sheet .bloom-stage", { hasText: "Seed" }).waitFor();
+      assert.equal(await v.locator(".bloom-sheet :is(#plus, #minus, #jumps, select)").count(), 0, "no simulation in the app");await v.close();
+      const c = await open("carrier");await c.locator("#accountBtn").click();await c.locator("#myAccountBtn").click();
+      await c.locator(".my-bloom small", { hasText: "Growing" }).waitFor();await c.close();
+      const a = await open("admin");await a.locator("#list").waitFor();await a.locator("#tabTeam").click();
+      await a.locator(".member .bloom-tag", { hasText: "Growing" }).waitFor();
+      assert.deepEqual(await a.locator(".member .bloom-tag").allInnerTexts(), ["🌰 Seed", "🌿 Growing"]);await a.close();
     });
     await step("Chat v2: bubbles, New line, reactions, emoji panel, typing, list search and filter", async () => {
       const q = await open("admin");await q.locator("#list").waitFor();await q.locator("#tabChat").click();

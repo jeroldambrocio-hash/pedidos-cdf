@@ -67,6 +67,12 @@ function editMember(m) {
   queueMicrotask(() => { iName.focus(); iName.select(); });
 }
 
+// The member's Bloom Journey stage next to their name (office view; florists and drivers only)
+function bloomTag(m) {
+  const kind = bloomKind(m.role); if (!kind || !memberStats) return null;
+  const total = bloomTotal(memberStats.get(m.email), kind), s = BLOOM_STAGES[bloomStage(total)];
+  return el("span", { class: "bloom-tag", title: s.name + " · " + total }, s.icon + " " + s.name);
+}
 function renderTeam() {
   refreshMemberStats(() => { if (S.tab === "team") renderTeam(); });
   const box = $("team"); box.replaceChildren();
@@ -77,7 +83,7 @@ function renderTeam() {
     const florist = m.role === "vendor";
     box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
       avatarNode(m),
-      el("div", {}, el("b", {}, m.name), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
+      el("div", {}, el("b", {}, m.name, bloomTag(m)), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
         m.phone ? el("a", { class: "m-phone", href: "tel:+" + m.phone }, icon("phone"), "+" + m.phone) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
