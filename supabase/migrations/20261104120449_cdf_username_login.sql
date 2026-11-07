@@ -1,8 +1,11 @@
 -- Optional, admin-managed usernames. Existing accounts keep their email/password.
-alter table public.cdf_members add column username text;
-alter table public.cdf_members add constraint cdf_username_format
-  check (username is null or username ~ '^[a-z0-9][a-z0-9._-]{2,29}$');
-create unique index cdf_members_username_unique on public.cdf_members(username) where username is not null;
+-- Idempotent: on a fresh install 019 already created these (020 needs the column first).
+alter table public.cdf_members add column if not exists username text;
+do $$ begin
+  alter table public.cdf_members add constraint cdf_username_format
+    check (username is null or username ~ '^[a-z0-9][a-z0-9._-]{2,29}$');
+exception when duplicate_object then null; end $$;
+create unique index if not exists cdf_members_username_unique on public.cdf_members(username) where username is not null;
 
 -- No anonymous email lookup. Only the login function's service role consumes quotas.
 create table public.cdf_login_attempts (

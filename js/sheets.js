@@ -359,9 +359,20 @@ function openOrderView(o) {
 }
 
 // ---------- the order editor (admin) ----------
-const DRAFT_KEY = "cdf-draft";
-const readDraft = () => { try { return JSON.parse(localStorage.getItem(DRAFT_KEY) || "null"); } catch { return null; } };
-const writeDraft = (v) => { try { v ? localStorage.setItem(DRAFT_KEY, JSON.stringify(v)) : localStorage.removeItem(DRAFT_KEY); } catch {} };
+// The draft belongs to whoever wrote it: on a shared phone or PC the next person never sees a
+// customer's name or address from someone else's unsaved order. It also expires, and signing out
+// clears it (main.js); it is only there to recover from a closed tab or a crash.
+const DRAFT_KEY = "cdf-draft", DRAFT_TTL = 2 * 864e5;
+const draftOwner = () => S.uid || S.me?.email || null;
+const readDraft = () => {
+  try {
+    const v = JSON.parse(localStorage.getItem(DRAFT_KEY) || "null");
+    if (!v) return null;
+    if (!v.owner || v.owner !== draftOwner() || !(Date.now() - v.at < DRAFT_TTL)) { localStorage.removeItem(DRAFT_KEY); return null; }
+    return v.data;
+  } catch { return null; }
+};
+const writeDraft = (v) => { try { const owner = draftOwner(); v && owner ? localStorage.setItem(DRAFT_KEY, JSON.stringify({ owner, at: Date.now(), data: v })) : localStorage.removeItem(DRAFT_KEY); } catch {} };
 // Re-read the team first so the lists never hold an email that was changed in the meantime
 async function openFresh(o, opts) {
   if (isStaff()) await loadMembers();

@@ -37,6 +37,7 @@ $("logout").onclick = async () => {
   await Promise.race([forgetPush(), wait(2500)]); // this device stops receiving the notifications of whoever signs out
   try { await sb.auth.signOut({ scope: "local" }); } catch { /* cleared below anyway */ }
   try { for (const k of Object.keys(localStorage)) if (k.startsWith("sb-")) localStorage.removeItem(k); } catch {}
+  writeDraft(null); // an unsaved order (customer name, address) never outlives the session on a shared device
   $("logout").disabled = false;
   booted = null; stop();
 };

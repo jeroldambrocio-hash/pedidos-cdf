@@ -1,3 +1,13 @@
+-- The username column itself. On a fresh install it has to exist before 020 (chat directory)
+-- reads it; 20261104120449_cdf_username_login.sql repeats this idempotently for databases
+-- that applied that file first (the live one), so both orders end in the same schema.
+alter table public.cdf_members add column if not exists username text;
+do $$ begin
+  alter table public.cdf_members add constraint cdf_username_format
+    check (username is null or username ~ '^[a-z0-9][a-z0-9._-]{2,29}$');
+exception when duplicate_object then null; end $$;
+create unique index if not exists cdf_members_username_unique on public.cdf_members(username) where username is not null;
+
 -- Each member may set or clear their own sign-in username from "My account".
 -- Admins still edit anyone's from Team. Format and uniqueness stay enforced by
 -- cdf_username_format and cdf_members_username_unique (unique_violation → 23505).

@@ -350,6 +350,21 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await p.locator("#f-bname").inputValue(), "Draft Buyer");
       await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
     });
+    await step("A02 · A draft left by another account (or an old unowned one) is never offered", async () => {
+      for (const stale of [
+        { owner: "someone-else", at: Date.now(), data: { buyer_name: "Other Admin Buyer", address: "Secret St" } },
+        { buyer_name: "Legacy Buyer", address: "Old St" },
+        { owner: "test", at: Date.now() - 3 * 864e5, data: { buyer_name: "Expired Buyer" } },
+      ]) {
+        await p.evaluate((v) => localStorage.setItem("cdf-draft", JSON.stringify(v)), stale);
+        await p.locator("#newBtn").click();
+        await p.locator("#f-bname").waitFor();
+        assert.equal(await p.locator(".dialog", { hasText: "unsaved new order" }).count(), 0);
+        assert.equal(await p.locator("#f-bname").inputValue(), "");
+        assert.equal(await p.evaluate(() => localStorage.getItem("cdf-draft")), null);
+        await p.keyboard.press("Escape"); await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      }
+    });
     await step("Create order: no florist by default, phone normalised, draft cleared", async () => {
       await p.evaluate(() => localStorage.removeItem("cdf-draft"));
       await p.locator("#newBtn").click();
