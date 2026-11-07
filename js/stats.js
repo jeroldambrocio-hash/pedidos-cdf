@@ -55,10 +55,16 @@ async function renderStats(){
   return entries.length?el("div",{class:"hbars"},entries.map(e=>el("div",{class:"hbar",tabindex:"0",title:e.name+": "+format(e.value),"aria-label":e.name+": "+format(e.value)},el("span",{class:"hbar-label"},logos&&CHANNELS.includes(e.name)?el("span",{class:"chan-logo sm",style:"--cc:"+chanColor(e.name)},chanMark(e.name)):null,e.name),el("span",{class:"hbar-track"},el("span",{class:"hbar-fill",style:`--w:${100*e.value/max}%`})),el("span",{class:"hbar-val"},el("b",{},format(e.value)),e.detail?el("small",{},e.detail):null)))):el("p",{class:"hint"},t("noData"));
  };
  // Long ranges are grouped so the chart keeps readable columns: days → weeks → 30-day blocks.
+ const countGuides = (max) => {
+  const interval = Math.ceil(max / 5);
+  const ticks = Array.from({ length: Math.floor(max / interval) + 1 }, (_, i) => i * interval);
+  return el("div", { class: "cols-guides", "aria-hidden": "true" }, ticks.map(value =>
+    el("span", { class: "cols-guide", style: `--level:${100 * value / max}%` }, el("small", {}, String(value)))));
+ };
  const step=days<=45?1:days<=400?7:30,buckets=[];
  for(let start=from;start<=to;start=addDays(start,step)){const end=addDays(start,step-1),os=rows.filter(o=>o.date>=start&&o.date<=end);buckets.push({start,os,value:metric(os)})}
  const max=Math.max(1,...buckets.map(b=>b.value));
- const chart=el("div",{class:"cols",style:`--n:${buckets.length}`},buckets.map(b=>{
+ const chart=el("div",{class:prices?"cols":"cols with-guides",style:`--n:${buckets.length}`},prices?null:countGuides(max),buckets.map(b=>{
   const title=shortDate(b.start)+" · "+dayCount(b.os.length)+(prices?" · "+peso(b.value):"");
   return el("button",{type:"button",class:"col","aria-label":title,title,onclick:()=>{setTab("orders");selectDay(b.start)}},el("span",{class:"col-fill",style:`--h:${100*b.value/max}%`}))}));
  const perTitle=prices?{1:"salesPerDay",7:"salesPerWeek",30:"salesPerMonth"}[step]:{1:"perDay",7:"ordersPerWeek",30:"ordersPerMonth"}[step];
@@ -67,7 +73,7 @@ async function renderStats(){
  const hours=Array.from({length:24},(_,h)=>({name:pad(h)+":00",value:rows.filter(o=>Math.floor(slotStart(o.slot)/60)===h).length}));
  // Keep 7–20 visible as in the preview; include earlier/later hours when orders use them.
  const shown=hours.filter((h,i)=>(i>=7&&i<=20)||h.value),hourMax=Math.max(1,...hours.map(h=>h.value));
- const hourChart=el("div",{class:"cols hours",style:`--n:${shown.length}`},shown.map(h=>el("button",{type:"button",class:"col",title:h.name+": "+dayCount(h.value),"aria-label":h.name+": "+dayCount(h.value)},el("span",{class:"col-fill",style:`--h:${100*h.value/hourMax}%`}),el("small",{class:"col-x"},h.name))));
+ const hourChart=el("div",{class:"cols hours with-guides",style:`--n:${shown.length}`},countGuides(hourMax),shown.map(h=>el("button",{type:"button",class:"col",title:h.name+": "+dayCount(h.value),"aria-label":h.name+": "+dayCount(h.value)},el("span",{class:"col-fill",style:`--h:${100*h.value/hourMax}%`}),el("small",{class:"col-x"},h.name))));
  const vendors=new Map();for(const o of rows){const name=memberName(o.vendor_email);vendors.set(name,(vendors.get(name)||0)+1)}
  const best=[...buyers.values()].sort((a,b)=>prices?b.total-a.total:b.n-a.n).slice(0,6);
  const customers=el("table",{class:"top"},el("thead",{},el("tr",{},el("th",{},t("buyerName")),el("th",{},t("kpiOrders")),prices?el("th",{},t("statsTotal")):null,el("th",{},t("statsLast")))),el("tbody",{},best.map(b=>el("tr",{},el("td",{},b.name),el("td",{},String(b.n)),prices?el("td",{},peso(b.total)):null,el("td",{},shortDate(b.last))))));

@@ -842,6 +842,12 @@ dl.ro .pic { max-width: 260px; }
 .col-fill { display: block; width: 100%; height: max(var(--h), 2px); background: var(--primary); border-radius: 4px 4px 0 0; transform-origin: bottom; transition: background-color var(--dur-fast); }
 .col:hover .col-fill, .col:focus-visible .col-fill { background: var(--primary-hover); }
 .cols.hours { gap: 6px; height: 150px; padding-bottom: 20px; position: relative; }
+.cols.with-guides { position: relative; padding-inline-start: 24px; }
+.cols-guides { position: absolute; inset: 0 0 2px 24px; pointer-events: none; }
+.cols.hours .cols-guides { bottom: 20px; }
+.cols-guide { position: absolute; inset-inline: 0; bottom: var(--level); border-top: 1px dashed var(--line); }
+.cols-guide small { position: absolute; inset-inline-end: 100%; margin-inline-end: 5px; transform: translateY(-50%); color: var(--faint); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
+.cols.with-guides + .cols-axis { padding-inline-start: 24px; }
 .col-x { position: absolute; left: 50%; bottom: -20px; transform: translateX(-50%); color: var(--faint); font-size: 0.6875rem; font-variant-numeric: tabular-nums; }
 .cols-axis { display: flex; justify-content: space-between; color: var(--faint); font-size: 0.75rem; margin-top: -6px; }
 table.top { width: 100%; border-collapse: collapse; font-size: 0.84375rem; }
@@ -1812,7 +1818,7 @@ select option { background: var(--surface); color: var(--fg); }
 .chat-pane .chat { grid-template-rows: 1fr auto auto auto; }
 .chat-scroll { position: relative; display: flex; flex-direction: column; min-height: 0; }
 .chat-sec .chat-scroll { max-height: 380px; }
-.chat-log { gap: 0; padding: 6px 4px 10px; }
+.chat-log { gap: 0; padding: 6px 4px 38px; }
 .chat-day { position: sticky; top: 0; z-index: 2; margin: 14px 0 8px; }
 .chat-day::before, .chat-day::after { display: none; }
 .chat-day span { margin: 0 auto; padding: 3px 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); text-transform: none; letter-spacing: 0; font-size: 0.71875rem; }
@@ -1851,10 +1857,10 @@ select option { background: var(--surface); color: var(--fg); }
 .react-e { font-size: 0.95rem; line-height: 1; }
 
 /* Hover (or hold, on phones) a message: quick reactions, more, copy */
-.msg-tools { position: absolute; top: -16px; right: 10px; z-index: 3; display: flex; align-items: center; gap: 1px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); opacity: 0; transform: translateY(4px) scale(.96); pointer-events: none; transition: opacity 240ms var(--ease-soft), transform 280ms var(--ease-soft); }
-.cmsg.mine .msg-tools { right: auto; left: 10px; }
+.msg-tools { position: absolute; top: 100%; left: 44px; max-width: calc(100% - 50px); z-index: 3; display: flex; align-items: center; gap: 1px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); opacity: 0; transform: translateY(4px) scale(.96); pointer-events: none; transition: opacity 240ms var(--ease-soft), transform 280ms var(--ease-soft); }
+.cmsg.mine .msg-tools { left: auto; right: 6px; max-width: calc(100% - 12px); }
 .cmsg:hover .msg-tools, .cmsg:focus-within .msg-tools, .cmsg.tools-on .msg-tools { opacity: 1; transform: none; pointer-events: auto; }
-.msg-tools button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 1rem; cursor: pointer; transition: background-color 220ms var(--ease-soft), transform 260ms var(--ease-soft); }
+.msg-tools button { display: grid; place-items: center; width: 30px; min-width: 0; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 1rem; cursor: pointer; transition: background-color 220ms var(--ease-soft), transform 260ms var(--ease-soft); }
 .msg-tools button:hover { background: var(--surface-hover); color: var(--fg); }
 .msg-tools .tool-e:hover { transform: scale(1.18); }
 .msg-tools .tool-copy svg.i { width: 15px; height: 15px; }
@@ -1899,6 +1905,7 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .chat-search-wrap:focus-within { border-color: var(--primary-text); }
 .chat-search-wrap svg.i { width: 15px; height: 15px; }
 .chat-search { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); outline: none; }
+.chat-direct-picker { width: 100%; min-width: 0; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--input, var(--sunk)); color: var(--fg); }
 .chat-filter { width: 100%; }
 .chat-filter button { flex: 1; justify-content: center; min-height: 32px; }
 .chat-threads { display: flex; flex-direction: column; gap: 2px; padding: 6px; }

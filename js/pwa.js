@@ -1,7 +1,7 @@
 // Installable app (iPhone and Android) and push notifications.
 // Android/Chrome offer an install prompt; iPhone installs from Safari's Share menu (we show the steps).
 // On iPhone, notifications only exist inside the installed app (iOS 16.4+), so we say so instead of failing.
-const PWA = { prompt: null, reg: null };
+const PWA = { prompt: null, reg: null, saved: null };
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -33,31 +33,45 @@ async function currentSub() {
   return reg ? reg.pushManager.getSubscription() : null;
 }
 async function saveSub(sub) {
-  const j = sub.toJSON();
-  const { error } = await sb.from("cdf_push_subs").upsert({ endpoint: j.endpoint, member_email: S.me.email, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) }, { onConflict: "endpoint" });
+  const j = sub.toJSON(), email = S.me.email;
+  const { error } = await sb.from("cdf_push_subs").upsert({ endpoint: j.endpoint, member_email: email, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) }, { onConflict: "endpoint" });
   if (error) throw new Error(t("notifFail"));
+  if (S.me?.email === email) PWA.saved = { email, endpoint: j.endpoint };
 }
 async function enablePush() {
   if (!pushSupported()) return installApp();
   const perm = await Notification.requestPermission();
   if (perm !== "granted") { paintPwa(); return toast(t("notifDenied"), { type: "error" }); }
+  let created;
   try {
     const reg = PWA.reg || (await navigator.serviceWorker.ready);
-    const sub = (await reg.pushManager.getSubscription()) || (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() }));
+    const existing = await reg.pushManager.getSubscription();
+    const sub = existing || (created = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() }));
     await saveSub(sub);
     toast(t("notifOnToast"));
-  } catch (e) { toast(e.message || t("notifFail"), { type: "error" }); }
+  } catch (e) {
+    if (created) await created.unsubscribe().catch(() => {});
+    toast(e.message || t("notifFail"), { type: "error" });
+  }
   paintPwa();
 }
 async function disablePush() {
-  const sub = await currentSub();
-  if (sub) { await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe().catch(() => {}); }
-  toast(t("notifOffToast")); paintPwa();
+  try {
+    const sub = await currentSub();
+    if (sub) {
+      const { error } = await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint);
+      if (error) throw error;
+      await sub.unsubscribe().catch(() => {});
+    }
+    PWA.saved = null;
+    toast(t("notifOffToast"));
+  } catch { toast(t("notifFail"), { type: "error" }); }
+  paintPwa();
 }
 // After signing in on a device that already allowed notifications: link it to whoever is signed in now
-async function syncPush() { try { const sub = await currentSub(); if (sub && Notification.permission === "granted") await saveSub(sub); } catch {} }
+async function syncPush() { try { const sub = await currentSub(); if (sub && Notification.permission === "granted") await saveSub(sub); } catch {} finally { paintPwa(); } }
 // Signing out: this device stops receiving that person's notifications
-async function forgetPush() { try { const sub = await currentSub(); if (sub) { await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); } } catch {} }
+async function forgetPush() { PWA.saved = null; try { const sub = await currentSub(); if (sub) { await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); } } catch {} }
 
 async function paintPwa() {
   const inst = $("installBtn"); if (inst) inst.hidden = isStandalone();
@@ -65,7 +79,8 @@ async function paintPwa() {
   let state = "off";
   if (!pushSupported()) state = isIOS() && !isStandalone() ? "needInstall" : "unsupported";
   else if (Notification.permission === "denied") state = "denied";
-  else if (Notification.permission === "granted" && (await currentSub())) state = "on";
+  else if (Notification.permission === "granted" && PWA.saved?.email === S.me?.email && PWA.saved &&
+    (await currentSub())?.endpoint === PWA.saved?.endpoint) state = "on";
   btn.dataset.state = state;
   btn.textContent = t({ on: "notifTurnOff", off: "notifTurnOn", needInstall: "installApp", denied: "notifHelp", unsupported: "notifHelp" }[state]);
   btn.disabled = state === "unsupported";

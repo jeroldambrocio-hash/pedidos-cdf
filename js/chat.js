@@ -1,10 +1,7 @@
-// Team chat: a conversation inside each order (seen by whoever can see that order) and a #team channel.
-// Tables: cdf_messages (order_id null = #team), cdf_message_reads (how far each person has read each thread)
-// and, if present, cdf_message_reactions (👍 ✅ … on a message). "Is typing…" travels as a realtime broadcast.
-// Without the tables everything here stays hidden (or, for reactions, simply not offered).
+// Order chats and #team use cdf_messages. Private conversations use separate participant-scoped tables.
 const TEAM = "team";
-const CH = { on: false, reactOn: false, msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, views: new Set(), channel: null, info: new Map(), q: "", filter: "all", sentTyping: 0 };
-const threadOf = (m) => m.order_id || TEAM;
+const CH = { on: false, reactOn: false, directOn: false, directs: new Map(), msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, views: new Set(), channel: null, info: new Map(), q: "", filter: "all", sentTyping: 0 };
+const threadOf = (m) => m.direct_id || m.order_id || TEAM;
 const msgOrder = (a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
 const manilaDay = (ts) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ts));
 const clock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: TZ });
@@ -12,16 +9,20 @@ const person = (email) => S.members.find((m) => m.email === email) || { email, n
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 
 async function loadChat() {
-  const [m, r, x] = await Promise.all([
-    sb.from("cdf_messages").select("*").order("created_at").limit(2000),
+  const [m, r, x, d, dm] = await Promise.all([
+    sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000),
     sb.from("cdf_message_reads").select("*").eq("member_email", S.me.email),
     sb.from("cdf_message_reactions").select("*").limit(5000),
+    sb.from("cdf_direct_threads").select("*"),
+    sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000),
   ]);
   CH.on = !m.error && !r.error;
   $("tabChat").hidden = !CH.on;
   if (!CH.on) return;
   CH.reactOn = !x.error;
-  CH.msgs = (m.data || []).sort(msgOrder);
+  CH.directOn = !d.error && !dm.error;
+  CH.directs = new Map((d.data || []).map((thread) => [thread.id, thread]));
+  CH.msgs = [...(m.data || []), ...(CH.directOn ? dm.data || [] : [])].sort(msgOrder);
   CH.reads = new Map((r.data || []).map((y) => [y.thread, y.last_read_at]));
   CH.reacts = new Map();
   for (const y of x.data || []) CH.reacts.set(y.message_id, [...(CH.reacts.get(y.message_id) || []), y]);
@@ -37,12 +38,22 @@ function chatSubscribe() {
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_messages" }, (p) => addMessage(p.new, true))
     .on("broadcast", { event: "typing" }, (p) => onTyping(p.payload || p));
   if (CH.reactOn) ch = ch.on("postgres_changes", { event: "*", schema: "public", table: "cdf_message_reactions" }, onReactChange);
+  if (CH.directOn) ch = ch
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_direct_threads" }, (p) => {
+      CH.directs.set(p.new.id, p.new);
+      if (S.tab === "chat") renderChatList();
+    })
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_direct_messages" }, (p) => receiveDirect(p.new));
   CH.channel = ch.subscribe();
 }
 function stopChat() {
   if (CH.channel) sb.removeChannel(CH.channel);
   Object.assign(CH, { on: false, reactOn: false, msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, channel: null, info: new Map(), q: "", filter: "all" });
   CH.views.clear();
+  CH.directOn = false;
+  CH.directs.clear();
+  $("chatList").replaceChildren();
+  $("chatPane").replaceChildren();
   $("tabChat").hidden = true;
 }
 
@@ -68,13 +79,16 @@ function addMessage(m, live) {
   const seen = [...CH.views].some((v) => v.thread === th && v.node.isConnected) && document.visibilityState === "visible";
   refreshViews(th);
   if (seen) markRead(th);
-  else if (live && m.author_email !== S.me.email && mentionsMe(m.body)) {
+  else if (live && m.author_email !== S.me.email && (m.direct_id || mentionsMe(m.body))) {
     toast(t("chatMentioned", { name: person(m.author_email).name, where: threadTitle(th) }), { type: "info", ms: 9000, action: t("chatSee"), onAction: () => openThread(th) });
   }
   paintChatCounts();
 }
 async function sendMessage(thread, body) {
-  const { data, error } = await sb.from("cdf_messages").insert({ order_id: thread === TEAM ? null : thread, author_email: S.me.email, body }).select().single();
+  const direct = CH.directs.has(thread);
+  const target = direct ? { direct_id: thread } : { order_id: thread === TEAM ? null : thread };
+  const { data, error } = await sb.from(direct ? "cdf_direct_messages" : "cdf_messages")
+    .insert({ ...target, author_email: S.me.email, body }).select().single();
   if (error || !data) throw new Error(t("chatFail"));
   addMessage(data, false);
   CH.reads.set(thread, data.created_at);
@@ -84,7 +98,7 @@ async function sendMessage(thread, body) {
 
 // ---------- "is typing…" (a broadcast, nothing is stored) ----------
 function sendTyping(thread) {
-  if (!CH.channel || Date.now() - CH.sentTyping < 2500) return;
+  if (!CH.channel || CH.directs.has(thread) || Date.now() - CH.sentTyping < 2500) return;
   CH.sentTyping = Date.now();
   CH.channel.send?.({ type: "broadcast", event: "typing", payload: { thread, email: S.me.email } })?.catch?.(() => {});
 }
@@ -246,9 +260,10 @@ function threadView(thread, { autofocus = false } = {}) {
     const p = person(m.author_email), mine = m.author_email === S.me.email, day = manilaDay(m.created_at);
     const joined = prev && prev.author_email === m.author_email && manilaDay(prev.created_at) === day && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60000;
     const big = onlyEmoji(m.body);
+    const canReact = CH.reactOn && !m.direct_id;
     const tools = el("div", { class: "msg-tools", role: "toolbar", "aria-label": t("chatReact") },
-      CH.reactOn ? QUICK.map((e) => el("button", { type: "button", class: "tool-e", "aria-label": t("chatReact") + " " + e, onclick: () => { toggleReact(m, e); r.classList.remove("tools-on"); } }, e)) : null,
-      CH.reactOn ? el("button", { type: "button", class: "tool-more", "aria-label": t("chatMoreReact"), title: t("chatMoreReact"), onclick: (ev) => openEmoji(ev.currentTarget, (e) => toggleReact(m, e)) }, "＋") : null,
+      canReact ? QUICK.map((e) => el("button", { type: "button", class: "tool-e", "aria-label": t("chatReact") + " " + e, onclick: () => { toggleReact(m, e); r.classList.remove("tools-on"); } }, e)) : null,
+      canReact ? el("button", { type: "button", class: "tool-more", "aria-label": t("chatMoreReact"), title: t("chatMoreReact"), onclick: (ev) => openEmoji(ev.currentTarget, (e) => toggleReact(m, e)) }, "＋") : null,
       el("button", { type: "button", class: "tool-copy", "aria-label": t("chatCopy"), title: t("chatCopy"), onclick: () => navigator.clipboard?.writeText(m.body).then(() => toast(t("chatCopied")), () => {}) }, icon("copy")));
     const r = el("div", { class: "cmsg" + (joined ? " joined" : "") + (mine ? " mine" : "") + (!mine && mentionsMe(m.body) ? " for-me" : "") + (big ? " jumbo" : ""), "data-id": m.id },
       mine ? null : joined ? el("span", { class: "msg-gap" }) : avatarNode(p, "avatar msg-pic"),
@@ -382,13 +397,46 @@ function paintChatCounts() {
 }
 
 // ---------- the Conversations page ----------
+function directPeer(thread) {
+  const pair = CH.directs.get(thread);
+  return pair ? person(pair.member_a === S.me.email ? pair.member_b : pair.member_a) : null;
+}
+async function receiveDirect(message) {
+  const me = S.me;
+  if (!CH.directs.has(message.direct_id)) {
+    const { data } = await sb.from("cdf_direct_threads").select("*").eq("id", message.direct_id).maybeSingle();
+    if (!data || S.me !== me) return;
+    CH.directs.set(data.id, data);
+  }
+  addMessage(message, true);
+}
+async function openDirect(email, control) {
+  const me = S.me;
+  control.disabled = true;
+  try {
+    const { data, error } = await sb.rpc("cdf_open_direct", { peer: email }).single();
+    if (S.me !== me) return;
+    if (error || !data) throw new Error(t("chatDirectFail"));
+    CH.directs.set(data.id, data);
+    CH.q = "";
+    CH.filter = "all";
+    $("chatList").replaceChildren();
+    openThread(data.id);
+  } catch {
+    if (S.me === me) toast(t("chatDirectFail"));
+  } finally {
+    control.disabled = false;
+  }
+}
 function threadTitle(th) {
   if (th === TEAM) return "#" + t("chatTeam");
+  const peer = directPeer(th);
+  if (peer) return peer.name;
   const o = byId(th) || CH.info.get(th);
   return o ? "#" + o.num + " · " + (o.customer_name || t("noName")) : "#…";
 }
 async function loadThreadInfo(ids) {
-  const miss = ids.filter((id) => id !== TEAM && !byId(id) && !CH.info.has(id));
+  const miss = ids.filter((id) => id !== TEAM && !CH.directs.has(id) && !byId(id) && !CH.info.has(id));
   if (!miss.length) return;
   for (const id of miss) CH.info.set(id, null); // asked once
   const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,slot,channel,vendor_email,photo_path,bouquet_path").in("id", miss);
@@ -399,6 +447,7 @@ function threads() {
   const last = new Map();
   for (const m of CH.msgs) last.set(threadOf(m), m);
   const list = [...last.entries()].filter(([th]) => th !== TEAM).sort((a, b) => msgOrder(b[1], a[1]));
+  for (const id of CH.directs.keys()) if (!last.has(id)) list.push([id, null]);
   return [[TEAM, last.get(TEAM) || null], ...list];
 }
 function renderChat() {
@@ -416,7 +465,15 @@ function chatListTools(box) {
   const q = el("input", { class: "chat-search", type: "search", placeholder: t("chatSearch"), "aria-label": t("chatSearch"), oninput: (e) => { CH.q = e.target.value.trim().toLowerCase(); renderChatList(); } });
   const seg = el("div", { class: "seg chat-filter", role: "group", "aria-label": t("chatFilter") },
     ["all", "unread"].map((f) => el("button", { type: "button", "data-f": f, "aria-pressed": String(CH.filter === f), onclick: () => { CH.filter = f; seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.f === f))); placePill(seg); renderChatList(); } }, t(f === "all" ? "chatAll" : "chatUnreadOnly"))));
-  tools = el("div", { class: "chat-tools" }, el("label", { class: "chat-search-wrap" }, icon("search"), q), seg);
+  q.value = CH.q;
+  const direct = CH.directOn ? el("select", { class: "chat-direct-picker", "aria-label": t("chatDirectNew"), onchange: (e) => {
+    const select = e.currentTarget;
+    const email = select.value;
+    select.value = "";
+    if (email) openDirect(email, select);
+  } }, el("option", { value: "" }, t("chatDirectNew")),
+  S.members.filter((m) => m.email !== S.me.email).map((m) => el("option", { value: m.email }, m.name + " · " + t("role_" + m.role)))) : null;
+  tools = el("div", { class: "chat-tools" }, el("label", { class: "chat-search-wrap" }, icon("search"), q), seg, direct);
   const list = el("div", { class: "chat-threads" });
   box.replaceChildren(tools, list);
   requestAnimationFrame(() => placePill(seg));
@@ -431,16 +488,17 @@ function renderChatList() {
   if (!ts.length) { list.replaceChildren(el("p", { class: "chat-list-empty" }, t(CH.filter === "unread" && !CH.q ? "chatAllRead" : "chatNoResults"))); return; }
   list.replaceChildren(...ts.map(([th, m]) => {
     const u = unreadIn(th), team = th === TEAM, p = m ? person(m.author_email) : null;
+    const peer = directPeer(th);
     const o = team ? null : byId(th) || CH.info.get(th);
     const k = o ? STEPS[stepOf(o)]?.k : null;
     const who = m ? (m.author_email === S.me.email ? t("chatYou") : handleOf(p)) + ": " : "";
     return el("button", { type: "button", class: "thread" + (CH.open === th ? " on" : "") + (u ? " unread" : ""), "aria-current": CH.open === th ? "true" : "false", onclick: () => openThread(th) },
       el("span", { class: "thread-ic" + (team ? " team" : "") },
-        team ? "#" : o?.channel && CHANNELS.includes(o.channel) ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon("orders"),
+        team ? "#" : peer ? icon("message") : o?.channel && CHANNELS.includes(o.channel) ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon("orders"),
         k ? el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)", title: stepName(stepOf(o)) }) : null),
       el("span", { class: "thread-main" },
         el("span", { class: "thread-top" }, el("b", {}, threadTitle(th)), m ? el("time", {}, manilaDay(m.created_at) === S.today ? clock(m.created_at) : shortDate(manilaDay(m.created_at))) : null),
-        el("small", {}, typingText(th) ? el("em", { class: "thread-typing" }, typingText(th)) : m ? who + m.body : t("chatTeamDesc"))),
+        el("small", {}, typingText(th) ? el("em", { class: "thread-typing" }, typingText(th)) : m ? who + m.body : t(peer ? "chatDirect" : "chatTeamDesc"))),
       u ? el("span", { class: "thread-count" }, String(u)) : null);
   }));
 }
@@ -452,6 +510,7 @@ function renderChatPane() {
   const o = th === TEAM ? null : byId(th) || CH.info.get(th);
   const back = el("button", { class: "btn icon ghost chat-back", type: "button", "aria-label": t("chatBack"), onclick: () => { CH.open = null; renderChat(); } }, icon("left"));
   let head;
+  const peer = directPeer(th);
   if (th === TEAM) {
     const team = S.members.slice(0, 5);
     head = el("div", { class: "chat-head" }, back,
@@ -459,6 +518,9 @@ function renderChatPane() {
       el("div", { class: "chat-head-txt" }, el("b", {}, threadTitle(th)), el("small", {}, t("chatTeamDesc"))),
       el("span", { class: "spacer" }),
       el("span", { class: "avatar-stack", title: S.members.map((m) => m.name).join(", ") }, team.map((m) => avatarNode(m, "avatar xs")), el("small", {}, t("chatPeople", { n: S.members.length }))));
+  } else if (peer) {
+    head = el("div", { class: "chat-head" }, back, avatarNode(peer),
+      el("div", { class: "chat-head-txt" }, el("b", {}, peer.name), el("small", {}, t("chatDirect"))));
   } else {
     const k = o ? stepOf(o) : null;
     head = el("div", { class: "chat-head" }, back,

@@ -78,18 +78,20 @@ function renderTeam() {
   const box = $("team"); box.replaceChildren();
   const open = S.orders.filter((o) => stepOf(o) !== 3);
   for (const m of S.members) {
+    const phone = intlPhone(m.phone);
     const self = m.email === S.me.email;
     const load = m.role === "carrier" ? open.filter((o) => o.carrier_email === m.email).length : open.filter((o) => o.vendor_email === m.email).length;
     const florist = m.role === "vendor";
     box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
       avatarNode(m),
       el("div", {}, el("b", {}, m.name, bloomTag(m)), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
-        m.phone ? el("a", { class: "m-phone", href: "tel:+" + m.phone }, icon("phone"), "+" + m.phone) : null,
+        phone ? el("a", { class: "m-phone", href: "tel:+" + phone }, icon("phone"), "+" + phone) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
         m.role === "vendor" ? doneLine(m.email) : null),
       el("span", { class: "role-tag role-" + m.role }, t("role_" + m.role)),
       el("div", { class: "m-acts" },
+      CH.directOn && !self ? el("button", { class: "btn", type: "button", onclick: (e) => openDirect(m.email, e.currentTarget) }, t("chatDirect")) : null,
       el("button", { class: "btn", type: "button", "aria-label": t("editMember") + ": " + m.name, onclick: () => editMember(m) }, t("edit")),
       self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn danger", type: "button", onclick: async (e) => {
         const b = e.currentTarget;
