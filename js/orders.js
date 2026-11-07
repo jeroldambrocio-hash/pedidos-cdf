@@ -54,7 +54,7 @@ function shiftMonth(n) {
 // than three hours to go. Before today: anything not delivered.
 function riskOf(o) {
   const st = stepOf(o);
-  if (st === 3 || (S.cap.archive && o.archived_at)) return null;
+  if (!isOpen(o) || (S.cap.archive && o.archived_at)) return null;
   if (o.date < S.today) return "late";
   if (o.date !== S.today) return null;
   const now = manilaMinutes(), start = slotStart(o.slot);
@@ -72,7 +72,7 @@ function filterMatch(o) {
   const f = S.filter;
   if (S.chan && (o.channel || "") !== S.chan) return false;
   if (f == null) return true;
-  if (f === "pending") return stepOf(o) !== 3;
+  if (f === "pending") return isOpen(o);
   if (f === "unassigned") return !o.vendor_email;
   if (f === "risk") return !!riskOf(o);
   return stepOf(o) === f;
@@ -82,11 +82,11 @@ function setChan(c) { S.chan = c; flipDay(); }
 // Redraw the day with cards sliding to their new place instead of jumping
 const flipDay = () => flip($("list"), renderDay);
 
-const STEP_ICON = ["box", "check", "truck", "check", "alert"];
+const STEP_ICON = ["box", "check", "truck", "check", "alert", "close"];
 // The orders the day shows: search hits, or the day plus anything overdue when looking at today
 function dayOrders() {
   if (S.hits) return S.hits.slice().sort(byTime);
-  const lateOnes = S.sel === S.today ? S.orders.filter((o) => o.date < S.today && stepOf(o) !== 3).sort(byTime) : [];
+  const lateOnes = S.sel === S.today ? S.orders.filter((o) => o.date < S.today && isOpen(o)).sort(byTime) : [];
   return [...lateOnes, ...S.orders.filter((o) => o.date === S.sel).sort(byTime)];
 }
 function renderFilters(day) {
@@ -102,7 +102,8 @@ function renderFilters(day) {
   fill(box, 
     el("h3", {}, t("statusH")),
     row(null, t("allOrders"), "orders", n(() => true), "all"),
-    ...STEPS.map((s, i) => row(i, stepName(i), STEP_ICON[i], n((o) => stepOf(o) === i), s.k)),
+    // "Cancelled" only shows up once there is one (or while it is the active filter)
+    ...STEPS.map((s, i) => i === CANCELLED && !n((o) => stepOf(o) === i) && S.filter !== i ? null : row(i, stepName(i), STEP_ICON[i], n((o) => stepOf(o) === i), s.k)),
     !S.hits && risky ? row("risk", t("summaryRisk"), "alert", risky, null) : null,
     unassigned ? row("unassigned", t("summaryUnassigned"), "user", unassigned, null) : null,
     el("h3", { class: "grp" }, t("channelH")),
@@ -128,7 +129,7 @@ function renderDay() {
 
   // Summary: small, read-only, one line (dot in the state's colour + number + state)
   const c = (i) => day.filter((o) => stepOf(o) === i).length;
-  const items = [[0, "sumPrep"], [1, "sumReady"], [2, "sumTransit"], [3, "sumDone"], ...(c(4) ? [[4, "sumFail"]] : [])];
+  const items = [[0, "sumPrep"], [1, "sumReady"], [2, "sumTransit"], [3, "sumDone"], ...(c(4) ? [[4, "sumFail"]] : []), ...(c(CANCELLED) ? [[CANCELLED, "sumCancel"]] : [])];
   const sum = $("summary"), sig = items.map(([i]) => c(i)).join(",");
   sum.replaceChildren(...items.map(([i, k]) => el("span", { class: "sum-item", style: `--c:var(--${STEPS[i].k})` }, el("i", { "aria-hidden": "true" }), el("b", {}, String(c(i))), " " + t(k))));
   if (sum.dataset.sig && sum.dataset.sig !== sig && !prefersReducedMotion()) sum.animate([{ opacity: .4 }, { opacity: 1 }], { duration: 380, easing: "ease-out" });
@@ -175,7 +176,7 @@ function timelineEntry(o, withDate) {
     orderCard(o));
 }
 const badge = (i) => el("span", { class: "badge s-" + STEPS[i].k }, icon(STEP_ICON[i]), stepName(i));
-const retryTag = (o) => o.attempts > 0 && stepOf(o) !== 3
+const retryTag = (o) => o.attempts > 0 && isOpen(o)
   ? el("span", { class: "tag fail" }, icon("alert"), o.missed_on ? t("retryTag", { n: o.attempts + 1, date: shortDate(o.missed_on) }) : t("retryTagNoDate", { n: o.attempts + 1 })) : null;
 function orderCard(o) {
   const cur = stepOf(o), k = STEPS[cur].k, next = NEXT[cur], busy = S.pending.has(o.id), risk = riskOf(o);
@@ -183,12 +184,13 @@ function orderCard(o) {
   const archived = S.cap.archive && o.archived_at;
   const open = () => openOrder(o);
   // The status badge is also a select: picking a step goes through the same checks as the progress line
-  const statusSel = el("label", { class: "badge-sel" }, badge(cur),
+  const cancelled = cur === CANCELLED;
+  const statusSel = cancelled ? el("span", { class: "badge-sel" }, badge(cur)) : el("label", { class: "badge-sel" }, badge(cur),
     el("select", { "aria-label": t("status") + " · #" + o.num, disabled: busy || archived, onchange: (e) => { const v = +e.target.value; e.target.value = String(cur); requestStep(o, v); } },
-      STEPS.map((s, i) => el("option", { value: String(i), selected: i === cur }, stepName(i)))));
+      STEP_IDS.map((i) => el("option", { value: String(i), selected: i === cur }, stepName(i)))));
   const pick = S.selecting ? el("label", { class: "pick" }, el("input", { type: "checkbox", checked: S.selected.has(o.id), "aria-label": t("selectOrder", { num: o.num }),
     onchange: (e) => { e.target.checked ? S.selected.add(o.id) : S.selected.delete(o.id); card.classList.toggle("picked", e.target.checked); renderBulk(); } })) : null;
-  const tags = [retryTag(o), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
+  const tags = [cancelled ? el("span", { class: "tag cancel" }, icon("close"), t("cancelledTag")) : null, retryTag(o), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
   const card = el("article", { class: "order k-" + k + (risk ? " at-risk" : "") + (S.selected.has(o.id) ? " picked" : "") + (busy ? " saving" : ""), "data-order": o.id },
     el("div", { class: "o-top" + (pick ? " picking" : "") }, pick,
       el("button", { class: "thumb-btn", type: "button", "aria-label": t("order", { num: o.num }) + " · " + (o.customer_name || t("noName")), onclick: open }, thumb(o)),
@@ -200,11 +202,13 @@ function orderCard(o) {
         el("div", { class: "o-sub" },
           /^\d{7,15}$/.test(phone) ? el("a", { href: "tel:+" + phone }, icon("phone"), "+" + phone) : null,
           o.address ? el("a", { class: "o-addr", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), o.address) : el("span", { class: "note" }, t("noAddress"))),
+        cancelled && o.cancel_reason ? el("div", { class: "o-cancel" }, el("b", {}, t("cancelReasonShort")), " " + o.cancel_reason) : null,
         o.card_message || o.notes ? el("div", { class: "o-card" }, icon("note"), o.card_message || o.notes) : null),
       statusSel),
     el("div", { class: "o-bottom" }, stepper(o),
       el("div", { class: "actions" },
         el("button", { class: "btn icon", type: "button", "aria-label": t("notify"), title: t("notify"), onclick: async () => { await openFresh(o); document.querySelector(".sheet #f-link")?.scrollIntoView({ block: "center" }); } }, icon("message")),
+        cancelled && isAdmin() && !archived ? el("button", { class: "btn", type: "button", disabled: busy, onclick: () => reinstateOrder(o) }, t("reinstate")) : null,
         cur === 2 && !archived ? el("button", { class: "btn to-fail", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("actMissed")) : null,
         cur === 4 && !archived ? el("button", { class: "btn danger", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("reschedule")) : null,
         next != null && !archived ? el("button", { class: "btn primary to-" + STEPS[next].k, type: "button", disabled: busy, onclick: () => requestStep(o, next) }, t(NEXT_LABEL[cur])) : null,
@@ -213,13 +217,14 @@ function orderCard(o) {
 }
 // The progress line is the one status control: a tap moves the order, and steps with consequences ask first.
 function stepper(o) {
-  const cur = stepOf(o), idx = cur === 4 ? 3 : cur;
-  const box = el("div", { class: "steps", role: "group", "aria-label": t("status") });
+  // A cancelled order shows where it stopped, greyed out and not tappable
+  const off = stepOf(o) === CANCELLED, cur = baseStep(o), idx = cur === 4 ? 3 : cur;
+  const box = el("div", { class: "steps" + (off ? " off" : ""), role: "group", "aria-label": t("status") });
   // "Nobody home" takes the last place, after On the way
   [0, 1, 2, cur === 4 ? 4 : 3].forEach((s, i) => {
     if (i) box.append(el("span", { class: "link" + (i <= idx ? " on" : "") }));
     box.append(el("button", { type: "button", class: "step" + (i < idx ? " done" : i === idx ? " cur" : ""), "aria-pressed": String(i === idx), "aria-label": stepName(s),
-      disabled: S.pending.has(o.id) || (S.cap.archive && o.archived_at), onclick: () => requestStep(o, s) },
+      disabled: off || S.pending.has(o.id) || (S.cap.archive && o.archived_at), onclick: () => requestStep(o, s) },
       el("span", { class: "node" }), el("span", { class: "t" }, stepName(s))));
   });
   return box;
@@ -355,7 +360,7 @@ function downloadCsv(rows, name) {
   const cols = [["num", "orderNum"], ["date", "date"], ["slot", "slot"], ["channel", "channel"], [(o) => stepName(stepOf(o)), "status"],
     [(o) => memberName(o.vendor_email || ""), "vendor"], ["buyer_name", "buyerName"], ["buyer_phone", "buyerPhone"], ["customer_email", "email"],
     ["customer_name", "customerName"], ["customer_phone", "phone"], ["address", "deliveryAddr"], ["card_message", "cardMsg"], ["notes", "note"],
-    ["attempts", "attempts"], ...(pricesOn() ? [["amount", "amount"]] : []), [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];
+    ["attempts", "attempts"], ...(pricesOn() ? [["amount", "amount"]] : []), [(o) => (o.cancelled_at ? o.cancel_reason || "1" : ""), "cancelledCol"], [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];
   // A cell a spreadsheet could read as a formula (also behind leading tabs, spaces or other control
   // characters) gets an apostrophe; any comma, quote, semicolon or line break (CR or LF) is quoted.
   const cell = (v) => { const raw = String(v ?? ""); const s = /^[\s\x00-\x1f]*[=+@-]|^[\t\r]/.test(raw) ? "\'" + raw : raw; return /[",;\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; };

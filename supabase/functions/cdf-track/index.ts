@@ -20,7 +20,7 @@ Deno.serve(async (req) => {
     auth: { persistSession: false },
   });
   const { data: o, error } = await service.from("cdf_orders")
-    .select("num,date,slot,status,delivery,delivery_note,updated_at,customer_name,buyer_name,card_message,proof_path,bouquet_path")
+    .select("num,date,slot,status,delivery,delivery_note,updated_at,customer_name,buyer_name,card_message,proof_path,bouquet_path,cancelled_at")
     .eq("code", code).maybeSingle();
   if (error) return json({ error: "lookup" }, 500);
   if (!o) return json({ order: null });
@@ -30,7 +30,9 @@ Deno.serve(async (req) => {
     const { data } = await service.storage.from("cdf-entregas").createSignedUrl(path, 3600);
     return data?.signedUrl || null;
   };
-  const { proof_path, bouquet_path, customer_name, buyer_name, ...rest } = o;
+  const { proof_path, bouquet_path, customer_name, buyer_name, cancelled_at, ...rest } = o;
+  // A cancelled order only says so (not who cancelled it or why), and hands out no photos.
+  if (cancelled_at) return json({ order: { num: rest.num, date: rest.date, slot: rest.slot, updated_at: rest.updated_at, cancelled: true, for_name: "", proof_url: null, bouquet_url: null } });
   // Recipient's first name only ("For: Maria"), and only when it is a gift for someone else
   const gift = buyer_name.trim() && buyer_name.trim() !== customer_name.trim();
   return json({ order: { ...rest, for_name: gift ? customer_name.trim().split(/\s+/)[0] || "" : "", proof_url: await sign(proof_path), bouquet_url: await sign(bouquet_path) } });

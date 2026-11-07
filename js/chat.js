@@ -523,7 +523,7 @@ async function loadThreadInfo(ids) {
   const miss = ids.filter((id) => id !== TEAM && !CH.directs.has(id) && !byId(id) && !CH.info.has(id));
   if (!miss.length) return;
   for (const id of miss) CH.info.set(id, null); // asked once
-  const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,slot,channel,vendor_email,photo_path,bouquet_path").in("id", miss);
+  const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,slot,channel,vendor_email,photo_path,bouquet_path,cancelled_at").in("id", miss);
   for (const o of data || []) {
     if (CH.info.get(o.id) === null) CH.info.set(o.id, o);
   }

@@ -20,8 +20,14 @@ const STEPS = [
   { k: "transit", status: "Ready", delivery: "In transit" },
   { k: "done", status: "Ready", delivery: "Delivered" },
   { k: "fail", status: "Ready", delivery: "Failed" }, // attempted, nobody home
+  { k: "cancel" }, // cancelled by an admin (cancelled_at): not a step anyone moves to, and nothing moves from it
 ];
-const stepOf = (o) => (o.delivery === "Failed" ? 4 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0);
+const CANCELLED = 5, STEP_IDS = [0, 1, 2, 3, 4]; // the steps a person can pick
+// Where the order is on the line; a cancelled order keeps it, so reinstating puts it back exactly
+const baseStep = (o) => (o.delivery === "Failed" ? 4 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0);
+const stepOf = (o) => (o.cancelled_at ? CANCELLED : baseStep(o));
+// Still work to do: not delivered and not cancelled
+const isOpen = (o) => { const s = stepOf(o); return s !== 3 && s !== CANCELLED; };
 // The next step from each one: Preparing → Ready → In transit → Delivered; a failed attempt goes out again.
 const NEXT = { 0: 1, 1: 2, 2: 3, 4: 2 };
 const stepName = (i) => t("st_" + STEPS[i].k);
@@ -186,7 +192,7 @@ function wantedRange() {
   return [addDays(S.today, -14), addDays(S.today, 31)];
 }
 const inRange = (d) => S.range && d >= S.range[0] && d <= S.range[1];
-const inScope = (o) => !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && o.delivery !== "Delivered"));
+const inScope = (o) => !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && isOpen(o)));
 
 let loading = null;
 async function loadOrders() {
@@ -205,8 +211,11 @@ async function loadOrders() {
       render();
       return false;
     }
-    const seen = new Set();
-    S.orders = [...a.data, ...b.data].filter((o) => !seen.has(o.id) && seen.add(o.id));
+    const seen = new Set(), me = S.me?.email;
+    // Overdue orders from before the range are open work only; a cancelled one stays on its own day.
+    // A driver sees a cancelled order only if it was theirs (so they know not to go), not in the free pool.
+    S.orders = [...a.data, ...b.data.filter((o) => !o.cancelled_at)].filter((o) => !seen.has(o.id) && seen.add(o.id))
+      .filter((o) => !(isCarrier() && o.cancelled_at && o.carrier_email !== me));
     await attachPrices(S.orders);
     S.range = [from, to]; S.loaded = true; S.loadError = false;
     setConnection(null);
@@ -316,7 +325,7 @@ async function savePrice(id,amount) {
 }
 // Exhaust the paginated, RLS-protected history. Never silently accept the API's default row cap.
 async function historyRows() {
- const rows=[], cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone";
+ const rows=[], cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone,cancelled_at";
  for(let offset=0;;offset+=1000){
   let query=sb.from("cdf_orders").select(cols).order("id");
   const paged=typeof query.range==="function";if(paged)query=query.range(offset,offset+999);

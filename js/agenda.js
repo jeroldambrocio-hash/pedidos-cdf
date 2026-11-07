@@ -1,7 +1,7 @@
 // Florists and drivers: what to do, by day, with one big button per step and a search box.
 
 function renderAgenda() {
-  const tomorrow = addDays(S.today, 1), week = addDays(S.today, 7), open = (o) => stepOf(o) !== 3;
+  const tomorrow = addDays(S.today, 1), week = addDays(S.today, 7), open = isOpen;
   const q = norm(S.query), digits = S.query.replace(/\D/g, "");
   const match = (o) => !q || [o.num, o.customer_name, o.address].some((v) => norm(v).includes(q))
     || (digits.length >= 3 && String(o.customer_phone || "").replace(/\D/g, "").includes(digits.slice(-9)));
@@ -54,11 +54,11 @@ function workCard(o, withDate, late) {
     if (await askConfirm(t("confirmTransit", { num: o.num }), t("markTransit"), { detail: to ? t("transitMailTo", { to }) : t("transitNoMail") })) advance(o, 2);
   }, "primary to-transit"));
   if (cur === 2) acts.push(big(t("actDelivered"), "check", () => deliverDialog(o), "primary to-done"), big(t("actMissed"), "alert", () => missedDialog(o), "to-fail"));
-  const phone = o.customer_phone && cur !== 3 ? intlPhone(o.customer_phone) : "";
+  const phone = o.customer_phone && isOpen(o) ? intlPhone(o.customer_phone) : "";
   const small = [
     phone ? el("a", { class: "btn", href: "tel:+" + phone }, icon("phone"), t("call")) : null,
     phone ? el("a", { class: "btn", href: "https://wa.me/" + phone, target: "_blank", rel: "noopener" }, icon("message"), "WhatsApp") : null,
-    o.address && cur !== 3 ? el("a", { class: "btn", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), t("map")) : null,
+    o.address && isOpen(o) ? el("a", { class: "btn", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), t("map")) : null,
   ].filter(Boolean);
   const open = () => openOrder(o);
   return el("article", { class: "work k-" + k + (late ? " late" : ""), "data-id": o.id },
@@ -68,6 +68,8 @@ function workCard(o, withDate, late) {
         el("div", { class: "w-head" }, el("span", { class: "time" }, (withDate ? shortDate(o.date) + " · " : "") + o.slot), el("span", {}, "#" + o.num), chanChip(o.channel), badge(cur), chatChip(o)),
         el("div", { class: "w-name" }, o.customer_name || t("noName")),
         retryTag(o),
+        // Cancelled: say it plainly so nobody prepares or drives it, with the office's reason
+        cur === CANCELLED ? el("div", { class: "o-cancel" }, el("b", {}, t("cancelledWork")), o.cancel_reason ? " " + o.cancel_reason : "") : null,
         o.address ? el("div", { class: "note" }, o.address) : null)),
     o.card_message ? el("div", { class: "msg" }, icon("note"), el("span", {}, o.card_message)) : null,
     o.notes ? el("div", { class: "note" }, el("b", {}, t("note") + ": "), o.notes) : null,

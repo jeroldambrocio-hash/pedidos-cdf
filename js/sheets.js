@@ -140,6 +140,7 @@ async function advance(o, i) {
 // and going back a step says what the customer will see.
 async function requestStep(o, i) {
   const cur = stepOf(o);
+  if (cur === CANCELLED) { toast(t("isCancelled"), { type: "error" }); return; }
   if (i === cur || S.pending.has(o.id)) return;
   if (i === 3) return deliverDialog(o);
   if (i === 4) return missedDialog(o);
@@ -257,7 +258,7 @@ function slotPicker(val) {
 // ---------- notices and history ----------
 const CH_LABEL = { email: "Email", whatsapp: "WhatsApp", telegram: "Telegram", viber: "Viber", copy: t("copyShort") };
 function notifyMsg(o, name, k) {
-  const st = { prep: "msgPrep", ready: "msgReady", transit: "msgTransit", done: "msgDone", fail: "msgFail" }[k] || "msgTransit";
+  const st = { prep: "msgPrep", ready: "msgReady", transit: "msgTransit", done: "msgDone", fail: "msgFail", cancel: "msgCancel" }[k] || "msgTransit";
   return tIn("en", st, { name: name ? " " + name : "", num: o.num, link: trackUrl(o) });
 }
 async function logOpened(o, channel, recipient, label, message) {
@@ -290,7 +291,7 @@ function historyBlock(o) {
 // Who changed what (migration 012). Photos show as "changed", never by their storage path.
 const EV_FIELDS = { num: "orderNum", date: "date", slot: "slot", channel: "channel", vendor_email: "vendor", carrier_email: "carrier",
   customer_name: "customerName", customer_phone: "phone", customer_email: "email", buyer_name: "buyerName", buyer_phone: "buyerPhone",
-  address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery",
+  address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery", cancel_reason: "cancelReason",
   photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", amount: "amount" };
 const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
@@ -332,12 +333,19 @@ function notifyRow(o, name, phone, stepK, hist) {
 }
 const mapLink = (a) => el("a", { href: mapsUrl(a), target: "_blank", rel: "noopener", class: "link-out" }, a + " ↗");
 
+// Says that the order is cancelled, why, by whom and when (inside the order sheet)
+const cancelNote = (o) => o?.cancelled_at ? el("div", { class: "sheet-note cancel-note", role: "status" }, icon("close"),
+  el("div", {}, el("b", {}, t("cancelledBanner")),
+    o.cancel_reason ? el("div", {}, o.cancel_reason) : null,
+    el("small", {}, [o.cancelled_by ? memberName(o.cancelled_by) : null, when(o.cancelled_at)].filter(Boolean).join(" · ")))) : null;
+
 // ---------- an order, read-only (florists and drivers) ----------
 function openOrderView(o) {
   const hist = historyBlock(o), cur = stepOf(o);
   const node = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" },
     el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), badge(cur), el("span", { class: "spacer" }), closeBtn()),
     el("div", { class: "sheet-body" },
+      cancelNote(o),
       el("section", {}, el("dl", { class: "ro" },
         el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
         el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
@@ -627,6 +635,8 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const footLeft = isNew ? el("span") : el("div", { class: "btn-row" },
     el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) openEditor(null, { copyFrom: o }); } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
     S.cap.archive ? el("button", { class: "btn foot-act", type: "button", "aria-label": t(archived ? "restore" : "archive"), onclick: () => setArchived([o], !archived) }, icon("archive"), el("span", { class: "lbl" }, t(archived ? "restore" : "archive"))) : null,
+    isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
+    isAdmin() && o.cancelled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("reinstate"), onclick: async () => { if (await closeSheet()) reinstateOrder(o); } }, icon("refresh"), el("span", { class: "lbl" }, t("reinstate"))) : null,
     isAdmin() ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
       if (!(await askConfirm(t("askDelete", { num: o.num }), t("yesDelete"), { danger: true, detail: S.cap.archive ? t("deleteHintArchive") : null }))) return;
       const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
@@ -651,6 +661,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t(copyFrom ? "duplicateTitle" : "newOrderTitle") : t("editOrder", { num: f.num })),
       o ? badge(cur) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
     el("div", { class: "sheet-body" },
+      isNew ? null : cancelNote(o),
       chanWarn,
       copyFrom ? el("div", { class: "sheet-note" }, icon("copy"), el("span", {}, t("duplicateHint"))) : null,
       draft ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
@@ -720,6 +731,32 @@ document.addEventListener("orderchange", (e) => {
   if (sheet.node.querySelector(".changed-banner")) return;
   sheet.node.querySelector(".sheet-body").prepend(el("div", { class: "sheet-note warn changed-banner", role: "status" }, icon("alert"), el("span", {}, t("changedMeanwhile"))));
 });
+
+// ---------- cancel / reinstate (admin) ----------
+// A cancelled order keeps its step; the server refuses any step while cancelled, tells the assigned
+// florist and driver, logs it in the history and shows the customer "cancelled" on the tracking page.
+function cancelDialog(o) {
+  const iReason = el("textarea", { id: "f-cancel", rows: 3, maxlength: 500, "aria-required": "true", placeholder: t("cancelReasonPh") });
+  const chips = el("div", { class: "chips" }, ["cancelR1", "cancelR2", "cancelR3"].map((k) =>
+    el("button", { class: "chip", type: "button", onclick: () => { iReason.value = t(k); iReason.focus(); } }, t(k))));
+  miniSheet(t("cancelTitle", { num: o.num }), [field(t("cancelReason"), iReason), chips, el("div", { class: "hint" }, t("cancelHint"))], t("cancelOrder"), async () => {
+    const reason = iReason.value.trim();
+    if (!reason) { iReason.closest(".field")?.classList.add("invalid"); iReason.focus(); return t("cancelNeedReason"); }
+    const { data, error } = await sb.rpc("cdf_cancel_order", { p_id: o.id, p_reason: reason });
+    if (error) return t("saveFail", { msg: error.message });
+    Object.assign(o, data); upsertLocal(o);
+    await closeSheet(true);
+    toast(t("cancelledN", { num: o.num }), { action: t("undo"), onAction: () => reinstateOrder(o) });
+    invalidateStats(); render();
+  }, { dirty: () => !!iReason.value.trim() });
+  requestAnimationFrame(() => iReason.focus());
+}
+async function reinstateOrder(o) {
+  const { data, error } = await sb.rpc("cdf_reinstate_order", { p_id: o.id });
+  if (error) { toast(t("saveFail", { msg: error.message }), { type: "error" }); return; }
+  Object.assign(o, data); upsertLocal(o);
+  toast(t("reinstatedN", { num: o.num })); invalidateStats(); render();
+}
 
 // ---------- archive ----------
 async function setArchived(list, on) {

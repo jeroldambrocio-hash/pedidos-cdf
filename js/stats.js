@@ -25,7 +25,8 @@ async function renderStats(){
   try{const data=await historyRows();if(request!==statsRequest||S.me?.email!==account||S.tab!=="stats")return;statsRows=data;statsFor=key;}
   catch(e){if(request!==statsRequest)return;box.replaceChildren(el("div",{class:"empty"},el("b",{},e.message),el("button",{class:"btn",type:"button",onclick:()=>{invalidateStats();renderStats()}},t("retry"))));return;}
  }
- const history=statsRows.filter(o=>o.date&&o.date<=S.today),firstDay=history.reduce((a,o)=>o.date<a?o.date:a,S.today);
+ // Cancelled orders are not sales, nor orders the shop handled
+ const history=statsRows.filter(o=>o.date&&o.date<=S.today&&!o.cancelled_at),firstDay=history.reduce((a,o)=>o.date<a?o.date:a,S.today);
  // Tell the admin which days have data, and keep the calendar inside them.
  $("statsRange").hidden=false;
  $("statsAvail").textContent=history.length?t("statsAvail",{from:yearDate(firstDay),to:yearDate(S.today),n:history.length}):t("statsAvailNone");

@@ -22,6 +22,8 @@ window.__orders = [
   { ...base, id: "55555555-5555-5555-5555-555555555555", num: "0128", date: past, status: "Ready", delivery: "Delivered", customer_name: "Old Delivered" },
 ];
 window.__prices = window.__orders.map(o=>({order_id:o.id,amount:2500}));
+// A14: open a page with some orders already cancelled by the office
+for (const o of window.__orders) if ((window.__cancelNums || []).includes(o.num)) Object.assign(o, { cancelled_at: "2026-11-07T10:00:00Z", cancelled_by: "admin@example.com", cancel_reason: "Customer cancelled" });
 window.__calls = []; window.__events = [];
 window.__notifications = [{ order_id: "33333333-3333-3333-3333-333333333333", created_at: "2026-10-27T02:15:00Z", channel: "email", audience: "customer", recipient: "buyer@example.com", ok: true, detail: "gmail: automatic, In transit", subject: "Order", message: "On its way." }];
 // Members survive a reload (sessionStorage) so profile and availability changes can be checked after F5
@@ -158,6 +160,8 @@ window.supabase = { createClient: () => ({
     const o = window.__orders.find((x) => x.id === args?.p_id); if (!o) return { error: { message: "missing" } };
     if (name === "cdf_progress") { [o.status, o.delivery] = steps[args.p_step]; if (args.p_note) o.delivery_note = args.p_note; if (args.p_set_proof) o.proof_path = args.p_proof; }
     if (name === "cdf_set_bouquet") o.bouquet_path = args.p_path;
+    if (name === "cdf_cancel_order") Object.assign(o, { cancelled_at: new Date().toISOString(), cancelled_by: me, cancel_reason: args.p_reason });
+    if (name === "cdf_reinstate_order") Object.assign(o, { cancelled_at: null, cancelled_by: null, cancel_reason: null });
     if (name === "cdf_reschedule") Object.assign(o, { date: args.p_date, slot: args.p_slot, delivery_note: args.p_note, status: "Ready", delivery: "-", attempts: o.attempts + 1 });
     o.updated_at = new Date().toISOString();
     return { data: JSON.parse(JSON.stringify(o)), error: null };
@@ -196,7 +200,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await context.route("**/*", async (route) => {
       const u = route.request().url();
       if (u.includes("supabase.min.js")) return route.fulfill({ body: mock, contentType: "text/javascript" });
-      if (u.includes("/functions/v1/cdf-track")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ order: track === null ? null : { num: "0124", date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()), slot: "8:00 - 12:00", status: "Ready", delivery: "Failed", delivery_note: "We came at 3 PM.", updated_at: "2026-10-27T02:15:00Z", for_name: "Maria", card_message: "Happy birthday, Maria!", bouquet_url: "/img/emblem.webp", proof_url: "/img/emblem.webp" } }) });
+      if (u.includes("/functions/v1/cdf-track")) return route.fulfill({ contentType: "application/json", body: JSON.stringify({ order: track === null ? null : track ? track : { num: "0124", date: new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" }).format(new Date()), slot: "8:00 - 12:00", status: "Ready", delivery: "Failed", delivery_note: "We came at 3 PM.", updated_at: "2026-10-27T02:15:00Z", for_name: "Maria", card_message: "Happy birthday, Maria!", bouquet_url: "/img/emblem.webp", proof_url: "/img/emblem.webp" } }) });
       if (!u.startsWith("http://127.0.0.1")) return route.fulfill({ body: "", contentType: "text/css" });
       return route.continue();
     });
@@ -420,6 +424,30 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       assert.equal(await p.evaluate(() => window.__orders.find((x) => x.num === "0127").address), "Mine again");
     });
+    await step("A14 · Admin cancels with a reason; the card stops offering steps; reinstate puts it back", async () => {
+      await p.evaluate(() => (window.__calls = []));
+      await p.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
+      await p.locator(".sheet").getByRole("button", { name: "Cancel order" }).click();
+      await p.locator(".sheet h2", { hasText: "Cancel order #0124" }).waitFor();
+      await p.locator(".sheet button[type=submit]").click();
+      await p.locator(".sheet .err", { hasText: "Write a reason" }).waitFor();
+      await p.locator(".sheet .chip", { hasText: "Customer cancelled" }).click();
+      await p.locator(".sheet button[type=submit]").click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      assert((await calls(p)).some((c) => c.rpc === "cdf_cancel_order" && c.args.p_reason === "Customer cancelled"));
+      const card = p.locator(".order", { hasText: "#0124" });
+      await card.locator(".badge.s-cancel").waitFor();
+      assert(await card.locator(".o-cancel").innerText().then((s) => s.includes("Customer cancelled")));
+      assert.equal(await card.locator(".badge-sel select").count(), 0, "no status picker on a cancelled order");
+      assert.equal(await card.getByRole("button", { name: "Mark ready" }).count(), 0, "no next step");
+      assert(await card.locator(".steps.off .step").first().isDisabled());
+      assert(await p.locator("#filters .filter", { hasText: "Cancelled" }).isVisible());
+      await capture(p, "cancelled-admin");
+      await card.getByRole("button", { name: "Reinstate" }).click();
+      await card.locator(".badge.s-cancel").waitFor({ state: "detached" });
+      assert.equal(await card.locator(".badge-sel select").count(), 1, "the status picker is back");
+      assert((await calls(p)).some((c) => c.rpc === "cdf_reinstate_order"));
+    });
     await step("B5 · Replacing a photo deletes the old file only after the order points at the new one", async () => {
       await p.evaluate(() => (window.__calls = []));
       await p.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
@@ -588,6 +616,23 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await r.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       assert((await calls(r)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "done"));
       await r.close();
+    });
+    await step("A14 · Florist sees a cancelled order as cancelled, with no step to take; a driver doesn't get it in the free pool", async () => {
+      const q = await open("vendor", { width: 390, before: { __cancelNums: ["0124"] } });
+      const w = q.locator(".work", { hasText: "#0124" });
+      await w.locator(".o-cancel", { hasText: "don't prepare" }).waitFor();
+      assert.equal(await w.getByRole("button", { name: "Mark ready" }).count(), 0);
+      await capture(q, "cancelled-florist"); await q.close();
+      const r = await open("carrier", { width: 390, before: { __cancelNums: ["0127"] } });
+      await r.locator(".work").first().waitFor();
+      assert.equal(await r.locator(".work", { hasText: "#0127" }).count(), 0);
+      await r.close();
+    });
+    await step("A14 · Tracking page of a cancelled order says so, without steps or photos", async () => {
+      const q = await open("track", { width: 390, track: { num: "0124", date: "2026-11-08", slot: "8:00 - 12:00", updated_at: "2026-11-07T10:00:00Z", cancelled: true, for_name: "", proof_url: null, bouquet_url: null } });
+      await q.locator(".track-cancel", { hasText: "cancelled" }).waitFor();
+      assert.equal(await q.locator(".tl").count(), 0);
+      await capture(q, "cancelled-tracking"); await q.close();
     });
     await step("Tracking page: steps, photos, translated title; unknown order stops polling", async () => {
       const q = await open("track", { width: 390 });

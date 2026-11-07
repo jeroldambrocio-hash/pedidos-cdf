@@ -54,6 +54,15 @@ function render() {
   }
   const { o } = last;
   if (!o) { card.replaceChildren(h("h2", null, t("notFound")), h("div", "meta", t("notFoundTxt"))); return; }
+  if (o.cancelled) {
+    // The shop cancelled it: say so kindly, without the internal reason, and point to the shop's channel
+    const [cy, cm, cd] = o.date.split("-").map(Number);
+    card.replaceChildren(h("h2", null, t("order", { num: o.num })),
+      h("div", "meta", cap(new Date(cy, cm - 1, cd).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot),
+      h("div", "track-cancel", null), h("div", "meta", t("cancelledTrackTxt")));
+    card.querySelector(".track-cancel").append(h("b", null, t("cancelledTrackTitle")));
+    return;
+  }
   const isFailed = o.delivery === "Failed";
   const cur = isFailed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
   const [y, m, d] = o.date.split("-").map(Number);

@@ -59,6 +59,12 @@ Deno.serve(async (req) => {
     if (!o) return json({ sent: 0 });
     to = [String(body.to).toLowerCase()];
     payload = { title: "New order #" + o.num, body: [o.customer_name, o.date, o.slot].filter(Boolean).join(" · "), url: APP_URL + "/?order=" + o.id, tag: "order-" + o.id };
+  } else if (body.kind === "cancelled" && body.to) {
+    // Sent by cdf_push_cancelled to the florist and driver it was assigned to. The reason stays in the app.
+    const { data: o } = await service.from("cdf_orders").select("id,num,date,slot,cancelled_at").eq("id", body.id).maybeSingle();
+    if (!o || !o.cancelled_at) return json({ sent: 0 });
+    to = [String(body.to).toLowerCase()];
+    payload = { title: "Order #" + o.num + " cancelled", body: "Don't prepare or deliver it · " + [o.date, o.slot].filter(Boolean).join(" · "), url: APP_URL + "/?order=" + o.id, tag: "order-" + o.id };
   } else return json({ error: "kind" }, 400);
 
   if (!to.length) return json({ sent: 0 });

@@ -76,7 +76,7 @@ function bloomTag(m) {
 function renderTeam() {
   refreshMemberStats(() => { if (S.tab === "team") renderTeam(); });
   const box = $("team"); box.replaceChildren();
-  const open = S.orders.filter((o) => stepOf(o) !== 3);
+  const open = S.orders.filter(isOpen);
   for (const m of S.members) {
     const phone = intlPhone(m.phone);
     const self = m.email === S.me.email;
