@@ -261,7 +261,8 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .step .node { position: relative; width: 14px; height: 14px; border-radius: 50%; border: 1.5px solid currentColor; transition: background-color var(--dur-base), border-color var(--dur-base); }
 .step.done { color: var(--c); }
 .step.done .node { background: var(--c); border-color: var(--c); }
-.step.done .node::after { content: ""; position: absolute; left: 3.5px; top: 1.5px; width: 3px; height: 6px; border: solid var(--surface); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
+/* The tick is the same drawing as the app's icons, centred by its own geometry (a rotated half-pixel border never sat in the middle) */
+.step.done .node::after { content: ""; position: absolute; inset: -1.5px; background: var(--surface); -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6.5 12.5 3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='m6.5 12.5 3.5 3.5 7.5-8' fill='none' stroke='%23000' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center / 100% 100% no-repeat; }
 .step.cur { color: var(--c); background: var(--cb); font-weight: 650; }
 .step.cur .node { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
 /* Centre dot as a gradient, not a half-pixel inset box, so it never renders off-centre */
@@ -605,7 +606,7 @@ body { background: var(--bg); }
 .step { color: var(--faint); }
 .step.done { color: var(--muted); }
 .step.done .node { background: var(--step-done); border-color: var(--step-done); }
-.step.done .node::after { border-color: var(--on-primary); }
+.step.done .node::after { background: var(--on-primary); }
 .step.cur { background: transparent; color: var(--c); }
 .link { background: var(--line); }
 .link::after { background: var(--step-done); }
