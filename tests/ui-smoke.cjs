@@ -93,6 +93,7 @@ window.supabase = { createClient: () => ({
       return {data:window.__role==="vendor"||window.__role==="admin"||!window.__role?rows:[],error:null};
     }
     const me = email[window.__role] || "admin@example.com";
+    if (name === "cdf_set_my_username") { if (args.p_username === "taken") return { data: null, error: { code: "23505", message: "duplicate" } }; const m = members.find((x) => x.email === me); m.username = args.p_username; keepMembers(); return { data: { ...m }, error: null }; }
     if (name === "cdf_save_profile") { const m = members.find((x) => x.email === me); Object.assign(m, { name: args.p_name, phone: args.p_phone, avatar_path: args.p_avatar }); keepMembers(); return { data: { ...m }, error: null }; }
     if (name === "cdf_set_availability") {
       if (me !== args.p_email && window.__role && window.__role !== "admin") return { data: null, error: { message: "not allowed" } };
@@ -573,11 +574,17 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await setDate(q.locator(".sheet .absence input[type=date]").nth(1), mnl(4));
       assert(await q.locator(".sheet .notice").isHidden(), "no clash: Ana's orders are today");
       await capture(q, "profile-florist");
+      // Own username: a taken one is refused and keeps the sheet open; a free one saves
+      await q.locator("#pUsername").fill("taken");
+      await q.locator(".sheet").getByRole("button", { name: "Save changes" }).click();
+      await q.locator(".sheet .err", { hasText: "already" }).waitFor();
+      await q.locator("#pUsername").fill("Ana.Reyes");
       await q.locator(".sheet").getByRole("button", { name: "Save changes" }).click();
       await q.locator(".sheet").waitFor({ state: "detached" });
       const c = await calls(q);
       assert(c.some((x) => x.upload === "cdf-avatars" && /^test\/avatar-\d+\.jpg$/.test(x.path)), "photo uploaded to the own folder");
       assert(c.some((x) => x.rpc === "cdf_save_profile" && x.args.p_name === "Ana Reyes" && x.args.p_phone === "+639175551234"));
+      assert(c.some((x) => x.rpc === "cdf_set_my_username" && x.args.p_username === "ana.reyes"), "own username saved in lowercase");
       await q.reload(); await q.locator("#list").waitFor();
       assert.equal(await q.locator("#userName").innerText(), "Ana Reyes");
       assert(await q.locator("#userAvatar img").count() === 1, "photo shown in the rail");

@@ -110,6 +110,9 @@ function openProfile() {
   });
   const iName = el("input", { id: "pName", value: me.name, required: true, maxlength: 60, autocomplete: "name" });
   const iPhone = el("input", { id: "pPhone", type: "tel", inputmode: "tel", value: phLocal(me.phone), "data-cc": phSplit(me.phone).cc, autocomplete: "tel" });
+  // Sign-in username: each person sets their own here; the database keeps it unique.
+  const iUser = el("input", { id: "pUsername", value: me.username || "", autocomplete: "off", autocapitalize: "none", spellcheck: "false", pattern: "[A-Za-z0-9][A-Za-z0-9._-]{2,29}", minlength: 3, maxlength: 30, placeholder: t("usernamePh") });
+  const userNow = () => iUser.value.trim().toLowerCase() || null;
   const done = el("b", {}, "…");
   myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });
   const avail = florist ? availabilityFields(me) : null;
@@ -129,19 +132,28 @@ function openProfile() {
     el("div", { class: "completed" }, icon("check"), el("span", {}, done, el("small", {}, t("doneSince")))),
     el("h3", { class: "grp" }, t("personalData")),
     field(t("displayName"), iName),
-    field(t("username"), el("input", { value: me.username || "—", readonly: true, class: "ro" })),
+    field(t("username"), iUser), el("p", { class: "hint" }, t("usernameHint")),
     field(t("phone"), phoneBox(iPhone)),
     field(t("email"), el("input", { type: "email", value: me.email, readonly: true, tabindex: -1, class: "ro" })),
     el("p", { class: "hint" }, t("emailIsLogin")),
     ...(avail ? [el("h3", { class: "grp" }, t("availability")), avail.node, clash] : []),
   ];
-  const dirtyStart = () => iName.value.trim() !== me.name || phFull(iPhone) !== (me.phone || "") || !!photo || (avail && avail.changed());
+  const dirtyStart = () => iName.value.trim() !== me.name || userNow() !== (me.username || null) || phFull(iPhone) !== (me.phone || "") || !!photo || (avail && avail.changed());
   miniSheet(t("myAccount"), nodes, t("saveChanges"), async () => {
     const name = iName.value.trim();
     if (!name) { iName.closest(".field").classList.add("invalid"); return t("fillRequired"); }
     const phone = phFull(iPhone);
     if (phone && !phoneOk(phone)) { iPhone.closest(".field").classList.add("invalid"); return t("phoneInvalid"); }
+    const username = userNow(), userField = iUser.closest(".field");
+    userField.classList.remove("invalid");
+    if (username && !/^[a-z0-9][a-z0-9._-]{2,29}$/.test(username)) { userField.classList.add("invalid"); return t("usernameHint"); }
     const bad = avail?.check(); if (bad) return bad;
+    // Username first: "already taken" is the likeliest refusal, so nothing else is saved before it.
+    if (username !== (me.username || null)) {
+      const { data, error } = await sb.rpc("cdf_set_my_username", { p_username: username });
+      if (error) { userField.classList.add("invalid"); return t(error.code === "23505" ? "usernameTaken" : "editFail"); }
+      Object.assign(S.me, data);
+    }
     let path = me.avatar_path || null;
     if (photo) {
       const blob = await avatarBlob(photo), next = S.uid + "/avatar-" + Date.now() + ".jpg";
