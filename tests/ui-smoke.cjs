@@ -584,6 +584,34 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await q.locator(".chat-chip.unread").count(), 1);
       await q.locator("#tabChat").click();await q.locator(".thread").first().waitFor();
       assert.deepEqual(await q.locator(".thread b").allInnerTexts(), ["#team", "#0126 · Maria Santos", "#0125 · Elena Cruz"]);
+      const orderThread = q.locator(".thread", { hasText: "#0126" });
+      const states = [
+        ["Preparing", "-", "prep", "flower", "--transit-solid"],
+        ["Ready", "-", "ready", "clock", "--prep-solid"],
+        ["Ready", "In transit", "transit", "truck", "--ready-solid"],
+        ["Ready", "Delivered", "done", "doubleCheck", "--done-solid"],
+        ["Ready", "Failed", "fail", "close", "--fail-solid"],
+        ["Ready", "In transit", "transit", "truck", "--ready-solid"],
+      ];
+      const unread = await orderThread.locator(".thread-count").innerText();
+      for (const [status, delivery, key, glyph, color] of states) {
+        await q.evaluate(([status, delivery]) => {
+          const row = window.__orders.find((o) => o.num === "0126");
+          window.__realtime({ eventType: "UPDATE", new: { ...row, status, delivery } });
+        }, [status, delivery]);
+        const marker = orderThread.locator(`.thread-ic[data-status="${key}"]`);
+        await marker.waitFor();
+        assert(await marker.evaluate((node, [glyph, color]) => {
+          const sample = document.createElement("span");
+          sample.style.backgroundColor = "var(" + color + ")";
+          node.append(sample);
+          const matches = getComputedStyle(node).backgroundColor === getComputedStyle(sample).backgroundColor
+            && node.querySelector("svg").isEqualNode(icon(glyph).querySelector("svg"));
+          sample.remove();
+          return matches;
+        }, [glyph, color]));
+        assert.equal(await orderThread.locator(".thread-count").innerText(), unread);
+      }
       const input = q.locator(".chat-pane .chat-input");
       await input.click();await input.pressSequentially("Hola @A");
       await q.locator(".mention-opt", { hasText: "Ana" }).waitFor();await input.press("Enter");

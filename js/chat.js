@@ -524,8 +524,14 @@ async function loadThreadInfo(ids) {
   if (!miss.length) return;
   for (const id of miss) CH.info.set(id, null); // asked once
   const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,slot,channel,vendor_email,photo_path,bouquet_path").in("id", miss);
-  for (const o of data || []) CH.info.set(o.id, o);
+  for (const o of data || []) {
+    if (CH.info.get(o.id) === null) CH.info.set(o.id, o);
+  }
   if (S.tab === "chat") { renderChatList(); if (miss.includes(CH.open)) renderChatPane(); }
+}
+function refreshThreadOrder(id, row) {
+  if (!CH.info.has(id)) return;
+  CH.info.set(id, row ? { ...CH.info.get(id), ...row } : undefined);
 }
 function threads() {
   const last = new Map();
@@ -563,6 +569,7 @@ function chatListTools(box) {
   requestAnimationFrame(() => placePill(seg));
   return list;
 }
+const THREAD_STATUS_ICONS = { prep: "flower", ready: "clock", transit: "truck", done: "doubleCheck", fail: "close" };
 function renderChatList() {
   const box = $("chatList"); if (!box) return;
   const list = chatListTools(box);
@@ -574,14 +581,14 @@ function renderChatList() {
     const u = unreadIn(th), team = th === TEAM, p = m ? person(m.author_email) : null;
     const peer = directPeer(th);
     const o = team ? null : byId(th) || CH.info.get(th);
-    const k = o ? STEPS[stepOf(o)]?.k : null;
-    const hasChannel = CHANNELS.includes(o?.channel);
-    const deliveredPackage = k === "done" && !hasChannel;
+    const step = o ? stepOf(o) : null;
+    const key = STEPS[step]?.k;
+    const status = key ? stepName(step) : null;
     const who = m ? (m.author_email === S.me.email ? t("chatYou") : handleOf(p)) + ": " : "";
     return el("button", { type: "button", class: "thread" + (CH.open === th ? " on" : "") + (u ? " unread" : ""), "aria-current": CH.open === th ? "true" : "false", onclick: () => openThread(th) },
-      team || peer ? internalChatIcon(mentionedOrder(m?.body)) : el("span", { class: "thread-ic", ...(deliveredPackage ? { title: t("st_done"), role: "img", "aria-label": t("st_done") } : {}) },
-        hasChannel ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon(deliveredPackage ? "deliveredPackage" : "orders"),
-        k && !deliveredPackage ? el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)", title: stepName(stepOf(o)) }) : null),
+      team || peer ? internalChatIcon(mentionedOrder(m?.body)) : el("span", { class: "thread-ic", "data-status": key || "",
+        ...(status ? { title: status, role: "img", "aria-label": status } : {}) },
+        icon(THREAD_STATUS_ICONS[key] || "orders")),
       el("span", { class: "thread-main" },
         el("span", { class: "thread-top" }, el("b", {}, threadTitle(th)), m ? el("time", {}, manilaDay(m.created_at) === S.today ? clock(m.created_at) : shortDate(manilaDay(m.created_at))) : null),
         el("small", {}, typingText(th) ? el("em", { class: "thread-typing" }, typingText(th)) : m ? who + m.body : t(peer ? "chatDirect" : "chatTeamDesc"))),

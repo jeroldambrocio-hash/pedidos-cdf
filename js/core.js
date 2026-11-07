@@ -229,6 +229,7 @@ function applyChange(p) {
   if (p.eventType === "DELETE" || !row || !inScope(row)) { if (i >= 0) S.orders.splice(i, 1); }
   else if (i >= 0) S.orders[i] = { ...S.orders[i], ...row };
   else S.orders.push(row);
+  refreshThreadOrder(id, p.eventType === "DELETE" ? null : row);
   if (row) document.dispatchEvent(new CustomEvent("orderchange", { detail: row }));
   clearTimeout(applyChange.h); applyChange.h = setTimeout(render, 120);
 }
@@ -247,6 +248,7 @@ const byId = (id) => S.orders.find((o) => o.id === id);
 function upsertLocal(row) {
   invalidateStats(); awayTouched(row);
   if (!row?.id) return;
+  refreshThreadOrder(row.id, row);
   const i = S.orders.findIndex((o) => o.id === row.id);
   if (!inScope(row)) { if (i >= 0) S.orders.splice(i, 1); }
   else if (i >= 0) S.orders[i] = { ...S.orders[i], ...row }; else S.orders.push(row);
