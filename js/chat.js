@@ -232,7 +232,7 @@ function mentionedOrder(body) {
   return mentions.reverse().map((m) => orderByNum(m[1])).find(Boolean);
 }
 function internalChatIcon(o) {
-  if (!o) return el("span", { class: "thread-ic" }, icon("message"));
+  if (!o) return el("span", { class: "thread-ic" }, icon("conversation"));
   const step = stepOf(o), k = STEPS[step].k;
   const label = "#" + o.num + " · " + stepName(step);
   return el("span", { class: "thread-ic", title: label, role: "img", "aria-label": label },

@@ -17,6 +17,7 @@ const ICONS = {
   alert: '<path d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"/>',
   note: '<path d="M5 3h14v18H5V3Zm3 5h8m-8 4h8m-8 4h5"/>',
   message: '<path d="M21 11a9 9 0 0 1-9 9H4l-3 3 2-8a9 9 0 1 1 18-4Z"/><path d="M7 11h1m4 0h1m4 0h1"/>',
+  conversation: '<path d="M18 9h2a2 2 0 0 1 2 2v10l-4-3h-7a2 2 0 0 1-2-2"/><path d="M2 5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H7l-5 4z"/>',
   search: '<circle cx="10.5" cy="10.5" r="7.5"/><path d="m16 16 6 6"/>',
   close: '<path d="m6 6 12 12M6 18 18 6"/>',
   map: '<path d="m9 18-6 3V6l6-3 6 3 6-3v15l-6 3-6-3Zm0-15v15m6-12v15"/>',
