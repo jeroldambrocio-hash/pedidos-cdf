@@ -59,12 +59,16 @@ alter table public.cdf_direct_messages enable row level security;
 revoke all on public.cdf_direct_messages from public, anon, authenticated;
 grant select, insert (direct_id, author_email, body) on public.cdf_direct_messages to authenticated;
 
--- The thread's policy permits only its two current members, including for realtime reads.
+-- Check participants explicitly for message queries and Realtime delivery.
 create policy cdf_direct_messages_read on public.cdf_direct_messages for select to authenticated
-  using (exists (select 1 from public.cdf_direct_threads d where d.id = direct_id));
+  using ((select public.cdf_my_role()) is not null
+    and exists (select 1 from public.cdf_direct_threads d
+      where d.id = direct_id and (select lower(auth.jwt() ->> 'email')) in (d.member_a, d.member_b)));
 create policy cdf_direct_messages_insert on public.cdf_direct_messages for insert to authenticated
   with check (author_email = (select lower(auth.jwt() ->> 'email'))
-    and exists (select 1 from public.cdf_direct_threads d where d.id = direct_id));
+    and (select public.cdf_my_role()) is not null
+    and exists (select 1 from public.cdf_direct_threads d
+      where d.id = direct_id and (select lower(auth.jwt() ->> 'email')) in (d.member_a, d.member_b)));
 
 alter publication supabase_realtime add table public.cdf_direct_threads, public.cdf_direct_messages;
 commit;
