@@ -29,7 +29,22 @@ const members = JSON.parse(sessionStorage.getItem("__members") || "null") || [{ 
 const keepMembers = () => sessionStorage.setItem("__members", JSON.stringify(members));
 const awayOnDay = (m, d) => !!(m.away_from && d >= m.away_from && (!m.away_until || d <= m.away_until));
 const email = { vendor: "ana@example.com", carrier: "driver@example.com" };
-const tables = () => ({ cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
+// Team chat (preview): messages per order (order_id) or for #equipo (order_id null), and how far each person has read.
+// Kept in sessionStorage so a reload keeps the conversation.
+const ago = (min) => new Date(Date.now() - min * 60000).toISOString();
+window.__messages = JSON.parse(sessionStorage.getItem("__messages") || "null") || [
+  { id: "m1", order_id: null, author_email: "driver@example.com", body: "Buenos días equipo! Hoy salgo a las 9 con la furgoneta 🚐", created_at: ago(150) },
+  { id: "m2", order_id: null, author_email: "ana@example.com", body: "Nos quedan pocas cintas rojas, ¿alguien puede traer más de la tienda?", created_at: ago(70) },
+  { id: "m3", order_id: "33333333-3333-3333-3333-333333333333", author_email: "ana@example.com", body: "La compradora pidió que la tarjeta no lleve su nombre, es sorpresa 🤫", created_at: ago(55) },
+  { id: "m4", order_id: "33333333-3333-3333-3333-333333333333", author_email: "driver@example.com", body: "@Jerold ya estoy en Salcedo, el portero dice que suba al 12B. ¿Lo dejo en la puerta si no abren?", created_at: ago(8) },
+  { id: "m5", order_id: "22222222-2222-2222-2222-222222222222", author_email: "driver@example.com", body: "No había nadie. Dejé una nota en recepción con nuestro número.", created_at: ago(200) },
+];
+window.__reads = JSON.parse(sessionStorage.getItem("__reads") || "null") || [
+  { member_email: "admin@example.com", thread: "team", last_read_at: ago(100) },
+  { member_email: "admin@example.com", thread: "22222222-2222-2222-2222-222222222222", last_read_at: ago(190) },
+];
+const keepChat = () => { sessionStorage.setItem("__messages", JSON.stringify(window.__messages)); sessionStorage.setItem("__reads", JSON.stringify(window.__reads)); };
+const tables = () => ({ cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
   let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*";
@@ -49,14 +64,18 @@ function query(table) {
       let data = tables()[table];
       if (table === "cdf_orders" && window.__role === "vendor") data = data.filter((o) => o.vendor_email === "ana@example.com");
       if (table === "cdf_orders" && window.__role === "carrier") data = data.filter((o) => o.status === "Ready" && o.delivery !== "Delivered");
+      if (table === "cdf_messages" && (window.__role === "vendor" || window.__role === "carrier")) { const seen = new Set(window.__orders.filter((o) => window.__role === "vendor" ? o.vendor_email === "ana@example.com" : o.status === "Ready" && o.delivery !== "Delivered").map((o) => o.id)); data = data.filter((m) => !m.order_id || seen.has(m.order_id)); }
+      if (window.__noChat && /^cdf_message/.test(table)) return Promise.resolve({ data: null, error: { code: "42P01", message: "relation does not exist" } }).then(resolve, reject);
       data = data.filter((o) => filters.every((f) => f(o)));
+      if (action === "upsert" && table === "cdf_message_reads") { const r = window.__reads.find((x) => x.member_email === row.member_email && x.thread === row.thread); if (r) Object.assign(r, row); else window.__reads.push({ ...row }); keepChat(); data = [row]; }
       if(action === "upsert" && table === "cdf_order_prices") {
         if(window.__role && window.__role !== "admin")return Promise.resolve({data:null,error:{message:"denied"}}).then(resolve,reject);
         const existing=window.__prices.find(p=>p.order_id===row.order_id);if(existing)Object.assign(existing,row);else window.__prices.push({...row});data=[row];
       }
       if (action !== "read") {
         window.__calls.push({ table, action, row, ids: data.map((o) => o.id) });
-        if (action === "insert") { const item = table === "cdf_orders" ? { ...base, ...row, id: "99999999-9999-9999-9999-" + String(Date.now()).slice(-12), code: "newcode1234", updated_at: new Date().toISOString() } : { ...row, ok: true, created_at: new Date().toISOString() }; tables()[table].push(item); data = [item]; }
+        if (action === "insert" && table === "cdf_messages") { const item = { ...row, id: "m" + Date.now(), created_at: new Date().toISOString() }; window.__messages.push(item); keepChat(); data = [item]; window.__chatReply && window.__chatReply(item); }
+        else if (action === "insert") { const item = table === "cdf_orders" ? { ...base, ...row, id: "99999999-9999-9999-9999-" + String(Date.now()).slice(-12), code: "newcode1234", updated_at: new Date().toISOString() } : { ...row, ok: true, created_at: new Date().toISOString() }; tables()[table].push(item); data = [item]; }
         if (action === "update") data.forEach((o) => Object.assign(o, row, { updated_at: new Date().toISOString() }));
         if (action === "delete") window.__orders = window.__orders.filter((o) => !data.includes(o));
       }
@@ -66,6 +85,12 @@ function query(table) {
   };
   return q;
 }
+window.__chatReply = (m) => {
+  if (window.__noAutoReply) return;
+  const who = [["@ana", "ana@example.com", "👍 Visto, me encargo"], ["@luis", "driver@example.com", "Ok, en 10 minutos estoy ahí"], ["@jerold", "admin@example.com", "Perfecto, gracias"]].find(([k, e]) => m.body.toLowerCase().includes(k) && e !== m.author_email);
+  if (!who) return;
+  setTimeout(() => { const r = { id: "m" + Date.now(), order_id: m.order_id, author_email: who[1], body: who[2], created_at: new Date().toISOString() }; window.__messages.push(r); keepChat(); window.__realtimeMsg && window.__realtimeMsg({ eventType: "INSERT", new: r }); }, 2600);
+};
 const steps = { prep: ["Preparing", "-"], ready: ["Ready", "-"], transit: ["Ready", "In transit"], done: ["Ready", "Delivered"], fail: ["Ready", "Failed"] };
 window.supabase = { createClient: () => ({
   from: query,
@@ -76,7 +101,7 @@ window.supabase = { createClient: () => ({
   storage: { from: (b) => ({ createSignedUrl: async (p) => ({ data: { signedUrl: "/img/emblem.webp" } }),
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
-  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else window.__realtime = cb; return this; }, subscribe() { return this; } }), removeChannel() {},
+  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages")window.__realtimeMsg=cb;else window.__realtime = cb; return this; }, subscribe() { return this; } }), removeChannel() {},
   functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args }); return { data: { ok: true }, error: null }; } },
   rpc: async (name, args) => {
     window.__calls.push({ rpc: name, args });
@@ -92,6 +117,7 @@ window.supabase = { createClient: () => ({
       const rows=[{email:"ana@example.com",done_week:3,done_month:12,done_total:48,open_now:4},{email:"admin@example.com",done_week:0,done_month:1,done_total:5,open_now:0}];
       return {data:window.__role==="vendor"||window.__role==="admin"||!window.__role?rows:[],error:null};
     }
+    if (name === "cdf_team_directory") return { data: members.map(({ email, name, role, avatar_path, username }) => ({ email, name, role, avatar_path: avatar_path || null, username: username || null })), error: null };
     const me = email[window.__role] || "admin@example.com";
     if (name === "cdf_set_my_username") { if (args.p_username === "taken") return { data: null, error: { code: "23505", message: "duplicate" } }; const m = members.find((x) => x.email === me); m.username = args.p_username; keepMembers(); return { data: { ...m }, error: null }; }
     if (name === "cdf_save_profile") { const m = members.find((x) => x.email === me); Object.assign(m, { name: args.p_name, phone: args.p_phone, avatar_path: args.p_avatar }); keepMembers(); return { data: { ...m }, error: null }; }
@@ -485,6 +511,34 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
         assert.equal(await b.evaluate(n=>getComputedStyle(n).backgroundColor),rgb,cls);
       }
       await q.close();
+    });
+    await step("Chat: unread counts, #team, mentions answered live, order conversation, florist sees only her threads", async () => {
+      const q = await open("admin");await q.locator("#list").waitFor();await q.locator("#tabChat .rail-count:visible").waitFor();
+      assert.equal(await q.locator("#tabChat .rail-count").innerText(), "3");
+      assert.equal(await q.locator(".chat-chip.unread").count(), 1);
+      await q.locator("#tabChat").click();await q.locator(".thread").first().waitFor();
+      assert.deepEqual(await q.locator(".thread b").allInnerTexts(), ["#team", "#0126 · Maria Santos", "#0125 · Elena Cruz"]);
+      const input = q.locator(".chat-pane .chat-input");
+      await input.click();await input.pressSequentially("Hola @A");
+      await q.locator(".mention-opt", { hasText: "Ana" }).waitFor();await input.press("Enter");
+      await input.pressSequentially("check the ribbons for #Ri");
+      assert.match(await q.locator(".mention-opt").first().innerText(), /#0127/, "a name that starts with it comes first");
+      await input.press("Enter");await input.press("Enter");
+      await q.locator(".chat-pane .cmsg", { hasText: "check the ribbons" }).waitFor();
+      assert.equal(await q.locator(".chat-pane .cmsg .order-ref", { hasText: "#0127" }).count(), 1, "#number becomes a link");
+      assert.equal(await q.locator(".chat-pane .cmsg .mention", { hasText: "@Ana" }).count(), 1);
+      assert(await q.evaluate(() => window.__calls.some((c) => c.table === "cdf_messages" && c.action === "insert" && c.row.order_id === null)));
+      await q.locator(".chat-pane .cmsg", { hasText: "Visto, me encargo" }).waitFor({ timeout: 6000 });
+      await q.locator(".chat-pane .order-ref", { hasText: "#0127" }).click();await q.locator(".sheet h2", { hasText: "0127" }).waitFor();
+      await q.keyboard.press("Escape");await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      await q.locator(".thread", { hasText: "#0126" }).click();await q.waitForTimeout(500);
+      assert.equal(await q.locator("#tabChat .rail-count").isVisible(), false, "all read");
+      await q.locator("#tabOrders").click();await q.locator(".chat-chip[data-chat]").first().click();
+      await q.locator(".sheet #chatSection .cmsg").first().waitFor();await q.close();
+      const v = await open("vendor");await v.locator("#tabChat:visible").waitFor();await v.locator("#tabChat").click();await v.locator(".thread").first().waitFor();
+      assert.deepEqual(await v.locator(".thread b").allInnerTexts(), ["#team", "#0126 · Maria Santos"]);await v.close();
+      const n = await open("admin", { before: { __noChat: true } });await n.locator("#list").waitFor();await n.waitForTimeout(400);
+      assert.equal(await n.locator("#tabChat").isHidden(), true, "no chat tables: no chat, nothing breaks");await n.close();
     });
     await step("New version: notice, then reloads by itself once no sheet is open", async () => {
       const q = await open("admin");let v="a";

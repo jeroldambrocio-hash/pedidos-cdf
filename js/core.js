@@ -268,6 +268,7 @@ function render() {
   if (!S.me) return;
   if (S.tab === "team") renderTeam();
   else if (S.tab === "stats") renderStats();
+  else if (S.tab === "chat") renderChat();
   else renderOrders();
   refreshAwayConflicts();
 }

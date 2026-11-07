@@ -193,7 +193,7 @@ function orderCard(o) {
     el("div", { class: "o-top" + (pick ? " picking" : "") }, pick,
       el("button", { class: "thumb-btn", type: "button", "aria-label": t("order", { num: o.num }) + " · " + (o.customer_name || t("noName")), onclick: open }, thumb(o)),
       el("div", { class: "o-main" },
-        el("div", { class: "o-meta" }, el("span", { class: "no" }, "#" + o.num), chanChip(o.channel), pricesOn() && o.amount ? el("span", { class: "amt" }, peso(o.amount)) : null),
+        el("div", { class: "o-meta" }, el("span", { class: "no" }, "#" + o.num), chanChip(o.channel), chatChip(o), pricesOn() && o.amount ? el("span", { class: "amt" }, peso(o.amount)) : null),
         el("button", { class: "o-name", type: "button", onclick: open }, o.customer_name || t("noName")),
         floristPicker(o),
         tags.length ? el("div", { class: "o-tags" }, tags) : null,

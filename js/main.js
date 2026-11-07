@@ -1,7 +1,7 @@
 // Start-up: sign-in, who the person is, the sidebar and account menu, and the controls that live in the page itself.
 
 function show(view) {
-  for (const v of ["login", "noaccess", "ordersView", "teamView", "statsView"]) {
+  for (const v of ["login", "noaccess", "ordersView", "teamView", "statsView", "chatView"]) {
     const n = $(v), on = v === view;
     if (on && n.hidden) { n.classList.remove("view"); void n.offsetWidth; n.classList.add("view"); }
     n.hidden = !on;
@@ -57,7 +57,7 @@ function maybeRecover() {
 }
 
 function stop() {
-  invalidateStats(); S.prices = {};
+  invalidateStats(); S.prices = {}; stopChat();
   S.me = null; S.email = null; S.orders = []; S.photoUrls = {}; S.filter = null; S.chan = null; S.query = ""; S.hits = null; S.loaded = false; S.range = null;
   $("q").value = ""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
@@ -87,6 +87,7 @@ async function start(user) {
   setTab("orders");
   await loadOrders();
   subscribe();
+  await loadChat();
 }
 
 // Who is signed in: rail footer, account menu and the thin mobile header
@@ -114,8 +115,8 @@ function renderSub() {
 // ---------- sections ----------
 function setTab(tab) {
   S.tab = tab;
-  for (const [id, v] of [["tabOrders", "orders"], ["tabStats", "stats"], ["tabTeam", "team"]]) $(id).setAttribute("aria-current", tab === v ? "page" : "false");
-  show({ orders: "ordersView", team: "teamView", stats: "statsView" }[tab]);
+  for (const [id, v] of [["tabOrders", "orders"], ["tabStats", "stats"], ["tabTeam", "team"], ["tabChat", "chat"]]) $(id).setAttribute("aria-current", tab === v ? "page" : "false");
+  show({ orders: "ordersView", team: "teamView", stats: "statsView", chat: "chatView" }[tab]);
   window.scrollTo({ top: 0 });
   render();
 }
@@ -126,6 +127,7 @@ $("brandHome").onclick = goHome;
 $("brandHomeMobile").onclick = goHome;
 $("tabTeam").onclick = () => setTab("team");
 $("tabStats").onclick = () => setTab("stats");
+$("tabChat").onclick = () => setTab("chat");
 $("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { setStatsPeriod(b.dataset.days); } });
 for (const id of ["statsFrom", "statsTo"]) $(id).addEventListener("change", setStatsDates);
 
