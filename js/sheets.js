@@ -27,7 +27,7 @@ function askConfirm(text, okLabel, { danger = false, detail } = {}) {
     const done = async (v) => {
       if (!scrim.isConnected) return;
       scrim.classList.add("leaving");
-      if (!prefersReducedMotion()) await wait(140);
+      if (!prefersReducedMotion()) await wait(330);
       scrim.remove(); back?.focus?.(); resolve(v);
     };
     const ok = el("button", { class: "btn " + (danger ? "danger-solid" : "primary"), type: "button", onclick: () => done(true) }, okLabel);
@@ -70,7 +70,7 @@ async function closeSheet(force = false) {
   sheet = null;
   s.dispose();
   document.body.classList.remove("locked");
-  if (!force && !prefersReducedMotion()) { s.scrim.classList.add("leaving"); await wait(170); }
+  if (!force && !prefersReducedMotion()) { s.scrim.classList.add("leaving"); await wait(330); }
   s.scrim.remove();
   if (s.back?.isConnected) s.back.focus();
   return true;
@@ -611,7 +611,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       S.orders = S.orders.filter((x) => x.id !== o.id);
       await closeSheet(true);
       const entry=document.querySelector(`#list .entry[data-id="${o.id}"]`);
-      if(entry&&!prefersReducedMotion()) await entry.animate([{opacity:1},{opacity:0,transform:"scale(.98)"}],{duration:180}).finished;
+      if(entry&&!prefersReducedMotion()) await entry.animate([{opacity:1},{opacity:0,transform:"scale(.98)"}],{duration:300,easing:"ease-in-out"}).finished;
       invalidateStats(); toast(t("deleted")); flip($("list"),render);
     } }, icon("trash"), el("span", { class: "lbl" }, t("delete"))) : null);
 

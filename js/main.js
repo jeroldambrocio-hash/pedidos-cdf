@@ -280,3 +280,31 @@ document.addEventListener("langchange", () => {
   // Reopen the sheet in the new language only when nothing typed would be lost
   if (sheet && !sheet.dirty() && sheet.order) { const o = byId(sheet.order.id) || sheet.order; closeSheet(true).then(() => openFresh(o)); }
 });
+
+// ---------- new version ----------
+// Each Netlify publish writes /version.json (scripts/deploy-netlify.sh). The first answer is the version this
+// page runs; when a later check differs, a notice appears and the page reloads by itself as soon as nothing
+// is open (a sheet, a dialog or a field being typed in), so no unsaved work is lost.
+// Locally there is no version.json, so this stays quiet.
+let appVersion = null, updateFound = false;
+async function checkVersion() {
+  if (updateFound || !navigator.onLine) return;
+  try {
+    const r = await fetch("/version.json?t=" + Date.now(), { cache: "no-store" });
+    if (!r.ok) return;
+    const v = String((await r.json()).v || "");
+    if (!v) return;
+    if (appVersion === null) { appVersion = v; return; }
+    if (v !== appVersion) { updateFound = true; announceUpdate(); }
+  } catch { /* offline or a bad answer: try again on the next check */ }
+}
+const busyScreen = () => !!sheet || !!document.querySelector(".dialog") || (document.activeElement?.matches("input, textarea, select") && document.activeElement.value);
+function announceUpdate() {
+  toast(t("updateReady"), { type: "info", action: t("updateNow"), onAction: () => location.reload(), ms: 600000 });
+  const tryReload = () => (busyScreen() ? setTimeout(tryReload, 3000) : location.reload());
+  setTimeout(tryReload, 4000);
+}
+checkVersion();
+setInterval(checkVersion, 5 * 60 * 1000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkVersion(); });
+window.addEventListener("online", checkVersion);

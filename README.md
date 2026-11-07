@@ -57,6 +57,10 @@ Usan un Supabase falso dentro del navegador y Google Chrome. Las capturas quedan
 
 Es un sitio estático sin build. Netlify publica la raíz del repo (`netlify.toml`), y `_redirects` envía `/p/*` a `seguimiento.html`.
 
+Netlify no publica solo al subir a GitHub: se publica con `bash scripts/deploy-netlify.sh` (CLI de Netlify con sesión iniciada).
+Copia únicamente los archivos web del último commit y escribe `version.json`. La app abierta lo consulta cada 5 minutos y al volver
+a la pestaña; si cambia, avisa ("Hay una versión nueva…") y se recarga sola en cuanto no hay ninguna ventana abierta ni campo a medio escribir.
+
 
 ### Comprobar permisos y migraciones sin producción
 

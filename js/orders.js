@@ -131,7 +131,7 @@ function renderDay() {
   const items = [[0, "sumPrep"], [1, "sumReady"], [2, "sumTransit"], [3, "sumDone"], ...(c(4) ? [[4, "sumFail"]] : [])];
   const sum = $("summary"), sig = items.map(([i]) => c(i)).join(",");
   sum.replaceChildren(...items.map(([i, k]) => el("span", { class: "sum-item", style: `--c:var(--${STEPS[i].k})` }, el("i", { "aria-hidden": "true" }), el("b", {}, String(c(i))), " " + t(k))));
-  if (sum.dataset.sig && sum.dataset.sig !== sig && !prefersReducedMotion()) sum.animate([{ opacity: .4 }, { opacity: 1 }], { duration: 220, easing: "ease-out" });
+  if (sum.dataset.sig && sum.dataset.sig !== sig && !prefersReducedMotion()) sum.animate([{ opacity: .4 }, { opacity: 1 }], { duration: 380, easing: "ease-out" });
   sum.dataset.sig = sig;
 
   const box = $("list"); box.replaceChildren();

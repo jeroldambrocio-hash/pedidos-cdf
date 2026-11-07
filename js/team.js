@@ -31,7 +31,7 @@ function editMember(m) {
   // Availability: florists only; the admin can set anyone's (the server checks it too)
   const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
   const err = el("div", { class: "err", role: "alert" });
-  const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(140); scrim.remove(); back?.focus?.(); };
+  const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(330); scrim.remove(); back?.focus?.(); };
   const save = el("button", { class: "btn primary", type: "submit" }, t("save"));
   const form = el("form", { class: "dialog", role: "dialog", "aria-modal": "true", "aria-labelledby": "eTitle", onsubmit: async (e) => {
     e.preventDefault(); err.textContent = "";

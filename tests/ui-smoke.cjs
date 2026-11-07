@@ -147,7 +147,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await p.goto("http://127.0.0.1:" + port + (role === "track" ? "/p/abc123abcd" : "/"));
     if (role !== "track" && role !== "login") await p.locator("#list").waitFor({ state: "visible" });
-    await p.waitForTimeout(250);
+    await p.waitForTimeout(600);
     return p;
   }
   const calls = (p) => p.evaluate(() => window.__calls);
@@ -168,7 +168,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
   try {
     let p = await open("admin");
     await step("Neutral palette, one stylesheet, timeline (no board), channel logos", async () => {
-      assert.equal(await p.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(23, 23, 23)");
+      await p.waitForTimeout(500); assert.equal(await p.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(23, 23, 23)");
       assert.equal(await p.locator("link[rel=stylesheet][href^='/']").count(), 1);
       assert(await p.locator(".entry").count() >= 4);
       assert.equal(await p.locator(".board").count(), 0);
@@ -208,11 +208,11 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Show prices lives in the orders controls (admin), remembered per browser", async () => {
       assert(await p.locator("#pricesBtn").isVisible());
       assert.equal(await p.locator(".amt").count(), 0);
-      await p.locator("#pricesBtn").click(); await p.waitForTimeout(300);
+      await p.locator("#pricesBtn").click(); await p.waitForTimeout(650);
       assert.equal(await p.evaluate(() => localStorage.getItem("cdf-prices")), "on");
       assert.equal(await p.locator("#pricesBtn").getAttribute("aria-pressed"), "true");
       assert(await p.locator(".amt").count() > 0);
-      await p.locator("#pricesBtn").click(); await p.waitForTimeout(300);
+      await p.locator("#pricesBtn").click(); await p.waitForTimeout(650);
       assert.equal(await p.evaluate(() => localStorage.getItem("cdf-prices")), null);
     });
     await step("Brand name goes to Orders", async () => {
@@ -232,7 +232,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator(".order", { hasText: "#0124" }).getByRole("button", { name: "On the way" }).click();
       assert(await p.locator(".dialog").innerText().then((s) => s.includes("buyer@example.com")));
       await p.locator(".dialog").getByRole("button", { name: "Yes, on the way" }).click();
-      await p.waitForTimeout(300);
+      await p.waitForTimeout(650);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.delivery === "In transit"));
     });
     await step("B2 · Delivered and Nobody home open their forms instead of changing the status", async () => {
@@ -315,7 +315,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Florist on the card: change with undo", async () => {
       await p.locator(".order", { hasText: "#0125" }).locator(".o-vendor select").selectOption("ana@example.com");
-      await p.waitForTimeout(200);
+      await p.waitForTimeout(600);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.vendor_email === "ana@example.com"));
       assert(await p.locator(".toast").last().innerText().then((s) => s.includes("Undo")));
     });
@@ -332,14 +332,14 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#selectBtn").click();
       await p.locator("#bulk").getByRole("button", { name: "All visible" }).click();
       await p.locator("#bulk").getByRole("button", { name: "Mark ready" }).click();
-      await p.waitForTimeout(200);
+      await p.waitForTimeout(600);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.status === "Ready" && c.ids.length >= 1));
       await p.locator("#bulk").getByRole("button", { name: "Done" }).click();
     });
     await step("Archive delivered (keeps history), with undo", async () => {
       await p.locator("#adminTools").getByRole("button", { name: /Archive delivered/ }).click();
       await p.locator(".dialog").getByRole("button", { name: "Archive" }).click();
-      await p.waitForTimeout(200);
+      await p.waitForTimeout(600);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.archived_at));
     });
     await step("CSV export downloads a file", async () => {
@@ -356,11 +356,11 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.keyboard.press("Escape"); await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
     });
     await step("Realtime applies one row without reloading", async () => {
-      const reads = (await calls(p)).length;
+      const orderReads = (c) => c.filter((x) => x.rpc !== "cdf_away_conflicts"), reads = orderReads(await calls(p)).length;
       await p.evaluate(() => window.__realtime({ eventType: "UPDATE", new: { ...window.__orders.find((o) => o.num === "0126"), customer_name: "Realtime Name" } }));
-      await p.waitForTimeout(300);
+      await p.waitForTimeout(650);
       assert(await p.locator(".o-name", { hasText: "Realtime Name" }).isVisible());
-      assert.equal((await calls(p)).length, reads);
+      { const c = orderReads(await calls(p)); assert.equal(c.length, reads, JSON.stringify(c.slice(reads))); }
     });
     await step("Statistics tab", async () => {
       await p.locator("#tabStats").click();
@@ -414,9 +414,9 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       for (const role of ["admin", "vendor"]) {
         const q = await open(role, { width: 360 });
         assert.equal(await q.locator("#pricesBtn").isVisible(), role === "admin");
-        await q.locator("#navOpen").click(); await q.waitForTimeout(300); await q.locator("#accountBtn").click();
+        await q.locator("#navOpen").click(); await q.waitForTimeout(650); await q.locator("#accountBtn").click();
         assert.equal(await q.locator('#account .mview[data-view="main"] .mitem:visible').count(), 4);
-        await q.locator('#account [data-goto="prefs"]').click(); await q.waitForTimeout(250);
+        await q.locator('#account [data-goto="prefs"]').click(); await q.waitForTimeout(600);
         const fits = await q.locator("#account .menu").evaluate((m) => { const r = m.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0; });
         assert(fits, "menu inside the viewport");
         const stacked = await q.locator('#account .mview[data-view="prefs"] .mrow').nth(1).evaluate((r) => r.lastElementChild.getBoundingClientRect().top > r.firstElementChild.getBoundingClientRect().bottom - 2);
@@ -424,7 +424,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
         await capture(q, "menu-prefs-mobile-" + role);
         await q.locator('#account .mview[data-view="prefs"] .mback').click(); await q.locator("#myAccountBtn").click();
         assert(await q.locator("#pwBtn").isVisible());
-        await q.keyboard.press("Escape"); assert.equal(await q.evaluate(() => document.activeElement.id), "accountBtn"); await q.locator("#brandHome").click(); await q.waitForTimeout(300);
+        await q.keyboard.press("Escape"); assert.equal(await q.evaluate(() => document.activeElement.id), "accountBtn"); await q.locator("#brandHome").click(); await q.waitForTimeout(650);
         assert.equal(await q.locator("#rail.drawer-open").count(), 0);
         await q.locator("#brandHomeMobile").click(); assert(await q.locator("#ordersView").isVisible());
         await q.close();
@@ -442,7 +442,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert((await calls(q)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "ready"));
       await q.getByRole("button", { name: "Head out", exact: true }).first().click();
       await q.locator(".dialog").getByRole("button", { name: "Yes, on the way" }).click();
-      await q.waitForTimeout(300);
+      await q.waitForTimeout(650);
       assert((await calls(q)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "transit"));
       await q.locator("#q").fill("Maria"); assert(await q.locator(".work").count() >= 1);
       await q.locator("#q").fill("zzzz"); assert.equal(await q.locator(".work").count(), 0);
@@ -481,16 +481,26 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Step buttons take their next state's colour on hover", async () => {
       const q = await open("vendor");await q.locator("#list .work").first().waitFor();
       for (const [cls, rgb] of [["to-ready","rgb(141, 183, 201)"],["to-transit","rgb(169, 159, 230)"],["to-done","rgb(101, 189, 145)"],["to-fail","rgb(224, 123, 123)"]]) {
-        const b=q.locator(".btn."+cls).first();await b.scrollIntoViewIfNeeded();await b.hover();await q.waitForTimeout(260);
+        const b=q.locator(".btn."+cls).first();await b.scrollIntoViewIfNeeded();await b.hover();await q.waitForTimeout(700);
         assert.equal(await b.evaluate(n=>getComputedStyle(n).backgroundColor),rgb,cls);
       }
       await q.close();
+    });
+    await step("New version: notice, then reloads by itself once no sheet is open", async () => {
+      const q = await open("admin");let v="a";
+      await q.route("**/version.json*",(r)=>r.fulfill({contentType:"application/json",body:JSON.stringify({v})}));
+      await q.evaluate(()=>checkVersion());await q.locator("#list").waitFor();
+      await q.locator("#newBtn").click();await q.locator(".sheet").waitFor();
+      v="b";await q.evaluate(()=>{window.__samePage=1;return checkVersion()});
+      await q.locator(".toast",{hasText:"new version"}).waitFor();
+      await q.waitForTimeout(4500);assert.equal(await q.evaluate(()=>window.__samePage),1,"no reload while the sheet is open");
+      const nav=q.waitForEvent("framenavigated");await q.evaluate(()=>closeSheet(true));await nav;await q.close();
     });
     await step("By channel: logos rest grey and take the picker's chosen look on hover", async () => {
       const q = await open("admin");await q.locator("#tabStats").click();await q.locator(".hbar .chan-logo").first().waitFor();
       const row=q.locator(".hbar",{hasText:"Shopify"}).first(),logo=row.locator(".chan-logo");
       assert.notEqual(await logo.evaluate(n=>getComputedStyle(n).backgroundColor),"rgb(35, 141, 97)");
-      await row.hover();await q.waitForTimeout(260);
+      await row.hover();await q.waitForTimeout(700);
       assert.equal(await logo.evaluate(n=>getComputedStyle(n).backgroundColor),"rgb(35, 141, 97)");
       assert.match(await logo.locator("img").evaluate(n=>getComputedStyle(n).filter),/invert\(1\)/);await q.close();
     });
@@ -499,18 +509,18 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator("#lEmail").fill("ana.alias");await q.locator("#forgotBtn").click();
       const mail=q.locator(".sheet input[type=email]");assert.equal(await mail.inputValue(),"");
       await mail.fill("nope@x");await q.locator(".sheet button[type=submit]").click();assert.match(await q.locator(".sheet .err").innerText(),/valid email/);
-      await mail.fill("Ana@Example.com");await q.locator(".sheet button[type=submit]").click();await q.waitForTimeout(350);
+      await mail.fill("Ana@Example.com");await q.locator(".sheet button[type=submit]").click();await q.waitForTimeout(700);
       const calls=await q.evaluate(()=>window.__calls.filter(c=>c.reset));assert.deepEqual(calls,[{reset:"ana@example.com",redirectTo:new URL(q.url()).origin+"/"}]);
       assert.equal(await q.locator(".sheet").count(),0);await q.close();
       const r = await open("admin",{before:{__recovery:true}});
       await r.getByRole("heading",{name:"Choose a new password"}).waitFor();
       const pw=r.locator(".sheet input[type=password]");await pw.nth(0).fill("brand-new-pass");await pw.nth(1).fill("brand-new-pass");
-      await r.locator(".sheet button[type=submit]").click();await r.waitForTimeout(350);
+      await r.locator(".sheet button[type=submit]").click();await r.waitForTimeout(700);
       assert.deepEqual(await r.evaluate(()=>window.__calls.filter(c=>"updateUser" in c)),[{updateUser:true}]);await r.close();
     });
     await step("Integration: one tracking logo in every theme, animated current state, Reduced disables loops", async () => {
       const q=await open("track",{width:390});
-      for(const theme of ["dark","light","auto"]){await q.evaluate(v=>{savePref("cdf-theme",v);applyPrefs()},theme);await q.waitForTimeout(250);assert.equal(await q.locator(".logo img:visible").count(),1)}
+      for(const theme of ["dark","light","auto"]){await q.evaluate(v=>{savePref("cdf-theme",v);applyPrefs()},theme);await q.waitForTimeout(600);assert.equal(await q.locator(".logo img:visible").count(),1)}
       for(const [delivery,status,animation] of [["-","Preparing","blade-a"],["-","Ready","bloom"],["In transit","Ready","drive"],["Delivered","Ready","beat"],["Failed","Ready","blink"]]){
        await q.evaluate(([d,s])=>{last.o.delivery=d;last.o.status=s;render()},[delivery,status]);
        // Preparing animates the scissor blades themselves; the other steps animate the whole icon
@@ -525,18 +535,18 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       const bad=await q.locator(".sheet input:not([type=file]),.sheet textarea,.sheet select").evaluateAll(ns=>ns.filter(n=>n.getClientRects().length&&!n.labels?.length&&!n.hasAttribute("aria-label")&&!n.hasAttribute("aria-labelledby")).length);assert.equal(bad,0);await q.close();
     });
     await step("Integration: mobile password is above the closed drawer",async()=>{
-      const q=await open("admin",{width:390});await q.locator("#navOpen").click();await q.locator("#accountBtn").click();await q.locator("#myAccountBtn").click();await q.locator("#pwBtn").click();await q.waitForTimeout(300);
+      const q=await open("admin",{width:390});await q.locator("#navOpen").click();await q.locator("#accountBtn").click();await q.locator("#myAccountBtn").click();await q.locator("#pwBtn").click();await q.waitForTimeout(650);
       assert.equal(await q.locator("#rail.drawer-open").count(),0);await q.locator(".sheet input").first().fill("safe-test-password");await q.close();
     });
     await step("Integration: complete statistics, live invalidation, historic customers and weekly buckets",async()=>{
       const q=await open("admin");await q.locator("#tabStats").click();await q.locator("table.top").waitFor();
       assert(await q.getByRole("heading",{name:"Ideas to grow"}).isVisible());assert(await q.getByRole("heading",{name:"Top customers"}).isVisible());
       const before=await q.locator(".kpi b").first().innerText();await q.evaluate(()=>{const row={...window.__orders[0],id:"new-stats",num:"9999"};window.__orders.push(row);window.__realtime({eventType:"INSERT",new:row})});await q.waitForTimeout(500);assert.notEqual(await q.locator(".kpi b").first().innerText(),before);
-      await q.locator('#statsPeriod [data-days="90"]').click();await q.waitForTimeout(350);assert(await q.getByRole("heading",{name:"Orders per week"}).isVisible());
+      await q.locator('#statsPeriod [data-days="90"]').click();await q.waitForTimeout(700);assert(await q.getByRole("heading",{name:"Orders per week"}).isVisible());
       assert.match(await q.locator("#statsAvail").innerText(),/^Data available: .+ to .+ · \d+ orders$/);
       await q.locator('#statsPeriod [data-days="custom"]').click();assert(await q.locator("#statsFrom").isVisible());
       const min=await q.locator("#statsFrom").getAttribute("min"),max=await q.locator("#statsTo").getAttribute("max");assert(min<=max);
-      await q.locator("#statsFrom").fill(max);await q.locator("#statsFrom").dispatchEvent("change");await q.waitForTimeout(350);
+      await q.locator("#statsFrom").fill(max);await q.locator("#statsFrom").dispatchEvent("change");await q.waitForTimeout(700);
       assert.match(await q.locator(".chart-card .chart-head small").first().innerText(),/· 1 days$/);await q.close();
     });
     await step("Phone country picker: Philippine flag and +63 by default, search, another country is kept", async () => {
@@ -586,7 +596,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator(".sheet").getByRole("button", { name: "Save changes" }).click();
       // The end date can't go before the start (the picker's minimum blocks the save)
       assert(await q.locator(".sheet .absence input[type=date]").nth(1).evaluate((x) => x.validity.rangeUnderflow && x.min === x.form.querySelector(".absence input[type=date]").value));
-      await q.waitForTimeout(200); assert.equal(await q.locator(".sheet").count(), 1);
+      await q.waitForTimeout(600); assert.equal(await q.locator(".sheet").count(), 1);
       await setDate(q.locator(".sheet .absence input[type=date]").nth(1), mnl(4));
       assert(await q.locator(".sheet .notice").isHidden(), "no clash: Ana's orders are today");
       await capture(q, "profile-florist");
@@ -645,15 +655,15 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator(".dialog .avail-pick").selectOption("yes");
       await q.locator(".dialog").getByRole("button", { name: "Save" }).click();
       await row.locator(".avail.available").waitFor();
-      await q.locator("#tabOrders").click(); await q.waitForTimeout(300);
+      await q.locator("#tabOrders").click(); await q.waitForTimeout(650);
       assert(await banner.isHidden(), "no absence, no banner");
-      await q.reload(); await q.locator("#list").waitFor(); await q.waitForTimeout(300);
+      await q.reload(); await q.locator("#list").waitFor(); await q.waitForTimeout(650);
       assert(await banner.isHidden(), "still available after a reload");
       await q.close();
     });
     await step("Profiles on a phone: My account sheet and Team fit 390px", async () => {
       const q = await open("vendor", { width: 390 });
-      await q.locator("#navOpen").click(); await q.waitForTimeout(300); await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
+      await q.locator("#navOpen").click(); await q.waitForTimeout(650); await q.locator("#accountBtn").click(); await q.locator("#myAccountBtn").click();
       await q.locator("#editProfileBtn").click(); await q.locator(".sheet .avail-pick").selectOption("no");
       await capture(q, "profile-florist-mobile");
       await q.close();

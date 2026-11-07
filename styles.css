@@ -54,8 +54,8 @@
   --step-done: var(--state-done);
   --shadow-pop: 0 12px 32px rgb(0 0 0 / .5), 0 1px 3px rgb(0 0 0 / .4);
   --r-ctl: 8px; --r-card: 12px; --r-lg: 14px;
-  --dur-press: 100ms; --dur-fast: 150ms; --dur-base: 200ms; --dur-slow: 280ms;
-  --ease-out: cubic-bezier(.16,1,.3,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-std: cubic-bezier(.2,0,0,1);
+  --dur-press: 140ms; --dur-fast: 240ms; --dur-base: 320ms; --dur-slow: 440ms;
+  --ease-out: cubic-bezier(.25,.8,.35,1); --ease-soft: cubic-bezier(.45,0,.25,1); --ease-in: cubic-bezier(.4,0,1,1); --ease-std: cubic-bezier(.2,0,0,1);
   --serif: "Newsreader", Georgia, serif;
   --sans: "Geist", "Segoe UI", system-ui, sans-serif;
   color-scheme: dark;
@@ -264,7 +264,8 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .step.done .node::after { content: ""; position: absolute; left: 3.5px; top: 1.5px; width: 3px; height: 6px; border: solid var(--surface); border-width: 0 1.5px 1.5px 0; transform: rotate(45deg); }
 .step.cur { color: var(--c); background: var(--cb); font-weight: 650; }
 .step.cur .node { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
-.step.cur .node::before { content: ""; position: absolute; inset: 2.5px; border-radius: 50%; background: var(--c); }
+/* Centre dot as a gradient, not a half-pixel inset box, so it never renders off-centre */
+.step.cur .node::before { content: ""; position: absolute; inset: 0; border-radius: 50%; background: radial-gradient(circle at 50% 50%, var(--c) 0 2.75px, transparent 3.25px); }
 .step.cur.pop .node { animation: node-pop var(--dur-slow) var(--ease-out); }
 @keyframes node-pop { 0% { transform: scale(.5); } 60% { transform: scale(1.15); } }
 .link { position: relative; width: 22px; height: 1.5px; background: var(--line-2); overflow: hidden; }
@@ -273,7 +274,7 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .actions { display: flex; gap: 6px; }
 
 /* Entrada / salida / resaltado de tarjetas */
-.stagger > * { animation: item-in 220ms var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 8) * 30ms); }
+.stagger > * { animation: item-in 380ms var(--ease-out) both; animation-delay: calc(min(var(--i, 0), 8) * 45ms); }
 @keyframes item-in { from { opacity: 0; transform: translateY(6px); } }
 .entry.is-new .order { animation: new-in 240ms var(--ease-out) both, glow 1.2s var(--ease-std) 240ms; }
 @keyframes new-in { from { opacity: 0; transform: translateY(-8px); } }
@@ -331,7 +332,7 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 .hist .hrow { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--line); font-size: 0.8125rem; }
 .hist[open] .hrow { animation: item-in var(--dur-base) var(--ease-out) both; }
 .dialog { position: fixed; z-index: 71; left: 50%; top: 50%; width: min(440px, calc(100% - 32px)); translate: -50% -50%; background: var(--surface); border-radius: var(--r-lg); box-shadow: var(--shadow-pop); animation: dlg-in var(--dur-base) var(--ease-out) both; }
-.dialog.closing { animation: dlg-out 160ms var(--ease-in) forwards; }
+.dialog.closing { animation: dlg-out 280ms var(--ease-in) forwards; }
 @keyframes dlg-in { from { opacity: 0; transform: scale(.97); } }
 @keyframes dlg-out { to { opacity: 0; transform: scale(.97); } }
 .dialog .sheet-body { padding: 16px 20px; display: grid; gap: 12px; }
@@ -339,7 +340,7 @@ svg.i { width: 18px; height: 18px; flex: none; fill: none; stroke: currentColor;
 /* ---------- Toasts ---------- */
 .toasts { position: fixed; z-index: 95; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); translate: -50% 0; display: grid; gap: 8px; width: min(420px, calc(100% - 32px)); }
 .toast { display: flex; align-items: center; gap: 10px; padding: 12px 14px 12px 16px; border-radius: 10px; background: #1C221E; color: #F1F0EA; border: 1px solid #292F2B; box-shadow: var(--shadow-pop); animation: toast-in 220ms var(--ease-out) both; }
-.toast.out { animation: toast-out 160ms var(--ease-in) forwards; }
+.toast.out { animation: toast-out 290ms var(--ease-in) forwards; }
 @keyframes toast-in { from { opacity: 0; transform: translateY(12px); } }
 @keyframes toast-out { to { opacity: 0; transform: translateY(8px); } }
 .toast .ti { display: grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background: var(--primary-tint); color: var(--primary-soft-text); flex: none; }
@@ -878,7 +879,7 @@ table.top tr:last-child td { border-bottom: 0; }
 /* Panel y diálogos: entrada más suave y un poco más larga */
 .sheet { animation-duration: 340ms; }
 .veil { animation-duration: 260ms; }
-.dialog { animation: dlg-in 260ms var(--ease-out) both; }
+.dialog { animation: dlg-in 400ms var(--ease-out) both; }
 @keyframes dlg-in { from { opacity: 0; transform: translateY(8px) scale(.98); } }
 .sheet-body.stagger > * { animation-duration: 300ms; }
 
@@ -905,7 +906,7 @@ details > summary:hover { background: var(--surface-hover); border-radius: inher
 .mitem, .filter, .check, .stat.mini, .missed-row, .role-pick button, .thumb-btn, .w-top, .step, .cal button, .seg button { transition-property: background-color, color, border-color, box-shadow, transform; transition-duration: 160ms; transition-timing-function: var(--ease-out); }
 .mitem:active, .filter:active, .check:active, .missed-row:active, .role-pick button:active, .seg button:active, .step:active:not(:disabled) { transform: scale(.98); }
 .thumb-btn:active, .w-top:active { transform: scale(.99); }
-.btn { transition-duration: 160ms; }
+.btn { transition-duration: 260ms; }
 .btn:active { transform: scale(.97); transition-duration: 90ms; }
 
 /* Casilla "misma persona": el check entra con un pequeño pop */
@@ -913,7 +914,7 @@ details > summary:hover { background: var(--surface-hover); border-radius: inher
 @keyframes chk { 0% { transform: scale(0); } 70% { transform: scale(1.15); } 100% { transform: scale(1); } }
 
 /* Menús: apertura más suave */
-.menu { transition: opacity 220ms var(--ease-out), transform 240ms var(--ease-out), visibility 0s 240ms; }
+.menu { transition: opacity 320ms var(--ease-out), transform 360ms var(--ease-out), visibility 0s 360ms; }
 .menu.open { transition: opacity 220ms var(--ease-out), transform 240ms var(--ease-out); }
 .menu.open > * { animation: item-in 260ms var(--ease-out) both; }
 .menu.open > *:nth-child(2) { animation-delay: 20ms; } .menu.open > *:nth-child(3) { animation-delay: 40ms; } .menu.open > *:nth-child(4) { animation-delay: 60ms; }
@@ -1115,7 +1116,7 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .scrim { position: fixed; inset: 0; z-index: 70; background: rgb(10 10 12 / .45); animation: veil-in 260ms var(--ease-out) both; }
 .scrim.leaving { animation: veil-out var(--dur-base) var(--ease-in) forwards; }
 .scrim.leaving > .sheet { animation: sheet-out var(--dur-base) var(--ease-in) forwards; }
-.scrim.leaving > .dialog { animation: dlg-out 160ms var(--ease-in) forwards; }
+.scrim.leaving > .dialog { animation: dlg-out 280ms var(--ease-in) forwards; }
 .center-scrim { z-index: 75; }
 .center-scrim > .dialog { z-index: 76; }
 .dialog .sheet-body { gap: 10px; }
@@ -1219,7 +1220,7 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .stats-range { display: flex; justify-content: space-between; align-items: flex-end; flex-wrap: wrap; gap: 10px 16px; margin: -6px 0 18px; }
 .stats-range[hidden] { display: none; }
 .stats-avail { margin: 0; color: var(--muted); font-size: 0.8125rem; }
-.stats-dates { display: flex; flex-wrap: wrap; gap: 10px; animation: rangeIn 200ms var(--ease-out); }
+.stats-dates { display: flex; flex-wrap: wrap; gap: 10px; animation: rangeIn 360ms var(--ease-out); }
 .stats-dates[hidden] { display: none; }
 .stats-dates .field { width: 168px; }
 @keyframes rangeIn { from { opacity: 0; transform: translateY(-4px); } }
@@ -1421,7 +1422,7 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 .flag { display: block; flex: none; width: 22px; height: 16px; object-fit: cover; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.08); }
 .flag-other { display: grid; place-items: center; background: var(--sunk); color: var(--muted); font-size: 0.75rem; font-weight: 700; line-height: 1; }
 .phone-wrap { display: grid; gap: 6px; }
-.cc-panel { padding: 6px; background: var(--surface); border: 1px solid var(--line-2, var(--line)); border-radius: var(--r-ctl); box-shadow: 0 8px 24px rgba(0,0,0,.18); animation: cc-open 180ms var(--ease-out, ease-out); }
+.cc-panel { padding: 6px; background: var(--surface); border: 1px solid var(--line-2, var(--line)); border-radius: var(--r-ctl); box-shadow: 0 8px 24px rgba(0,0,0,.18); animation: cc-open 340ms var(--ease-soft); }
 .cc-panel[hidden] { display: none; }
 @keyframes cc-open { from { transform: translateY(-4px); opacity: 0; } to { transform: none; opacity: 1; } }
 :root[data-motion="reduced"] .cc-panel { animation: none; }
@@ -1451,8 +1452,8 @@ form.dialog h2.dialog-text { margin: 0; font-weight: 600; font-size: 1.05rem; }
    Menú de perfil por vistas (lista → Preferencias / Mi cuenta) y marca que lleva a Pedidos
    ===================================================================== */
 .mview[hidden] { display: none; }
-.mview.in-fwd { animation: mview-fwd 200ms var(--ease-std) both; }
-.mview.in-back { animation: mview-back 200ms var(--ease-std) both; }
+.mview.in-fwd { animation: mview-fwd 340ms var(--ease-soft) both; }
+.mview.in-back { animation: mview-back 340ms var(--ease-soft) both; }
 @keyframes mview-fwd { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
 @keyframes mview-back { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
 .menu.account .mitem > span:not(.svg-icon) { flex: 1; }
@@ -1567,18 +1568,18 @@ option.is-away { color: var(--prep); }
 .menu { --menu-bg: var(--surface); --ic-blue: #2F6FD6; --ic-green: #2E7D57; --ic-yellow: #B7860B; }
 :root[data-theme="dark"] .menu { --menu-bg: var(--bg-menu); --ic-blue: #6AA6FF; --ic-green: #5CC489; --ic-yellow: #F5C542; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme]) .menu { --menu-bg: var(--bg-menu); --ic-blue: #6AA6FF; --ic-green: #5CC489; --ic-yellow: #F5C542; } }
-.mitem svg.i { transition: color 200ms var(--ease-out), filter 250ms var(--ease-out); }
-.ic-prefs .knob { fill: var(--menu-bg); transform-box: fill-box; transform-origin: center; transition: fill 200ms var(--ease-out), stroke 200ms var(--ease-out); }
-.ic-account .head { transform-box: fill-box; transform-origin: center; transition: transform 220ms var(--ease-out); }
-.ic-spark path:first-child { transform-box: fill-box; transform-origin: center; transition: transform 250ms var(--ease-out); }
+.mitem svg.i { transition: color 340ms var(--ease-soft), filter 430ms var(--ease-soft); }
+.ic-prefs .knob { fill: var(--menu-bg); transform-box: fill-box; transform-origin: center; transition: fill 340ms var(--ease-soft), stroke 340ms var(--ease-soft); }
+.ic-account .head { transform-box: fill-box; transform-origin: center; transition: transform 370ms var(--ease-soft); }
+.ic-spark path:first-child { transform-box: fill-box; transform-origin: center; transition: transform 430ms var(--ease-soft); }
 .mitem:is(:hover, :active) .ic-prefs .knob { stroke: var(--ic-blue); fill: color-mix(in srgb, var(--ic-blue) 35%, var(--surface-hover)); }
-.mitem:is(:hover, :active) .ic-prefs .knob.a { animation: knobA 1.1s ease-in-out infinite alternate; }
-.mitem:is(:hover, :active) .ic-prefs .knob.b { animation: knobB 1.1s ease-in-out infinite alternate; }
+.mitem:is(:hover, :active) .ic-prefs .knob.a { animation: knobA 1.9s ease-in-out infinite alternate; }
+.mitem:is(:hover, :active) .ic-prefs .knob.b { animation: knobB 1.9s ease-in-out infinite alternate; }
 @keyframes knobA { from { transform: translateX(0); } to { transform: translateX(-8px); } }
 @keyframes knobB { from { transform: translateX(0); } to { transform: translateX(8px); } }
 .mitem:is(:hover, :active) svg.ic-account { color: var(--ic-green); }
 .mitem:is(:hover, :active) .ic-account .head { transform: translateY(-1px) scale(1.06); }
-.mitem:is(:hover, :active) svg.ic-spark { color: var(--ic-yellow); animation: sparkGlow 1.4s ease-in-out infinite alternate; }
+.mitem:is(:hover, :active) svg.ic-spark { color: var(--ic-yellow); animation: sparkGlow 2.4s ease-in-out infinite alternate; }
 .mitem:is(:hover, :active) .ic-spark path:first-child { transform: scale(1.08) rotate(8deg); }
 @keyframes sparkGlow { from { filter: drop-shadow(0 0 1px color-mix(in srgb, var(--ic-yellow) 50%, transparent)); } to { filter: drop-shadow(0 0 5px var(--ic-yellow)); } }
 :root[data-motion="reduced"] .mitem .ic-prefs .knob, :root[data-motion="reduced"] .mitem svg.ic-spark { animation: none !important; }
@@ -1596,30 +1597,30 @@ option.is-away { color: var(--prep); }
 .kpi .ln { stroke-dasharray: 1; stroke-dashoffset: 0; }
 .kpi .area, .kpi .star-fill, .kpi .fill { fill: currentColor; stroke: none; opacity: 0; }
 .kpi .heart { fill: var(--k-pink); stroke: none; opacity: 0; }
-.kpi .ic { transition: background-color 250ms var(--ease-out), color 250ms var(--ease-out); }
+.kpi .ic { transition: background-color 430ms var(--ease-soft), color 430ms var(--ease-soft); }
 /* Orders */
-.kpi.k-orders.play .ln { animation: k-draw 260ms var(--ease-out) backwards; }
-.kpi.k-orders.play .l1 { animation-delay: calc(var(--kd) + 120ms); }
-.kpi.k-orders.play .l2 { animation-delay: calc(var(--kd) + 300ms); }
-.kpi.k-orders.play .l3 { animation-delay: calc(var(--kd) + 480ms); }
+.kpi.k-orders.play .ln { animation: k-draw 440ms var(--ease-soft) backwards; }
+.kpi.k-orders.play .l1 { animation-delay: calc(var(--kd) + 200ms); }
+.kpi.k-orders.play .l2 { animation-delay: calc(var(--kd) + 510ms); }
+.kpi.k-orders.play .l3 { animation-delay: calc(var(--kd) + 820ms); }
 /* Average per day / sales */
 .kpi.k-trend.play .ic { color: var(--k-green); background: color-mix(in srgb, var(--k-green) 14%, var(--sunk)); }
-.kpi.k-trend.play .ln { animation: k-draw 520ms var(--ease-out) calc(var(--kd) + 120ms) backwards; }
-.kpi.k-trend.play .area { opacity: .22; animation: k-rise 560ms var(--ease-out) calc(var(--kd) + 120ms) backwards; }
+.kpi.k-trend.play .ln { animation: k-draw 880ms var(--ease-soft) calc(var(--kd) + 200ms) backwards; }
+.kpi.k-trend.play .area { opacity: .22; animation: k-rise 950ms var(--ease-soft) calc(var(--kd) + 200ms) backwards; }
 /* Leading channel / average ticket */
 .kpi.k-star.play .ic { color: var(--k-gold); background: color-mix(in srgb, var(--k-gold) 14%, var(--sunk)); }
-.kpi.k-star.play .fill { opacity: 1; animation: k-fill 520ms var(--ease-out) calc(var(--kd) + 120ms) backwards; }
-.kpi.k-star.play svg.i { animation: k-pop 260ms var(--ease-out) calc(var(--kd) + 620ms) backwards; }
+.kpi.k-star.play .fill { opacity: 1; animation: k-fill 880ms var(--ease-soft) calc(var(--kd) + 200ms) backwards; }
+.kpi.k-star.play svg.i { animation: k-pop 440ms var(--ease-soft) calc(var(--kd) + 1050ms) backwards; }
 /* Delivered first time */
 .kpi.k-check.play .ic { color: var(--k-green); background: color-mix(in srgb, var(--k-green) 14%, var(--sunk)); }
-.kpi.k-check.play .ln { animation: k-draw 380ms var(--ease-out) calc(var(--kd) + 160ms) backwards; }
-.kpi.k-check.play .ring { animation: k-pop 260ms var(--ease-out) calc(var(--kd) + 520ms) backwards; }
+.kpi.k-check.play .ln { animation: k-draw 650ms var(--ease-soft) calc(var(--kd) + 270ms) backwards; }
+.kpi.k-check.play .ring { animation: k-pop 440ms var(--ease-soft) calc(var(--kd) + 880ms) backwards; }
 /* Returning customers */
-.kpi.k-user.play .who { animation: k-nod 520ms ease-in-out calc(var(--kd) + 100ms) backwards; }
-.kpi.k-user.play .heart { animation: k-heart 1100ms var(--ease-out) calc(var(--kd) + 300ms) backwards; }
+.kpi.k-user.play .who { animation: k-nod 880ms ease-in-out calc(var(--kd) + 170ms) backwards; }
+.kpi.k-user.play .heart { animation: k-heart 1870ms var(--ease-soft) calc(var(--kd) + 510ms) backwards; }
 /* Failed visits */
 .kpi.k-alert.play .ic { color: var(--fail); background: color-mix(in srgb, var(--fail) 14%, var(--sunk)); }
-.kpi.k-alert.play .tri { animation: k-blink 900ms steps(1, end) calc(var(--kd) + 150ms) backwards; }
+.kpi.k-alert.play .tri { animation: k-blink 1800ms var(--ease-soft) calc(var(--kd) + 260ms) backwards; }
 
 @keyframes k-draw { from { stroke-dashoffset: 1; } to { stroke-dashoffset: 0; } }
 @keyframes k-rise { from { opacity: 0; transform: translateY(6px) scaleY(.4); } to { opacity: .22; transform: none; } }
@@ -1632,8 +1633,8 @@ option.is-away { color: var(--prep); }
 
 /* Step buttons: on hover they take the colour of the state they lead to,
    the same as its badge (Marcar listo → Listo, Salir a repartir → En reparto, Entregado → Entregado). */
-.btn[class*="to-"] { transition: background-color 200ms var(--ease-out), border-color 200ms var(--ease-out), color 200ms var(--ease-out), transform var(--dur-press) var(--ease-std), box-shadow 200ms var(--ease-out); }
-.btn[class*="to-"] svg.i { transition: transform 220ms var(--ease-out); }
+.btn[class*="to-"] { transition: background-color 340ms var(--ease-soft), border-color 340ms var(--ease-soft), color 340ms var(--ease-soft), transform var(--dur-press) var(--ease-std), box-shadow 340ms var(--ease-soft); }
+.btn[class*="to-"] svg.i { transition: transform 370ms var(--ease-soft); }
 .btn.primary.to-ready:is(:hover, :active):not(:disabled) { background: var(--ready-solid); border-color: var(--ready-solid); color: var(--ready-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ready-solid) 25%, transparent); }
 .btn.primary.to-transit:is(:hover, :active):not(:disabled) { background: var(--transit-solid); border-color: var(--transit-solid); color: var(--transit-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--transit-solid) 25%, transparent); }
 .btn.primary.to-done:is(:hover, :active):not(:disabled) { background: var(--done-solid); border-color: var(--done-solid); color: var(--done-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--done-solid) 25%, transparent); }
@@ -1641,7 +1642,7 @@ option.is-away { color: var(--prep); }
 .btn.primary:is(.to-ready, .to-done):hover:not(:disabled) svg.i { transform: scale(1.12); }
 :root[data-motion="reduced"] .btn[class*="to-"] svg.i { transform: none !important; }
 .btn.to-fail:is(:hover, :active):not(:disabled) { background: var(--fail-solid); border-color: var(--fail-solid); color: var(--fail-on); box-shadow: 0 0 0 3px color-mix(in srgb, var(--fail-solid) 25%, transparent); }
-.btn.to-fail:hover:not(:disabled) svg.i { animation: nudge 220ms var(--ease-std); }
+.btn.to-fail:hover:not(:disabled) svg.i { animation: nudge 370ms var(--ease-std); }
 :root[data-motion="reduced"] .btn.to-fail svg.i { animation: none; }
 
 /* "By channel": logos rest in grey like the new-order channel picker; hovering a row (or focusing it)
@@ -1649,7 +1650,32 @@ option.is-away { color: var(--prep); }
 .hbar .chan-logo { box-shadow: inset 0 0 0 1px var(--line); transition: background-color var(--dur-fast), box-shadow var(--dur-fast); }
 .hbar .chan-logo img { transition: filter var(--dur-fast); }
 .hbar:is(:hover, :focus-visible) .chan-logo { background: var(--cc); box-shadow: 0 0 0 3px color-mix(in srgb, var(--cc) 30%, transparent); }
-.hbar:is(:hover, :focus-visible) .chan-logo img { filter: brightness(0) invert(1); animation: chan-pop var(--dur-base) var(--ease-out); }
+.hbar:is(:hover, :focus-visible) .chan-logo img { filter: brightness(0) invert(1); animation: chan-pop 480ms var(--ease-soft); }
 .hbar:is(:hover, :focus-visible) .chan-logo:has(svg) { background: var(--primary); color: var(--on-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 30%, transparent); }
-.hbar:is(:hover, :focus-visible) .chan-logo:has(svg) svg { animation: chan-pop var(--dur-base) var(--ease-out); }
+.hbar:is(:hover, :focus-visible) .chan-logo:has(svg) svg { animation: chan-pop 480ms var(--ease-soft); }
 :root[data-motion="reduced"] .hbar .chan-logo :is(img, svg) { animation: none !important; }
+
+/* Dropdowns (every <select>): the list opens with a soft fade and slide, in the app's own colours.
+   Uses the customizable select (Chrome 135+); other browsers keep their native list, at least in the app's colours. */
+select option { background: var(--surface); color: var(--fg); }
+@supports (appearance: base-select) {
+  select, ::picker(select) { appearance: base-select; }
+  select { display: inline-flex; align-items: center; gap: 6px; }
+  select::picker-icon { color: var(--muted); font-size: .75em; transition: rotate 320ms var(--ease-soft); }
+  select:open::picker-icon { rotate: 180deg; }
+  .o-vendor select::picker-icon, .phone-in select.cc::picker-icon, .badge-sel select::picker-icon { display: none; }
+  ::picker(select) {
+    margin-block: 6px; padding: 4px; min-width: anchor-size(width); max-height: min(320px, 60vh); overflow-y: auto;
+    border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--fg); box-shadow: var(--shadow-pop);
+    opacity: 0; transform: translateY(-6px) scale(.98); transform-origin: top center;
+    transition: opacity 320ms var(--ease-soft), transform 360ms var(--ease-soft), overlay 360ms allow-discrete, display 360ms allow-discrete;
+  }
+  ::picker(select):popover-open { opacity: 1; transform: none; }
+  @starting-style { ::picker(select):popover-open { opacity: 0; transform: translateY(-6px) scale(.98); } }
+  select option { display: flex; align-items: center; gap: 8px; min-height: 36px; padding: 6px 10px; border-radius: 6px; background: transparent; color: var(--fg); font-size: .875rem; transition: background-color 240ms var(--ease-soft), color 240ms var(--ease-soft); }
+  select option:hover, select option:focus-visible { background: var(--surface-hover); outline: none; }
+  select option:checked { font-weight: 600; }
+  select option::checkmark { color: var(--primary-text); font-size: .8em; }
+  select option:disabled { color: var(--faint); }
+  :root[data-motion="reduced"] ::picker(select) { transition: none; transform: none; }
+}

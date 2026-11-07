@@ -85,6 +85,6 @@ async function renderStats(){
  stagger(box.querySelector(".kpis"));
  // Card icons play once as the cards arrive, and again whenever the pointer enters a card.
  const play=k=>{k.classList.remove("play");void k.offsetWidth;k.classList.add("play");};
- box.querySelectorAll(".kpi").forEach((k,i)=>{k.style.setProperty("--kd",i*70+"ms");k.addEventListener("pointerenter",()=>{if(prefersReducedMotion())return;k.style.setProperty("--kd","0ms");play(k);});if(!prefersReducedMotion())play(k);});
- if(!prefersReducedMotion())box.querySelectorAll(".hbar-fill,.col-fill").forEach((n,i)=>n.animate([{transform:n.classList.contains("hbar-fill")?"scaleX(0)":"scaleY(0)"},{transform:"none"}],{duration:420,delay:Math.min(i,30)*12,easing:"cubic-bezier(.16,1,.3,1)",fill:"backwards"}));
+ box.querySelectorAll(".kpi").forEach((k,i)=>{k.style.setProperty("--kd",i*120+"ms");k.addEventListener("pointerenter",()=>{if(prefersReducedMotion())return;k.style.setProperty("--kd","0ms");play(k);});if(!prefersReducedMotion())play(k);});
+ if(!prefersReducedMotion())box.querySelectorAll(".hbar-fill,.col-fill").forEach((n,i)=>n.animate([{transform:n.classList.contains("hbar-fill")?"scaleX(0)":"scaleY(0)"},{transform:"none"}],{duration:750,delay:Math.min(i,30)*20,easing:"cubic-bezier(.16,1,.3,1)",fill:"backwards"}));
 }

@@ -124,7 +124,7 @@ function toast(msg, { action, onAction, ms, type = "ok" } = {}) {
     el("span", { class: "ti" }, icon(type === "error" ? "alert" : type === "info" ? "clock" : "tick")), el("p", {}, msg),
     action ? el("button", { type: "button", onclick: () => { close(); onAction(); } }, action) : null);
   let h, gone = false;
-  const close = async () => { if (gone) return; gone = true; clearTimeout(h); node.classList.add("out"); await wait(prefersReducedMotion() ? 120 : 170); node.remove(); };
+  const close = async () => { if (gone) return; gone = true; clearTimeout(h); node.classList.add("out"); await wait(prefersReducedMotion() ? 120 : 300); node.remove(); };
   const arm = () => { clearTimeout(h); h = setTimeout(close, ms || (action ? 6000 : 3200)); };
   node.addEventListener("pointerenter", () => clearTimeout(h));
   node.addEventListener("pointerleave", arm);
@@ -144,8 +144,8 @@ function flip(container, mutate) {
   if (!first.size) return;
   container.querySelectorAll(":scope > [data-id]").forEach((e) => {
     const f = first.get(e.dataset.id), l = e.getBoundingClientRect();
-    if (f) { const dx = f.left - l.left, dy = f.top - l.top; if (dx || dy) e.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 240, easing: "cubic-bezier(.2,0,0,1)" }); }
-    else e.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 220, easing: "cubic-bezier(.16,1,.3,1)" });
+    if (f) { const dx = f.left - l.left, dy = f.top - l.top; if (dx || dy) e.animate([{ transform: `translate(${dx}px,${dy}px)` }, { transform: "none" }], { duration: 400, easing: "cubic-bezier(.45,0,.25,1)" }); }
+    else e.animate([{ opacity: 0, transform: "translateY(6px)" }, { opacity: 1, transform: "none" }], { duration: 380, easing: "cubic-bezier(.25,.8,.35,1)" });
   });
 }
 const stagger = (parent) => { parent.classList.add("stagger"); [...parent.children].forEach((c, i) => c.style.setProperty("--i", i)); setTimeout(() => parent.classList.remove("stagger"), 600); };
