@@ -1,3 +1,13 @@
 [build]
   publish = "."
   command = ""
+
+# Installable app: the manifest with its own type, and the service worker always checked for updates
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache"
