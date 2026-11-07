@@ -1,24 +1,30 @@
-// Team chat: a conversation inside each order (seen by whoever can see that order) and a #equipo channel.
-// Tables: cdf_messages (order_id null = #equipo) and cdf_message_reads (how far each person has read each thread).
-// If those tables don't exist yet, everything here stays hidden and the rest of the app works as before.
+// Team chat: a conversation inside each order (seen by whoever can see that order) and a #team channel.
+// Tables: cdf_messages (order_id null = #team), cdf_message_reads (how far each person has read each thread)
+// and, if present, cdf_message_reactions (👍 ✅ … on a message). "Is typing…" travels as a realtime broadcast.
+// Without the tables everything here stays hidden (or, for reactions, simply not offered).
 const TEAM = "team";
-const CH = { on: false, msgs: [], reads: new Map(), open: null, views: new Set(), channel: null, info: new Map() };
+const CH = { on: false, reactOn: false, msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, views: new Set(), channel: null, info: new Map(), q: "", filter: "all", sentTyping: 0 };
 const threadOf = (m) => m.order_id || TEAM;
 const msgOrder = (a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
 const manilaDay = (ts) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ts));
 const clock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 const person = (email) => S.members.find((m) => m.email === email) || { email, name: email?.split("@")[0] || "?" };
+const coarse = () => matchMedia("(pointer: coarse)").matches;
 
 async function loadChat() {
-  const [m, r] = await Promise.all([
+  const [m, r, x] = await Promise.all([
     sb.from("cdf_messages").select("*").order("created_at").limit(2000),
     sb.from("cdf_message_reads").select("*").eq("member_email", S.me.email),
+    sb.from("cdf_message_reactions").select("*").limit(5000),
   ]);
   CH.on = !m.error && !r.error;
   $("tabChat").hidden = !CH.on;
   if (!CH.on) return;
+  CH.reactOn = !x.error;
   CH.msgs = (m.data || []).sort(msgOrder);
-  CH.reads = new Map((r.data || []).map((x) => [x.thread, x.last_read_at]));
+  CH.reads = new Map((r.data || []).map((y) => [y.thread, y.last_read_at]));
+  CH.reacts = new Map();
+  for (const y of x.data || []) CH.reacts.set(y.message_id, [...(CH.reacts.get(y.message_id) || []), y]);
   // Florists and drivers cannot read the team table; the directory gives them names and photos for the chat
   if (!isStaff()) { const { data } = await sb.rpc("cdf_team_directory"); if (Array.isArray(data)) S.members = data; }
   chatSubscribe();
@@ -27,11 +33,15 @@ async function loadChat() {
 }
 function chatSubscribe() {
   if (CH.channel) sb.removeChannel(CH.channel);
-  CH.channel = sb.channel("cdf-chat").on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_messages" }, (p) => addMessage(p.new, true)).subscribe();
+  let ch = sb.channel("cdf-chat")
+    .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_messages" }, (p) => addMessage(p.new, true))
+    .on("broadcast", { event: "typing" }, (p) => onTyping(p.payload || p));
+  if (CH.reactOn) ch = ch.on("postgres_changes", { event: "*", schema: "public", table: "cdf_message_reactions" }, onReactChange);
+  CH.channel = ch.subscribe();
 }
 function stopChat() {
   if (CH.channel) sb.removeChannel(CH.channel);
-  Object.assign(CH, { on: false, msgs: [], reads: new Map(), open: null, channel: null, info: new Map() });
+  Object.assign(CH, { on: false, reactOn: false, msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, channel: null, info: new Map(), q: "", filter: "all" });
   CH.views.clear();
   $("tabChat").hidden = true;
 }
@@ -53,7 +63,9 @@ function markRead(thread) {
 function addMessage(m, live) {
   if (!CH.on || !m?.id || CH.msgs.some((x) => x.id === m.id)) return;
   CH.msgs.push(m); CH.msgs.sort(msgOrder);
-  const th = threadOf(m), seen = [...CH.views].some((v) => v.thread === th && v.node.isConnected) && document.visibilityState === "visible";
+  const th = threadOf(m);
+  CH.typing.get(th)?.delete(m.author_email); // whoever was typing just sent it
+  const seen = [...CH.views].some((v) => v.thread === th && v.node.isConnected) && document.visibilityState === "visible";
   refreshViews(th);
   if (seen) markRead(th);
   else if (live && m.author_email !== S.me.email && mentionsMe(m.body)) {
@@ -70,11 +82,117 @@ async function sendMessage(thread, body) {
   paintChatCounts();
 }
 
-// ---------- mentions ----------
+// ---------- "is typing…" (a broadcast, nothing is stored) ----------
+function sendTyping(thread) {
+  if (!CH.channel || Date.now() - CH.sentTyping < 2500) return;
+  CH.sentTyping = Date.now();
+  CH.channel.send?.({ type: "broadcast", event: "typing", payload: { thread, email: S.me.email } })?.catch?.(() => {});
+}
+function onTyping(p) {
+  if (!p?.thread || !p.email || p.email === S.me?.email) return;
+  if (!CH.typing.has(p.thread)) CH.typing.set(p.thread, new Map());
+  CH.typing.get(p.thread).set(p.email, Date.now() + 4000);
+  paintTyping(p.thread);
+  setTimeout(() => paintTyping(p.thread), 4100);
+}
+function typingText(thread) {
+  const now = Date.now(), who = [...(CH.typing.get(thread) || new Map())].filter(([, until]) => until > now).map(([e]) => person(e).name);
+  return !who.length ? "" : who.length === 1 ? t("chatTyping", { name: who[0] }) : t("chatTypingMany");
+}
+function paintTyping(thread) {
+  for (const v of CH.views) if (v.thread === thread && v.node.isConnected) v.typing();
+  if (S.tab === "chat") renderChatList(); // the list shows it too, in place of the last message
+}
+
+// ---------- reactions ----------
+const QUICK = ["👍", "✅", "❤️", "😂", "🎉", "🙏"];
+const reactsOf = (id) => CH.reacts.get(id) || [];
+function applyReact(r, on) {
+  if (!r?.message_id) return;
+  const list = reactsOf(r.message_id).filter((x) => !(x.member_email === r.member_email && x.emoji === r.emoji));
+  if (on) list.push(r);
+  CH.reacts.set(r.message_id, list);
+  for (const box of document.querySelectorAll(`.cmsg[data-id="${CSS.escape(r.message_id)}"] .msg-reacts`)) box.replaceWith(reactsNode(CH.msgs.find((m) => m.id === r.message_id) || { id: r.message_id }));
+}
+function onReactChange(p) { if (p.eventType === "DELETE") applyReact(p.old, false); else applyReact(p.new, true); }
+async function toggleReact(m, emoji) {
+  if (!CH.reactOn) return;
+  const row = { message_id: m.id, member_email: S.me.email, emoji }, mine = reactsOf(m.id).some((x) => x.member_email === S.me.email && x.emoji === emoji);
+  applyReact(row, !mine); // at once; undone if the server says no
+  rememberEmoji(emoji);
+  const { error } = mine
+    ? await sb.from("cdf_message_reactions").delete().eq("message_id", m.id).eq("member_email", S.me.email).eq("emoji", emoji)
+    : await sb.from("cdf_message_reactions").insert(row);
+  if (error) { applyReact(row, mine); toast(t("chatFail"), { type: "error" }); }
+}
+function reactsNode(m) {
+  const groups = new Map();
+  for (const r of reactsOf(m.id)) groups.set(r.emoji, [...(groups.get(r.emoji) || []), r.member_email]);
+  const box = el("div", { class: "msg-reacts" });
+  if (!groups.size) return box;
+  for (const [emoji, who] of groups) {
+    const mine = who.includes(S.me.email), names = who.map((e) => (e === S.me.email ? t("chatYou") : person(e).name)).join(", ");
+    box.append(el("button", { type: "button", class: "react" + (mine ? " mine" : ""), title: names, "aria-label": emoji + " · " + names, "aria-pressed": String(mine), onclick: () => toggleReact(m, emoji) },
+      el("span", { class: "react-e" }, emoji), el("b", {}, String(who.length))));
+  }
+  return box;
+}
+
+// ---------- emoji picker (composer and reactions) ----------
+const EMOJI = [
+  ["flowers", "🌸", "🌸 flor cerezo blossom pink|🌹 rosa rose|🌷 tulipán tulip|💐 ramo bouquet flores|🌻 girasol sunflower|🌺 hibisco hibiscus|🌼 margarita daisy|🪷 loto lotus|🪻 lavanda jacinto hyacinth|🌿 hoja planta leaf green|🍃 hojas leaves|🌱 brote sprout|🥀 marchita wilted|🌾 espiga wheat|🎀 lazo cinta ribbon bow|🎁 regalo gift"],
+  ["work", "🚚", "🚚 camión entrega truck delivery|🛵 moto scooter|🚗 coche car|📦 paquete package box|📍 ubicación dirección pin location|🗺️ mapa map|⏰ hora alarma time|⏳ espera wait|📞 llamar teléfono call phone|📸 foto photo camera|✅ hecho listo done ok|❌ no cancelado cancel|⚠️ aviso cuidado warning|🔔 aviso notification bell|📝 nota note|💳 tarjeta pago card payment|💵 dinero efectivo cash money|🧾 recibo receipt|🏠 casa home|🏢 oficina edificio building|🚪 puerta door|🔑 llave key"],
+  ["faces", "😊", "😀 sonrisa smile|😄 feliz happy|😁 dientes grin|😆 risa laugh|😅 sudor phew|😂 llorar de risa lol|🤣 carcajada rofl|😊 contento blush|🙂 ok slight|😉 guiño wink|😍 enamorado love|🥰 cariño love|😘 beso kiss|😎 guay cool|🤩 wow star|🥳 fiesta party|😇 ángel angel|🤗 abrazo hug|🤔 pensando thinking|🤨 duda doubt|😐 serio neutral|😴 sueño sleep|😮 sorpresa wow|😢 triste sad|😭 llorar cry|😤 enfadado huff|😡 furioso angry|🤯 explota mind blown|😬 uy oops|🙃 al revés upside|🥲 sonrisa triste|🤭 tapar risa|😷 enfermo mask"],
+  ["hands", "👍", "👍 bien like ok sí|👎 mal no dislike|👌 perfecto perfect|✌️ paz peace|🤞 suerte luck|👏 aplausos clap|🙌 genial hooray|🙏 gracias por favor thanks please|💪 fuerza strong|👋 hola adiós wave hi bye|🤝 trato deal|✍️ escribir write|👀 mirando look|🫶 corazón manos love|☝️ uno one|👉 aquí this"],
+  ["hearts", "❤️", "❤️ corazón rojo heart love|🧡 naranja orange heart|💛 amarillo yellow heart|💚 verde green heart|💙 azul blue heart|💜 morado purple heart|🤍 blanco white heart|🖤 negro black heart|💕 corazones hearts|💖 brillante sparkling heart|💗 creciente growing heart|💝 regalo corazón heart gift"],
+  ["party", "🎉", "🎉 fiesta party|🎊 confeti confetti|🎂 tarta cumpleaños birthday cake|🍰 pastel cake|🥂 brindis cheers|🍾 champán champagne|🎈 globo balloon|✨ brillo sparkles|⭐ estrella star|🌟 estrella brillante star|🔥 fuego fire|💯 cien hundred|🏆 trofeo trophy|💍 anillo boda ring wedding|👰 novia bride|🎓 graduación graduation"],
+].map(([id, icon, list]) => ({ id, icon, items: list.split("|").map((s) => { const [e, ...k] = s.split(" "); return { e, k: k.join(" ") }; }) }));
+const recentEmoji = () => { try { return JSON.parse(localStorage.getItem("cdf-emoji") || "[]"); } catch { return []; } };
+function rememberEmoji(e) { try { localStorage.setItem("cdf-emoji", JSON.stringify([e, ...recentEmoji().filter((x) => x !== e)].slice(0, 16))); } catch {} }
+let emojiPop = null;
+function closeEmoji() {
+  if (!emojiPop) return;
+  const p = emojiPop; emojiPop = null;
+  p.classList.add("out"); setTimeout(() => p.remove(), prefersReducedMotion() ? 0 : 260);
+  document.removeEventListener("pointerdown", p._outside, true);
+}
+// A floating panel next to `anchor`: search, categories (recent first) and a grid; picking calls onPick(emoji)
+function openEmoji(anchor, onPick) {
+  if (emojiPop && emojiPop._anchor === anchor) return closeEmoji();
+  closeEmoji();
+  const recent = [...new Set([...recentEmoji(), ...QUICK, "🌸", "🚚"])].slice(0, 16);
+  const cats = [{ id: "recent", icon: "🕘", items: recent.map((e) => ({ e, k: "" })) }, ...EMOJI];
+  let cat = "recent";
+  const search = el("input", { class: "emoji-search", type: "search", placeholder: t("chatEmojiSearch"), "aria-label": t("chatEmojiSearch") });
+  const grid = el("div", { class: "emoji-grid", role: "listbox", "aria-label": t("chatEmoji") });
+  const tabs = el("div", { class: "emoji-tabs", role: "tablist" }, cats.map((c) => el("button", { type: "button", role: "tab", class: "emoji-tab", "data-cat": c.id, title: t("emo_" + c.id), "aria-label": t("emo_" + c.id), onclick: () => { cat = c.id; search.value = ""; paint(); } }, c.icon)));
+  const pop = el("div", { class: "emoji-pop", role: "dialog", "aria-label": t("chatEmoji") }, search, tabs, grid);
+  function paint() {
+    const q = search.value.trim().toLowerCase();
+    // A search matches the emoji's words or its category's name ("flor" brings every flower)
+    const items = q ? EMOJI.flatMap((c) => { const label = t("emo_" + c.id).toLowerCase(); return c.items.filter((x) => x.k.includes(q) || x.e === q || label.includes(q)); }) : cats.find((c) => c.id === cat).items;
+    tabs.querySelectorAll(".emoji-tab").forEach((b) => b.setAttribute("aria-selected", String(!q && b.dataset.cat === cat)));
+    grid.replaceChildren(...(items.length ? items.map((x) => el("button", { type: "button", class: "emoji-btn", title: x.k.split(" ")[0] || x.e, "aria-label": x.k.split(" ")[0] || x.e, onclick: () => { rememberEmoji(x.e); onPick(x.e); closeEmoji(); } }, x.e)) : [el("p", { class: "emoji-none" }, t("chatNoResults"))]));
+  }
+  search.addEventListener("input", paint);
+  pop.addEventListener("keydown", (e) => { if (e.key === "Escape") { e.stopPropagation(); closeEmoji(); anchor.focus(); } });
+  document.body.append(pop);
+  // Above the button when there is room, otherwise below; kept inside the screen
+  const r = anchor.getBoundingClientRect(), w = Math.min(320, innerWidth - 16), h = 300;
+  pop.style.width = w + "px";
+  pop.style.left = Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) + "px";
+  pop.style.top = (r.top - h - 8 > 8 ? r.top - h - 8 : Math.min(r.bottom + 8, innerHeight - h - 8)) + "px";
+  pop._anchor = anchor;
+  pop._outside = (e) => { if (!pop.contains(e.target) && e.target !== anchor && !anchor.contains(e.target)) closeEmoji(); };
+  document.addEventListener("pointerdown", pop._outside, true);
+  emojiPop = pop;
+  paint();
+  if (!coarse()) search.focus({ preventScroll: true });
+}
+
+// ---------- mentions and #order links ----------
 const handleOf = (m) => (m.name || "").trim().split(/\s+/)[0];
 const mentionsMe = (body) => { const h = handleOf(S.me || {}).toLowerCase(); return !!h && new RegExp("(^|\\s)@" + h.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\b", "i").test(body || ""); };
-// #0126 in a message is a link to that order. Known orders open at once; others are looked up by number
-// (the order's own security decides whether you may open it).
 const orderByNum = (num) => S.orders.find((o) => o.num === num) || [...CH.info.values()].find((o) => o.num === num) || null;
 async function openOrderNum(num) {
   let o = orderByNum(num);
@@ -101,41 +219,75 @@ function messageText(body) {
   out.push(body.slice(last));
   return out.filter((x) => x !== "");
 }
+// Up to three emoji and nothing else: shown large, without a bubble
+const onlyEmoji = (s) => /^(?:\p{Extended_Pictographic}|\p{Emoji_Modifier}|️|‍|\s)+$/u.test(s) && [...s.matchAll(/\p{Extended_Pictographic}/gu)].length <= 3;
 
 // ---------- a thread: the messages and the box to write ----------
 function threadView(thread, { autofocus = false } = {}) {
+  const readAt = CH.reads.get(thread) || ""; // where the "New" line goes, before this view marks everything read
   const log = el("div", { class: "chat-log", role: "log", "aria-live": "polite", "aria-label": t("chatTitle") });
+  const jump = el("button", { class: "chat-jump", type: "button", hidden: true, onclick: () => toBottom(true) }, icon("arrow", "i down"), el("span", {}, t("chatJump")));
+  const typing = el("div", { class: "chat-typing", "aria-live": "polite" });
   const input = el("textarea", { class: "chat-input", rows: 1, placeholder: t("chatPh"), "aria-label": t("chatPh") });
+  const emojiBtn = el("button", { class: "btn icon ghost chat-emoji", type: "button", "aria-label": t("chatEmoji"), title: t("chatEmoji") }, el("span", { "aria-hidden": "true" }, "😊"));
   const send = el("button", { class: "btn primary icon chat-send", type: "button", "aria-label": t("chatSend"), title: t("chatSend"), disabled: true }, icon("arrow"));
   const pop = el("div", { class: "mention-pop", role: "listbox", hidden: true });
   const err = el("div", { class: "err", role: "alert" });
-  const node = el("div", { class: "chat", "data-thread": thread }, log, el("div", { class: "chat-compose" }, pop, input, send), err);
-  const view = { thread, node, refresh: null };
-  let shown = 0, picks = [], pickAt = 0;
+  const node = el("div", { class: "chat", "data-thread": thread }, el("div", { class: "chat-scroll" }, log, jump), typing, el("div", { class: "chat-compose" }, pop, emojiBtn, input, send), err);
+  const view = { thread, node, refresh: null, typing: null };
+  let shown = 0, picks = [], pickAt = 0, newMark = false;
 
+  const nearBottom = () => log.scrollHeight - log.scrollTop - log.clientHeight < 80;
+  const toBottom = (smooth) => { log.scrollTo({ top: log.scrollHeight, behavior: smooth && !prefersReducedMotion() ? "smooth" : "auto" }); jump.hidden = true; };
+  log.addEventListener("scroll", () => { if (nearBottom()) jump.hidden = true; }, { passive: true });
   const grow = () => { input.style.height = "auto"; input.style.height = Math.min(input.scrollHeight, 160) + "px"; send.disabled = !input.value.trim(); };
+
+  function row(m, prev) {
+    const p = person(m.author_email), mine = m.author_email === S.me.email, day = manilaDay(m.created_at);
+    const joined = prev && prev.author_email === m.author_email && manilaDay(prev.created_at) === day && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60000;
+    const big = onlyEmoji(m.body);
+    const tools = el("div", { class: "msg-tools", role: "toolbar", "aria-label": t("chatReact") },
+      CH.reactOn ? QUICK.map((e) => el("button", { type: "button", class: "tool-e", "aria-label": t("chatReact") + " " + e, onclick: () => { toggleReact(m, e); r.classList.remove("tools-on"); } }, e)) : null,
+      CH.reactOn ? el("button", { type: "button", class: "tool-more", "aria-label": t("chatMoreReact"), title: t("chatMoreReact"), onclick: (ev) => openEmoji(ev.currentTarget, (e) => toggleReact(m, e)) }, "＋") : null,
+      el("button", { type: "button", class: "tool-copy", "aria-label": t("chatCopy"), title: t("chatCopy"), onclick: () => navigator.clipboard?.writeText(m.body).then(() => toast(t("chatCopied")), () => {}) }, icon("copy")));
+    const r = el("div", { class: "cmsg" + (joined ? " joined" : "") + (mine ? " mine" : "") + (!mine && mentionsMe(m.body) ? " for-me" : "") + (big ? " jumbo" : ""), "data-id": m.id },
+      mine ? null : joined ? el("span", { class: "msg-gap" }) : avatarNode(p, "avatar msg-pic"),
+      el("div", { class: "msg-main" },
+        !mine && !joined ? el("div", { class: "msg-head" }, el("b", {}, p.name)) : null,
+        el("div", { class: "msg-bubble" }, el("p", { class: "msg-body" }, messageText(m.body)), el("time", { class: "msg-time", datetime: m.created_at, title: longDate(manilaDay(m.created_at)) + " · " + clock(m.created_at) }, clock(m.created_at))),
+        reactsNode(m)),
+      tools);
+    // Phones: hold a message to react or copy
+    let hold;
+    r.addEventListener("touchstart", () => { hold = setTimeout(() => { document.querySelectorAll(".cmsg.tools-on").forEach((x) => x.classList.remove("tools-on")); r.classList.add("tools-on"); navigator.vibrate?.(10); }, 450); }, { passive: true });
+    for (const ev of ["touchend", "touchmove", "touchcancel"]) r.addEventListener(ev, () => clearTimeout(hold), { passive: true });
+    return r;
+  }
   function paint(animate) {
     const msgs = CH.msgs.filter((m) => threadOf(m) === thread);
-    if (!msgs.length) { log.replaceChildren(el("p", { class: "chat-empty" }, icon("message"), t("chatEmpty"))); shown = 0; return; }
+    if (!msgs.length) {
+      log.replaceChildren(el("div", { class: "chat-empty" }, el("span", { class: "chat-empty-ic" }, icon("message")), el("b", {}, t("chatEmpty")), el("small", {}, t("chatEmptyHint"))));
+      shown = 0; return;
+    }
     if (!animate || shown === 0 || msgs.length < shown) { log.replaceChildren(); shown = 0; }
-    const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 60;
+    const atBottom = nearBottom();
+    let fresh = 0;
     for (let i = shown; i < msgs.length; i++) {
       const m = msgs[i], prev = msgs[i - 1], day = manilaDay(m.created_at);
       if (!prev || manilaDay(prev.created_at) !== day) log.append(el("div", { class: "chat-day" }, el("span", {}, day === S.today ? t("today") : day === addDays(S.today, -1) ? t("chatYesterday") : shortDate(day))));
-      const joined = prev && prev.author_email === m.author_email && manilaDay(prev.created_at) === day && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60000;
-      const p = person(m.author_email), mine = m.author_email === S.me.email;
-      const row = el("div", { class: "cmsg" + (joined ? " joined" : "") + (mine ? " mine" : "") + (!mine && mentionsMe(m.body) ? " for-me" : "") },
-        joined ? el("span", { class: "msg-gap" }, el("time", { datetime: m.created_at }, clock(m.created_at))) : avatarNode(p, "avatar msg-pic"),
-        el("div", { class: "msg-main" },
-          joined ? null : el("div", { class: "msg-head" }, el("b", {}, mine ? t("chatYou") : p.name), el("time", { datetime: m.created_at }, clock(m.created_at))),
-          el("p", { class: "msg-body" }, messageText(m.body))));
-      if (animate && shown > 0) row.classList.add("msg-in");
-      log.append(row);
+      // "New" line once, above the first message that arrived since this person last read the thread
+      if (!newMark && !animate && readAt && m.author_email !== S.me.email && m.created_at > readAt) { newMark = true; log.append(el("div", { class: "chat-new" }, el("span", {}, t("chatNew")))); }
+      const r = row(m, prev);
+      if (animate && shown > 0) { r.classList.add("msg-in"); if (m.author_email !== S.me.email) fresh++; }
+      log.append(r);
     }
     shown = msgs.length;
-    if (atBottom || !animate) log.scrollTop = log.scrollHeight;
+    if (!animate) requestAnimationFrame(() => { const nl = log.querySelector(".chat-new"); nl ? nl.scrollIntoView({ block: "center" }) : toBottom(false); });
+    else if (atBottom || !fresh) toBottom(true);
+    else jump.hidden = false;
   }
   view.refresh = () => paint(true);
+  view.typing = () => { const s = typingText(thread); typing.classList.toggle("on", !!s); if (s) typing.replaceChildren(el("span", { class: "dots", "aria-hidden": "true" }, el("i"), el("i"), el("i")), el("span", {}, s)); };
 
   // Autocomplete: after "@" the team, after "#" the orders (by number or by the recipient's name)
   function updatePop() {
@@ -163,14 +315,19 @@ function threadView(thread, { autofocus = false } = {}) {
     input.value = upto + input.value.slice(pos); input.setSelectionRange(upto.length, upto.length);
     pop.hidden = true; pickAt = 0; grow(); input.focus();
   }
+  function insertAtCaret(text) {
+    const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? a;
+    input.value = input.value.slice(0, a) + text + input.value.slice(b);
+    input.setSelectionRange(a + text.length, a + text.length); grow(); input.focus();
+  }
   async function submit() {
     const body = input.value.trim(); if (!body) return;
     send.disabled = true; err.textContent = "";
-    try { await sendMessage(thread, body); input.value = ""; grow(); pop.hidden = true; }
+    try { await sendMessage(thread, body); input.value = ""; grow(); pop.hidden = true; send.classList.remove("sent"); void send.offsetWidth; send.classList.add("sent"); }
     catch (e) { err.textContent = e.message; send.disabled = false; }
     input.focus();
   }
-  input.addEventListener("input", () => { grow(); updatePop(); });
+  input.addEventListener("input", () => { grow(); updatePop(); if (input.value.trim()) sendTyping(thread); });
   input.addEventListener("click", updatePop);
   input.addEventListener("blur", () => setTimeout(() => (pop.hidden = true), 120));
   input.addEventListener("keydown", (e) => {
@@ -179,18 +336,22 @@ function threadView(thread, { autofocus = false } = {}) {
     if (!pop.hidden && e.key === "Escape") { e.preventDefault(); e.stopPropagation(); pop.hidden = true; return; }
     if (e.key === "Enter" && !e.shiftKey && !e.isComposing) { e.preventDefault(); submit(); }
   });
+  emojiBtn.addEventListener("click", () => openEmoji(emojiBtn, insertAtCaret));
   send.addEventListener("click", submit);
 
   CH.views.add(view);
   paint(false);
-  requestAnimationFrame(() => { log.scrollTop = log.scrollHeight; if (autofocus) input.focus({ preventScroll: true }); });
+  view.typing();
+  if (autofocus) requestAnimationFrame(() => input.focus({ preventScroll: true }));
   markRead(thread);
   return node;
 }
 function refreshViews(thread) {
-  for (const v of [...CH.views]) { if (!v.node.isConnected) { CH.views.delete(v); continue; } if (v.thread === thread) v.refresh(); }
+  for (const v of [...CH.views]) { if (!v.node.isConnected) { CH.views.delete(v); continue; } if (v.thread === thread) { v.refresh(); v.typing(); } }
   if (S.tab === "chat") renderChatList();
 }
+// Tapping anywhere else hides a held message's tools (phones)
+document.addEventListener("pointerdown", (e) => { if (!e.target.closest?.(".cmsg.tools-on")) document.querySelectorAll(".cmsg.tools-on").forEach((x) => x.classList.remove("tools-on")); });
 
 // The conversation section inside an order sheet
 const chatSection = (o) => (CH.on && o?.id ? el("section", { class: "chat-sec", id: "chatSection" }, el("h3", {}, icon("message"), t("chatTitle")), threadView(o.id)) : null);
@@ -229,9 +390,10 @@ function threadTitle(th) {
 async function loadThreadInfo(ids) {
   const miss = ids.filter((id) => id !== TEAM && !byId(id) && !CH.info.has(id));
   if (!miss.length) return;
-  const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,channel").in("id", miss);
+  for (const id of miss) CH.info.set(id, null); // asked once
+  const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,slot,channel,vendor_email,photo_path,bouquet_path").in("id", miss);
   for (const o of data || []) CH.info.set(o.id, o);
-  if (S.tab === "chat") renderChatList();
+  if (S.tab === "chat") { renderChatList(); if (miss.includes(CH.open)) renderChatPane(); }
 }
 function threads() {
   const last = new Map();
@@ -247,18 +409,38 @@ function renderChat() {
   const pane = $("chatPane");
   if (pane.dataset.thread !== String(CH.open) || !pane.querySelector(".chat, .chat-empty")) renderChatPane();
 }
+// Search and the All / Unread switch are built once, so typing in the search box is never interrupted
+function chatListTools(box) {
+  let tools = box.querySelector(".chat-tools");
+  if (tools) return box.querySelector(".chat-threads");
+  const q = el("input", { class: "chat-search", type: "search", placeholder: t("chatSearch"), "aria-label": t("chatSearch"), oninput: (e) => { CH.q = e.target.value.trim().toLowerCase(); renderChatList(); } });
+  const seg = el("div", { class: "seg chat-filter", role: "group", "aria-label": t("chatFilter") },
+    ["all", "unread"].map((f) => el("button", { type: "button", "data-f": f, "aria-pressed": String(CH.filter === f), onclick: () => { CH.filter = f; seg.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.f === f))); placePill(seg); renderChatList(); } }, t(f === "all" ? "chatAll" : "chatUnreadOnly"))));
+  tools = el("div", { class: "chat-tools" }, el("label", { class: "chat-search-wrap" }, icon("search"), q), seg);
+  const list = el("div", { class: "chat-threads" });
+  box.replaceChildren(tools, list);
+  requestAnimationFrame(() => placePill(seg));
+  return list;
+}
 function renderChatList() {
   const box = $("chatList"); if (!box) return;
-  const ts = threads();
-  loadThreadInfo(ts.map(([th]) => th));
-  box.replaceChildren(...ts.map(([th, m]) => {
+  const list = chatListTools(box);
+  const all = threads();
+  loadThreadInfo(all.map(([th]) => th));
+  const ts = all.filter(([th, m]) => (CH.filter !== "unread" || unreadIn(th)) && (!CH.q || threadTitle(th).toLowerCase().includes(CH.q) || (m?.body || "").toLowerCase().includes(CH.q)));
+  if (!ts.length) { list.replaceChildren(el("p", { class: "chat-list-empty" }, t(CH.filter === "unread" && !CH.q ? "chatAllRead" : "chatNoResults"))); return; }
+  list.replaceChildren(...ts.map(([th, m]) => {
     const u = unreadIn(th), team = th === TEAM, p = m ? person(m.author_email) : null;
     const o = team ? null : byId(th) || CH.info.get(th);
+    const k = o ? STEPS[stepOf(o)]?.k : null;
+    const who = m ? (m.author_email === S.me.email ? t("chatYou") : handleOf(p)) + ": " : "";
     return el("button", { type: "button", class: "thread" + (CH.open === th ? " on" : "") + (u ? " unread" : ""), "aria-current": CH.open === th ? "true" : "false", onclick: () => openThread(th) },
-      el("span", { class: "thread-ic" + (team ? " team" : "") }, team ? "#" : o?.channel && CHANNELS.includes(o.channel) ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon("orders")),
+      el("span", { class: "thread-ic" + (team ? " team" : "") },
+        team ? "#" : o?.channel && CHANNELS.includes(o.channel) ? el("span", { class: "chan-logo sm", style: "--cc:" + chanColor(o.channel) }, chanMark(o.channel)) : icon("orders"),
+        k ? el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)", title: stepName(stepOf(o)) }) : null),
       el("span", { class: "thread-main" },
         el("span", { class: "thread-top" }, el("b", {}, threadTitle(th)), m ? el("time", {}, manilaDay(m.created_at) === S.today ? clock(m.created_at) : shortDate(manilaDay(m.created_at))) : null),
-        el("small", {}, m ? (m.author_email === S.me.email ? t("chatYou") : p.name) + ": " + m.body : t("chatTeamDesc"))),
+        el("small", {}, typingText(th) ? el("em", { class: "thread-typing" }, typingText(th)) : m ? who + m.body : t("chatTeamDesc"))),
       u ? el("span", { class: "thread-count" }, String(u)) : null);
   }));
 }
@@ -266,14 +448,29 @@ function renderChatPane() {
   const pane = $("chatPane"), th = CH.open;
   pane.dataset.thread = String(th);
   $("chatView").dataset.pane = th ? "thread" : "list";
-  if (!th) { pane.replaceChildren(el("p", { class: "chat-empty" }, icon("message"), t("chatPick"))); return; }
+  if (!th) { pane.replaceChildren(el("div", { class: "chat-empty" }, el("span", { class: "chat-empty-ic" }, icon("message")), el("b", {}, t("chatPick")))); return; }
   const o = th === TEAM ? null : byId(th) || CH.info.get(th);
-  const head = el("div", { class: "chat-head" },
-    el("button", { class: "btn icon ghost chat-back", type: "button", "aria-label": t("chatBack"), onclick: () => { CH.open = null; renderChat(); } }, icon("left")),
-    el("div", {}, el("b", {}, threadTitle(th)), el("small", {}, th === TEAM ? t("chatTeamDesc") : o ? longDate(o.date) + (o.slot ? " · " + o.slot : "") : "")),
-    el("span", { class: "spacer" }),
-    o ? el("button", { class: "btn", type: "button", onclick: () => openOrder(byId(th) || o) }, t("chatOpenOrder")) : null);
-  pane.replaceChildren(head, threadView(th, { autofocus: !matchMedia("(pointer: coarse)").matches }));
+  const back = el("button", { class: "btn icon ghost chat-back", type: "button", "aria-label": t("chatBack"), onclick: () => { CH.open = null; renderChat(); } }, icon("left"));
+  let head;
+  if (th === TEAM) {
+    const team = S.members.slice(0, 5);
+    head = el("div", { class: "chat-head" }, back,
+      el("span", { class: "thread-ic team big" }, "#"),
+      el("div", { class: "chat-head-txt" }, el("b", {}, threadTitle(th)), el("small", {}, t("chatTeamDesc"))),
+      el("span", { class: "spacer" }),
+      el("span", { class: "avatar-stack", title: S.members.map((m) => m.name).join(", ") }, team.map((m) => avatarNode(m, "avatar xs")), el("small", {}, t("chatPeople", { n: S.members.length }))));
+  } else {
+    const k = o ? stepOf(o) : null;
+    head = el("div", { class: "chat-head" }, back,
+      o ? el("button", { class: "chat-head-pic", type: "button", "aria-label": t("chatOpenOrder"), onclick: () => openOrder(byId(th) || o) }, thumb(o)) : null,
+      el("div", { class: "chat-head-txt" },
+        el("b", {}, threadTitle(th)),
+        o ? el("small", {}, [shortDate(o.date), o.slot, o.vendor_email ? memberName(o.vendor_email) : null].filter(Boolean).join(" · ")) : null),
+      o && k != null ? badge(k) : null,
+      el("span", { class: "spacer" }),
+      o ? el("button", { class: "btn", type: "button", onclick: () => openOrder(byId(th) || o) }, t("chatOpenOrder")) : null);
+  }
+  pane.replaceChildren(head, threadView(th, { autofocus: !coarse() }));
   pane.classList.remove("pane-in"); void pane.offsetWidth; pane.classList.add("pane-in");
 }
 function openThread(th) {

@@ -1807,3 +1807,130 @@ select option { background: var(--surface); color: var(--fg); }
   .rail-foot { padding-bottom: max(env(safe-area-inset-bottom), 8px); }
 }
 :root[data-motion="reduced"] .install-steps li { animation: none; }
+
+/* ---------- Chat, second version: bubbles, reactions, emoji, typing, richer header and list ---------- */
+.chat-pane .chat { grid-template-rows: 1fr auto auto auto; }
+.chat-scroll { position: relative; display: flex; flex-direction: column; min-height: 0; }
+.chat-sec .chat-scroll { max-height: 380px; }
+.chat-log { gap: 0; padding: 6px 4px 10px; }
+.chat-day { position: sticky; top: 0; z-index: 2; margin: 14px 0 8px; }
+.chat-day::before, .chat-day::after { display: none; }
+.chat-day span { margin: 0 auto; padding: 3px 10px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); text-transform: none; letter-spacing: 0; font-size: 0.71875rem; }
+.chat-new { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; color: var(--fail-solid); font-size: 0.71875rem; font-weight: 700; animation: msg-in 460ms var(--ease-soft) both; }
+.chat-new::before, .chat-new::after { content: ""; flex: 1; height: 1px; background: color-mix(in srgb, var(--fail-solid) 55%, transparent); }
+
+/* Messages: others on the left with their photo, yours on the right; grouped when one person writes in a row */
+.cmsg { position: relative; display: flex; align-items: flex-end; gap: 8px; padding: 1px 6px; border-radius: 0; background: none; box-shadow: none; grid-template-columns: none; }
+.cmsg:hover { background: none; }
+.cmsg:not(.joined) { margin-top: 10px; }
+.cmsg.mine { justify-content: flex-end; }
+.cmsg.for-me { background: none; box-shadow: none; }
+.msg-pic { width: 30px; height: 30px; font-size: 0.75rem; flex: none; }
+.msg-gap { width: 30px; flex: none; }
+.msg-main { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; max-width: min(78%, 560px); }
+.cmsg.mine .msg-main { align-items: flex-end; }
+.msg-head { margin: 0 0 3px 10px; }
+.msg-head b { color: var(--muted); font-size: 0.75rem; font-weight: 600; }
+.msg-bubble { display: flex; flex-wrap: wrap; align-items: flex-end; column-gap: 10px; max-width: 100%; padding: 7px 11px 6px; border-radius: 16px; background: var(--sunk); color: var(--fg); transition: background-color 280ms var(--ease-soft); }
+.cmsg:not(.joined):not(.mine) .msg-bubble { border-top-left-radius: 6px; }
+.cmsg.mine .msg-bubble { background: color-mix(in srgb, var(--fg) 13%, var(--surface)); }
+.cmsg.mine:not(.joined) .msg-bubble { border-top-right-radius: 6px; }
+.cmsg.for-me .msg-bubble { background: color-mix(in srgb, var(--prep-solid) 12%, var(--sunk)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--prep-solid) 60%, transparent); }
+.msg-body { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.msg-time { margin-left: auto; color: var(--faint); font-size: 0.6875rem; line-height: 1.6; white-space: nowrap; }
+.cmsg.jumbo .msg-bubble { padding: 0 4px; background: none; box-shadow: none; }
+.cmsg.jumbo .msg-body { font-size: 2.3rem; line-height: 1.15; }
+.msg-in { animation: msg-in 460ms var(--ease-soft) both; }
+
+/* Reactions under a bubble */
+.msg-reacts { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 4px; }
+.msg-reacts:empty { display: none; }
+.react { display: inline-flex; align-items: center; gap: 4px; height: 24px; padding: 0 8px 0 6px; border: 1px solid var(--line); border-radius: 99px; background: var(--surface); color: var(--muted); font-size: 0.75rem; cursor: pointer; animation: chat-pop 380ms var(--ease-soft); transition: border-color 260ms var(--ease-soft), background-color 260ms var(--ease-soft), color 260ms var(--ease-soft); }
+.react:hover { border-color: var(--faint); color: var(--fg); }
+.react.mine { border-color: color-mix(in srgb, var(--transit-solid) 70%, transparent); background: color-mix(in srgb, var(--transit-solid) 16%, var(--surface)); color: var(--fg); }
+.react-e { font-size: 0.95rem; line-height: 1; }
+
+/* Hover (or hold, on phones) a message: quick reactions, more, copy */
+.msg-tools { position: absolute; top: -16px; right: 10px; z-index: 3; display: flex; align-items: center; gap: 1px; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); box-shadow: var(--shadow-pop); opacity: 0; transform: translateY(4px) scale(.96); pointer-events: none; transition: opacity 240ms var(--ease-soft), transform 280ms var(--ease-soft); }
+.cmsg.mine .msg-tools { right: auto; left: 10px; }
+.cmsg:hover .msg-tools, .cmsg:focus-within .msg-tools, .cmsg.tools-on .msg-tools { opacity: 1; transform: none; pointer-events: auto; }
+.msg-tools button { display: grid; place-items: center; width: 30px; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; color: var(--muted); font-size: 1rem; cursor: pointer; transition: background-color 220ms var(--ease-soft), transform 260ms var(--ease-soft); }
+.msg-tools button:hover { background: var(--surface-hover); color: var(--fg); }
+.msg-tools .tool-e:hover { transform: scale(1.18); }
+.msg-tools .tool-copy svg.i { width: 15px; height: 15px; }
+
+/* "↓ New messages" when reading further up, and "Ana is typing…" */
+.chat-jump { position: absolute; left: 50%; bottom: 10px; translate: -50% 0; z-index: 4; display: inline-flex; align-items: center; gap: 6px; height: 32px; padding: 0 14px 0 10px; border: 0; border-radius: 99px; background: var(--primary); color: var(--on-primary); font-size: 0.78125rem; font-weight: 600; box-shadow: var(--shadow-pop); cursor: pointer; animation: chat-pop 400ms var(--ease-soft); }
+.chat-jump[hidden] { display: none; }
+svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
+.chat-typing { display: flex; align-items: center; gap: 8px; min-height: 20px; padding: 0 10px; color: var(--muted); font-size: 0.75rem; opacity: 0; transform: translateY(4px); transition: opacity 280ms var(--ease-soft), transform 280ms var(--ease-soft); }
+.chat-typing.on { opacity: 1; transform: none; }
+.dots { display: inline-flex; gap: 3px; }
+.dots i { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: typing-dot 1.3s ease-in-out infinite; }
+.dots i:nth-child(2) { animation-delay: .18s; }
+.dots i:nth-child(3) { animation-delay: .36s; }
+@keyframes typing-dot { 0%, 60%, 100% { opacity: .3; transform: none; } 30% { opacity: 1; transform: translateY(-3px); } }
+
+/* Writing box: emoji button and a small lift when a message goes */
+.chat-emoji { width: 36px; height: 36px; min-height: 36px; padding: 0; border-radius: 9px; font-size: 1.15rem; filter: grayscale(.5); opacity: .8; transition: filter 260ms var(--ease-soft), opacity 260ms var(--ease-soft), transform 260ms var(--ease-soft); }
+.chat-emoji:hover, .chat-emoji:focus-visible { filter: none; opacity: 1; transform: scale(1.08); }
+.chat-send.sent svg.i { animation: send-fly 460ms var(--ease-soft); }
+@keyframes send-fly { 40% { transform: translateX(6px); opacity: 0; } 41% { transform: translateX(-6px); } 100% { transform: none; opacity: 1; } }
+
+/* Emoji panel */
+.emoji-pop { position: fixed; z-index: 140; display: grid; grid-template-rows: auto auto 1fr; gap: 6px; height: 300px; padding: 8px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); box-shadow: var(--shadow-pop); animation: emoji-in 320ms var(--ease-soft); }
+.emoji-pop.out { animation: emoji-out 240ms var(--ease-soft) forwards; }
+@keyframes emoji-in { from { opacity: 0; transform: translateY(6px) scale(.98); } }
+@keyframes emoji-out { to { opacity: 0; transform: translateY(6px) scale(.98); } }
+.emoji-search { width: 100%; min-height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--input, var(--sunk)); color: var(--fg); outline: none; transition: border-color 240ms var(--ease-soft); }
+.emoji-search:focus { border-color: var(--primary-text); }
+.emoji-tabs { display: flex; gap: 2px; }
+.emoji-tab { flex: 1; height: 30px; padding: 0; border: 0; border-radius: 7px; background: none; font-size: 1rem; cursor: pointer; filter: grayscale(.6); opacity: .75; transition: background-color 220ms var(--ease-soft), filter 220ms var(--ease-soft), opacity 220ms var(--ease-soft); }
+.emoji-tab:hover, .emoji-tab[aria-selected="true"] { background: var(--surface-hover); filter: none; opacity: 1; }
+.emoji-grid { display: grid; grid-template-columns: repeat(8, 1fr); align-content: start; gap: 2px; overflow-y: auto; overscroll-behavior: contain; }
+.emoji-btn { height: 34px; padding: 0; border: 0; border-radius: 8px; background: none; font-size: 1.3rem; cursor: pointer; transition: background-color 200ms var(--ease-soft), transform 240ms var(--ease-soft); }
+.emoji-btn:hover, .emoji-btn:focus-visible { background: var(--surface-hover); transform: scale(1.15); outline: none; }
+.emoji-none { grid-column: 1 / -1; margin: 24px 0; color: var(--muted); text-align: center; }
+
+/* Conversation list: search, All / Unread, status dot on each order */
+.chat-list { padding: 0; gap: 0; }
+.chat-tools { position: sticky; top: 0; z-index: 1; display: grid; gap: 8px; padding: 8px; border-bottom: 1px solid var(--line-soft, var(--line)); background: var(--surface); }
+.chat-search-wrap { display: flex; align-items: center; gap: 8px; height: 36px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--input, var(--sunk)); color: var(--muted); transition: border-color 260ms var(--ease-soft); }
+.chat-search-wrap:focus-within { border-color: var(--primary-text); }
+.chat-search-wrap svg.i { width: 15px; height: 15px; }
+.chat-search { flex: 1; min-width: 0; border: 0; background: transparent; color: var(--fg); outline: none; }
+.chat-filter { width: 100%; }
+.chat-filter button { flex: 1; justify-content: center; min-height: 32px; }
+.chat-threads { display: flex; flex-direction: column; gap: 2px; padding: 6px; }
+.chat-list-empty { margin: 0; padding: 28px 8px; color: var(--muted); text-align: center; animation: msg-in 400ms var(--ease-soft) both; }
+.thread-ic { position: relative; }
+.thread-dot { position: absolute; right: -3px; bottom: -3px; width: 11px; height: 11px; border-radius: 50%; background: var(--c); box-shadow: 0 0 0 2px var(--surface); }
+.thread-typing { color: var(--transit-solid); font-style: normal; }
+
+/* Thread header: a mini order card, or #team with the team's faces */
+.chat-head { gap: 12px; }
+.chat-head-pic { flex: none; padding: 0; border: 0; border-radius: 10px; background: none; overflow: hidden; cursor: pointer; transition: transform 260ms var(--ease-soft); }
+.chat-head-pic:hover { transform: scale(1.04); }
+.chat-head .thumb { width: 44px; height: 44px; border-radius: 10px; }
+.chat-head-txt { display: grid; min-width: 0; }
+.chat-head-txt b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.thread-ic.big { width: 44px; height: 44px; border-radius: 10px; font-size: 1.15rem; }
+.avatar-stack { display: flex; align-items: center; }
+.avatar-stack .avatar { margin-left: -8px; box-shadow: 0 0 0 2px var(--surface); }
+.avatar-stack .avatar:first-child { margin-left: 0; }
+.avatar-stack small { margin-left: 8px; color: var(--muted); font-size: 0.75rem; white-space: nowrap; }
+
+/* Empty thread */
+.chat-empty { display: grid; justify-items: center; gap: 6px; margin: auto; padding: 32px 12px; color: var(--muted); text-align: center; }
+.chat-empty-ic { display: grid; place-items: center; width: 52px; height: 52px; margin-bottom: 4px; border-radius: 50%; background: var(--sunk); color: var(--fg); animation: chat-pop 480ms var(--ease-soft); }
+.chat-empty b { color: var(--fg); font-weight: 600; }
+.chat-empty small { max-width: 280px; font-size: 0.78125rem; }
+
+@media (max-width: 860px) {
+  .msg-main { max-width: 86%; }
+  .chat-head .btn:not(.chat-back) { display: none; }
+  .avatar-stack small { display: none; }
+}
+:root[data-motion="reduced"] :is(.react, .chat-jump, .chat-new, .chat-empty-ic, .emoji-pop, .chat-list-empty) { animation: none; }
+:root[data-motion="reduced"] .dots i { animation: none; opacity: .7; }
+.chat-head-txt small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

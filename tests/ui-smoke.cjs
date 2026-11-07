@@ -43,9 +43,14 @@ window.__reads = JSON.parse(sessionStorage.getItem("__reads") || "null") || [
   { member_email: "admin@example.com", thread: "team", last_read_at: ago(100) },
   { member_email: "admin@example.com", thread: "22222222-2222-2222-2222-222222222222", last_read_at: ago(190) },
 ];
-const keepChat = () => { sessionStorage.setItem("__messages", JSON.stringify(window.__messages)); sessionStorage.setItem("__reads", JSON.stringify(window.__reads)); };
+window.__reactions = JSON.parse(sessionStorage.getItem("__reactions") || "null") || [
+  { message_id: "m2", member_email: "driver@example.com", emoji: "👍", created_at: ago(60) },
+  { message_id: "m3", member_email: "admin@example.com", emoji: "✅", created_at: ago(50) },
+  { message_id: "m3", member_email: "driver@example.com", emoji: "✅", created_at: ago(40) },
+];
+const keepChat = () => { sessionStorage.setItem("__reactions", JSON.stringify(window.__reactions)); sessionStorage.setItem("__messages", JSON.stringify(window.__messages)); sessionStorage.setItem("__reads", JSON.stringify(window.__reads)); };
 window.__pushSubs = [];
-const tables = () => ({ cdf_push_subs: window.__pushSubs, cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
+const tables = () => ({ cdf_message_reactions: window.__reactions, cdf_push_subs: window.__pushSubs, cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
   let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*";
@@ -66,7 +71,8 @@ function query(table) {
       if (table === "cdf_orders" && window.__role === "vendor") data = data.filter((o) => o.vendor_email === "ana@example.com");
       if (table === "cdf_orders" && window.__role === "carrier") data = data.filter((o) => o.status === "Ready" && o.delivery !== "Delivered");
       if (table === "cdf_messages" && (window.__role === "vendor" || window.__role === "carrier")) { const seen = new Set(window.__orders.filter((o) => window.__role === "vendor" ? o.vendor_email === "ana@example.com" : o.status === "Ready" && o.delivery !== "Delivered").map((o) => o.id)); data = data.filter((m) => !m.order_id || seen.has(m.order_id)); }
-      if (window.__noChat && /^cdf_message/.test(table)) return Promise.resolve({ data: null, error: { code: "42P01", message: "relation does not exist" } }).then(resolve, reject);
+      if (table === "cdf_message_reactions" && (window.__role === "vendor" || window.__role === "carrier")) { const ok = new Set(tables().cdf_messages.filter((m) => !m.order_id || window.__orders.some((o) => o.id === m.order_id && (window.__role === "vendor" ? o.vendor_email === "ana@example.com" : o.status === "Ready" && o.delivery !== "Delivered"))).map((m) => m.id)); data = data.filter((r) => ok.has(r.message_id)); }
+      if ((window.__noChat && /^cdf_message/.test(table)) || (window.__noReactions && table === "cdf_message_reactions")) return Promise.resolve({ data: null, error: { code: "42P01", message: "relation does not exist" } }).then(resolve, reject);
       data = data.filter((o) => filters.every((f) => f(o)));
       if (action === "upsert" && table === "cdf_push_subs") { const r = window.__pushSubs.find((x) => x.endpoint === row.endpoint); if (r) Object.assign(r, row); else window.__pushSubs.push({ ...row }); data = [row]; }
       if (action === "upsert" && table === "cdf_message_reads") { const r = window.__reads.find((x) => x.member_email === row.member_email && x.thread === row.thread); if (r) Object.assign(r, row); else window.__reads.push({ ...row }); keepChat(); data = [row]; }
@@ -79,7 +85,9 @@ function query(table) {
         if (action === "insert" && table === "cdf_messages") { const item = { ...row, id: "m" + Date.now(), created_at: new Date().toISOString() }; window.__messages.push(item); keepChat(); data = [item]; window.__chatReply && window.__chatReply(item); }
         else if (action === "insert") { const item = table === "cdf_orders" ? { ...base, ...row, id: "99999999-9999-9999-9999-" + String(Date.now()).slice(-12), code: "newcode1234", updated_at: new Date().toISOString() } : { ...row, ok: true, created_at: new Date().toISOString() }; tables()[table].push(item); data = [item]; }
         if (action === "update") data.forEach((o) => Object.assign(o, row, { updated_at: new Date().toISOString() }));
-        if (action === "delete" && table === "cdf_push_subs") window.__pushSubs = window.__pushSubs.filter((o) => !data.includes(o));
+        if (action === "insert" && table === "cdf_message_reactions") keepChat();
+        if (action === "delete" && table === "cdf_message_reactions") { window.__reactions = window.__reactions.filter((o) => !data.includes(o)); keepChat(); }
+        else if (action === "delete" && table === "cdf_push_subs") window.__pushSubs = window.__pushSubs.filter((o) => !data.includes(o));
         else if (action === "delete") window.__orders = window.__orders.filter((o) => !data.includes(o));
       }
       if (lim) data = data.slice(offset, offset+lim);
@@ -92,6 +100,7 @@ window.__chatReply = (m) => {
   if (window.__noAutoReply) return;
   const who = [["@ana", "ana@example.com", "👍 Visto, me encargo"], ["@luis", "driver@example.com", "Ok, en 10 minutos estoy ahí"], ["@jerold", "admin@example.com", "Perfecto, gracias"]].find(([k, e]) => m.body.toLowerCase().includes(k) && e !== m.author_email);
   if (!who) return;
+  setTimeout(() => window.__typingCb && window.__typingCb({ payload: { thread: m.order_id || "team", email: who[1] } }), 700);
   setTimeout(() => { const r = { id: "m" + Date.now(), order_id: m.order_id, author_email: who[1], body: who[2], created_at: new Date().toISOString() }; window.__messages.push(r); keepChat(); window.__realtimeMsg && window.__realtimeMsg({ eventType: "INSERT", new: r }); }, 2600);
 };
 const steps = { prep: ["Preparing", "-"], ready: ["Ready", "-"], transit: ["Ready", "In transit"], done: ["Ready", "Delivered"], fail: ["Ready", "Failed"] };
@@ -104,7 +113,7 @@ window.supabase = { createClient: () => ({
   storage: { from: (b) => ({ createSignedUrl: async (p) => ({ data: { signedUrl: "/img/emblem.webp" } }),
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
-  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages")window.__realtimeMsg=cb;else window.__realtime = cb; return this; }, subscribe() { return this; } }), removeChannel() {},
+  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages")window.__realtimeMsg=cb;else if(config.table==="cdf_message_reactions")window.__realtimeReact=cb;else if(_a==="broadcast")window.__typingCb=cb;else window.__realtime = cb; return this; }, subscribe() { return this; }, send(m) { (window.__calls ||= []).push({ broadcast: m.event, payload: m.payload }); return Promise.resolve("ok"); } }), removeChannel() {},
   functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args }); return { data: { ok: true }, error: null }; } },
   rpc: async (name, args) => {
     window.__calls.push({ rpc: name, args });
@@ -545,6 +554,30 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.deepEqual(await v.locator(".thread b").allInnerTexts(), ["#team", "#0126 · Maria Santos"]);await v.close();
       const n = await open("admin", { before: { __noChat: true } });await n.locator("#list").waitFor();await n.waitForTimeout(400);
       assert.equal(await n.locator("#tabChat").isHidden(), true, "no chat tables: no chat, nothing breaks");await n.close();
+    });
+    await step("Chat v2: bubbles, New line, reactions, emoji panel, typing, list search and filter", async () => {
+      const q = await open("admin");await q.locator("#list").waitFor();await q.locator("#tabChat").click();
+      await q.locator(".chat-pane .chat-new").waitFor();
+      assert.equal(await q.locator(".chat-pane .react", { hasText: "👍" }).count(), 1, "seeded reaction");
+      const ana = q.locator(".chat-pane .cmsg:not(.mine)").last();await ana.hover();
+      await ana.locator(".tool-e", { hasText: "🎉" }).click();
+      await ana.locator(".react.mine", { hasText: "🎉" }).waitFor();
+      assert(await q.evaluate(() => window.__calls.some((c) => c.table === "cdf_message_reactions" && c.action === "insert" && c.row.emoji === "🎉")));
+      await ana.locator(".react.mine", { hasText: "🎉" }).click();await q.waitForTimeout(400);
+      assert.equal(await ana.locator(".react", { hasText: "🎉" }).count(), 0, "a second tap removes it");
+      await q.locator(".chat-pane .chat-emoji").click();await q.locator(".emoji-pop .emoji-search").fill("flower");
+      assert(await q.locator(".emoji-pop .emoji-btn").count() >= 10, "searching a category name lists the category");
+      await q.locator(".emoji-pop .emoji-btn", { hasText: "🌷" }).click();
+      assert.equal(await q.locator(".chat-pane .chat-input").inputValue(), "🌷");
+      await q.evaluate(() => window.__typingCb({ payload: { thread: "team", email: "driver@example.com" } }));
+      await q.locator(".chat-pane .chat-typing.on", { hasText: "Luis is typing" }).waitFor();
+      await q.locator(".chat-search").fill("salcedo");
+      assert.deepEqual(await q.locator(".thread b").allInnerTexts(), ["#0126 · Maria Santos"]);
+      await q.locator(".chat-search").fill("");await q.locator(".chat-filter button", { hasText: "Unread" }).click();
+      assert(await q.locator(".thread").count() >= 1);await q.close();
+      const n = await open("admin", { before: { __noReactions: true } });await n.locator("#list").waitFor();await n.locator("#tabChat").click();
+      await n.locator(".chat-pane .cmsg").first().waitFor();
+      assert.equal(await n.locator(".chat-pane .tool-e").count(), 0, "no reactions table: no reaction buttons");await n.close();
     });
     await step("Installable app: manifest and icons, service worker, install entry, notifications row, notification links", async () => {
       const q = await open("admin");await q.locator("#list").waitFor();
