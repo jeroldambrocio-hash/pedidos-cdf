@@ -3,6 +3,12 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    llFrom: "Recoge en {name}: {address}", llNoFlorist: "Asigna primero una florista y guarda el pedido: el rider recoge en su tienda.",
+    llShopMissing: "{name} aún no tiene dirección de recogida. Añádela en Equipo → editar.",
+    pickupTitle: "Recogida Lalamove (su tienda)", pickupAddr: "Dirección de la tienda", pickupAddrPh: "Calle, número, barrio, Quezon City",
+    pickupPoint: "Ubicación exacta", pickupPointPh: "Enlace de Google Maps o 14.65, 121.04", pickupPointHint: "Pega el enlace de Google Maps de la tienda. El teléfono de recogida es el de su perfil.",
+    pickupPointBad: "No reconozco esa ubicación. Pega un enlace de Google Maps (en Filipinas) o «lat, lng».", pickupBoth: "Pon la dirección y la ubicación, o deja las dos vacías.",
+    pickupNoPhone: "Esta florista no tiene teléfono en su perfil: Lalamove lo necesita para la recogida.",
     periodDay: "Día", period7: "7 días", period30: "30 días", periodDates: "Fechas", noOrdersPeriod: "No hay pedidos en estas fechas",
     bouquetPrice: "Precio del ramo", bouquetPriceHint: "En pesos filipinos (PHP). Solo lo ve el admin.",
     extraPhotos: "Fotos", extraPhotosHint: "Puedes añadir varias. Las ve también la florista del pedido.", addPhotos: "Añadir fotos",
@@ -235,6 +241,12 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    llFrom: "Pickup at {name}: {address}", llNoFlorist: "Assign a florist and save the order first: the rider picks up at her shop.",
+    llShopMissing: "{name} has no pickup address yet. Add it in Team → edit.",
+    pickupTitle: "Lalamove pickup (her shop)", pickupAddr: "Shop address", pickupAddrPh: "Street, number, barangay, Quezon City",
+    pickupPoint: "Exact location", pickupPointPh: "Google Maps link or 14.65, 121.04", pickupPointHint: "Paste the shop's Google Maps link. The pickup phone is the one on her profile.",
+    pickupPointBad: "Can't read that location. Paste a Google Maps link (in the Philippines) or \"lat, lng\".", pickupBoth: "Fill in both the address and the location, or leave both empty.",
+    pickupNoPhone: "This florist has no phone on her profile: Lalamove needs it for the pickup.",
     periodDay: "Day", period7: "7 days", period30: "30 days", periodDates: "Dates", noOrdersPeriod: "No orders in these dates",
     bouquetPrice: "Bouquet price", bouquetPriceHint: "In Philippine pesos (PHP). Only the admin sees it.",
     extraPhotos: "Photos", extraPhotosHint: "Add as many as you need. The order's florist sees them too.", addPhotos: "Add photos",

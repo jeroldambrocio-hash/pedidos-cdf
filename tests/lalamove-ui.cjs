@@ -77,14 +77,38 @@ const server = http.createServer((req, res) => {
   try {
     // Admin on a phone: the whole flow
     const p = await open("admin", 390);
-    // The "Ready" order (0126 is In transit; any order works for the block)
-    await p.evaluate(() => openOrder(S.orders.find((o) => o.status === "Ready" && !o.cancelled_at) || S.orders[0]));
+    const ord = () => S.orders.find((o) => o.status === "Ready" && !o.cancelled_at && o.vendor_email) || S.orders.find((o) => o.vendor_email);
+    // The florist of the order has no shop yet: the block says so and offers nothing
+    const florist = await p.evaluate((f) => { const o = (0, eval)("(" + f + ")")(); const m = S.members.find((x) => x.email === o.vendor_email); delete m.pickup_lat; delete m.pickup_address; S.cap.pickup = true; openOrder(o); return m; }, ord.toString());
     const sec = p.locator("#lalamoveSection");
     await sec.waitFor({ state: "visible" });
     await sec.scrollIntoViewIfNeeded();
     assert.match(await sec.innerText(), /Pruebas \(sandbox\)/i);
+    assert.match(await sec.innerText(), new RegExp(florist.name + " aún no tiene dirección de recogida"));
+    assert.equal(await sec.getByRole("button", { name: "Enviar con Lalamove" }).count(), 0);
+    console.log("ok block shows for admin, sandbox label; no shop = no booking");
+    await p.evaluate(() => closeSheet(true));
+
+    // Team → edit the florist: shop address + Google Maps link
+    await p.evaluate((email) => editMember(S.members.find((m) => m.email === email)), florist.email);
+    await p.locator("#ePickAddr").fill("12 Tomas Morato Ave, Quezon City");
+    await p.locator("#ePickPoint").fill("https://www.google.com/maps/place/x/@41.38,2.17,17z");
+    await p.locator(".dialog .btn.primary").click();
+    await p.getByText("No reconozco esa ubicación").waitFor();
+    await p.locator("#ePickPoint").fill("https://www.google.com/maps/place/Shop/@14.6337,121.0338,17z/data=x");
+    await p.locator(".dialog .btn.primary").click();
+    await p.locator(".dialog").waitFor({ state: "detached" });
+    const saved = await p.evaluate((email) => S.members.find((m) => m.email === email), florist.email);
+    assert.equal(saved.pickup_address, "12 Tomas Morato Ave, Quezon City");
+    assert.equal(+saved.pickup_lat, 14.6337); assert.equal(+saved.pickup_lng, 121.0338);
+    console.log("ok florist's shop set from a Google Maps link (a point outside the Philippines is refused)");
+
+    await p.evaluate((f) => openOrder((0, eval)("(" + f + ")")()), ord.toString());
+    await sec.waitFor({ state: "visible" });
+    await sec.scrollIntoViewIfNeeded();
+    assert.match(await sec.innerText(), /Recoge en .*Tomas Morato/);
     await shot(p, "1-start"); await noOverflow(p);
-    console.log("ok block shows for admin, sandbox label");
+    console.log("ok block names the pickup shop");
 
     await sec.getByRole("button", { name: "Enviar con Lalamove" }).click();
     await sec.locator(".ll-search input").fill("nowhere special");

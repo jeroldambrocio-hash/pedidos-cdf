@@ -30,6 +30,11 @@ function editMember(m) {
   const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", ...(feature("drivers") || m.role === "carrier" ? ["carrier"] : []), "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
   // Availability: florists only; the admin can set anyone's (the server checks it too)
   const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
+  // Lalamove: where riders pick up this florist's orders (her shop)
+  const pick = S.cap.pickup && m.role === "vendor" ? {
+    addr: el("input", { id: "ePickAddr", value: m.pickup_address || "", maxlength: 300, autocomplete: "off", placeholder: t("pickupAddrPh") }),
+    point: el("input", { id: "ePickPoint", value: m.pickup_lat != null ? `${+m.pickup_lat}, ${+m.pickup_lng}` : "", autocomplete: "off", inputmode: "url", placeholder: t("pickupPointPh") }),
+  } : null;
   const err = el("div", { class: "err", role: "alert" });
   const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(330); scrim.remove(); back?.focus?.(); };
   const save = el("button", { class: "btn primary", type: "submit" }, t("save"));
@@ -39,11 +44,20 @@ function editMember(m) {
     if (!name) { err.textContent = t("fillRequired"); iName.focus(); return; }
     const bad = avail?.check(); if (bad) { err.textContent = bad; return; }
     const username = iUsername.value.trim().toLowerCase() || null;
-    const basics = name !== m.name || role !== m.role || username !== (m.username || null), away = !!avail?.changed();
+    let pickup = null;
+    if (pick) {
+      const addr = pick.addr.value.trim() || null, raw = pick.point.value.trim();
+      const pt = raw ? llParseCoords(raw) : null;
+      if (raw && !pt) { err.textContent = t("pickupPointBad"); pick.point.focus(); return; }
+      if (!!addr !== !!pt) { err.textContent = t("pickupBoth"); (addr ? pick.point : pick.addr).focus(); return; }
+      if (addr !== (m.pickup_address || null) || (pt?.lat ?? null) !== (m.pickup_lat == null ? null : +m.pickup_lat) || (pt?.lng ?? null) !== (m.pickup_lng == null ? null : +m.pickup_lng))
+        pickup = { pickup_address: addr, pickup_lat: pt?.lat ?? null, pickup_lng: pt?.lng ?? null };
+    }
+    const basics = name !== m.name || role !== m.role || username !== (m.username || null) || !!pickup, away = !!avail?.changed();
     if (!basics && !away) { close(); return; }
     save.disabled = true;
     try {
-      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : "editFail")); }
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : "editFail")); }
       if (away) await saveAvailability(m.email, avail.value());
     } catch (x) { save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;
@@ -58,6 +72,10 @@ function editMember(m) {
       el("label", { class: "field" }, el("span", {}, t("role")), iRole),
       el("div", { class: "hint" }, self ? t("ownRoleHint") : m.email),
       avail ? el("h3", { class: "grp" }, t("availability")) : null, avail?.node,
+      pick ? el("h3", { class: "grp" }, t("pickupTitle")) : null,
+      pick ? field(t("pickupAddr"), pick.addr) : null,
+      pick ? field(t("pickupPoint"), pick.point, el("small", { class: "note" }, t("pickupPointHint"))) : null,
+      pick && !m.phone ? el("p", { class: "hint" }, t("pickupNoPhone")) : null,
       err),
     el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: close }, t("cancel")), save));
   scrim.append(form);

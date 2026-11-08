@@ -8,7 +8,8 @@
 //   LALAMOVE_API_KEY, LALAMOVE_API_SECRET   from the Lalamove Partner Portal (sandbox or production pair)
 //   LALAMOVE_ENV                            "sandbox" (default) or "production"
 //   LALAMOVE_WEBHOOK_TOKEN                  any long random string, also put in the webhook URL
-//   LALAMOVE_PICKUP                         JSON: {"lat":14.65,"lng":121.04,"address":"…","name":"Casa de Flores","phone":"+63…"}
+//   LALAMOVE_PICKUP                         optional fallback shop, JSON: {"lat":14.65,"lng":121.04,"address":"…","name":"Casa de Flores","phone":"+63…"}.
+//                                           Normally the rider picks up at the assigned florist's shop (cdf_members.pickup_*, migration 031).
 //   LALAMOVE_SYNC_ORDERS                    "on" moves orders to In transit / Delivered with the rider.
 //                                           Off unless set, and always off in sandbox: test riders must
 //                                           never change real orders.
@@ -34,6 +35,20 @@ function pickup(): Pickup | null {
     if (!p || !inPhilippines(+p.lat, +p.lng) || !p.address || !validPhone(e164(p.phone))) return null;
     return { lat: +p.lat, lng: +p.lng, address: String(p.address), name: String(p.name || "Casa de Flores"), phone: e164(p.phone) };
   } catch { return null; }
+}
+
+// The assigned florist's shop (each florist works from her own); else the fallback secret. Error text when neither.
+async function pickupFor(order: any): Promise<Pickup | string> {
+  if (order.vendor_email) {
+    const { data: m } = await service.from("cdf_members").select("name, phone, pickup_address, pickup_lat, pickup_lng").eq("email", order.vendor_email).maybeSingle();
+    if (m?.pickup_address && m.pickup_lat != null && m.pickup_lng != null) {
+      const phone = e164(m.phone);
+      if (!validPhone(phone)) return `${m.name} no tiene un teléfono válido en su perfil (lo necesita Lalamove para la recogida)`;
+      return { lat: +m.pickup_lat, lng: +m.pickup_lng, address: m.pickup_address, name: `Casa de Flores · ${m.name}`, phone };
+    }
+    if (!pickup()) return `${m?.name || "La florista"} aún no tiene dirección de recogida (Equipo → editar)`;
+  }
+  return pickup() || "Asigna primero una florista: el rider recoge en su tienda";
 }
 
 const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, { auth: { persistSession: false } });
@@ -81,10 +96,10 @@ async function geocode(query: string) {
 }
 
 async function quote(orderId: string, b: Record<string, any>) {
-  const p = pickup();
-  if (!p) return json({ error: "Falta la dirección de recogida de la tienda (LALAMOVE_PICKUP)" }, 500);
   const order = await getOrder(orderId);
   if (!order) return json({ error: "Pedido no encontrado" }, 404);
+  const p = await pickupFor(order);
+  if (typeof p === "string") return json({ error: p }, 400);
   const lat = +b.lat, lng = +b.lng;
   if (!inPhilippines(lat, lng)) return json({ error: "Ubicación de entrega no válida" }, 400);
   const prev = await getRow(orderId);
@@ -112,10 +127,10 @@ async function quote(orderId: string, b: Record<string, any>) {
 }
 
 async function book(orderId: string) {
-  const p = pickup();
-  if (!p) return json({ error: "Falta la dirección de recogida de la tienda (LALAMOVE_PICKUP)" }, 500);
   const [order, row] = await Promise.all([getOrder(orderId), getRow(orderId)]);
   if (!order || !row?.quotation_id) return json({ error: "Pide primero un precio" }, 400);
+  const p = await pickupFor(order);
+  if (typeof p === "string") return json({ error: p }, 400);
   if (row.ll_order_id && !FINAL.has(row.status)) return json({ error: "Este pedido ya tiene un rider reservado" }, 409);
   if (row.quote_expires && Date.parse(row.quote_expires) < Date.now() + 15_000) return json({ error: "El precio ha caducado. Pídelo otra vez." }, 409);
   const phone = e164(order.customer_phone) || e164(order.buyer_phone);
@@ -150,7 +165,7 @@ async function webhook(req: Request) {
     if (!KEY || !SECRET) return json({ ok: false, env: ENV, error: "missing keys" });
     try {
       const cities = await ll("GET", "/v3/cities");
-      return json({ ok: true, env: ENV, keyKind: KEY.slice(0, 7), pickup: !!pickup(), cities: (cities || []).map((c: any) => ({ code: c.locode, name: c.name, services: (c.services || []).map((s: any) => s.key) })) });
+      return json({ ok: true, env: ENV, keyKind: KEY.slice(0, 7), fallbackPickup: !!pickup(), cities: (cities || []).map((c: any) => ({ code: c.locode, name: c.name, services: (c.services || []).map((s: any) => s.key) })) });
     } catch (e) {
       return json({ ok: false, env: ENV, keyKind: KEY.slice(0, 7), error: e instanceof LalamoveError ? `${e.status} ${e.code}: ${e.message}` : String(e) });
     }
@@ -178,7 +193,7 @@ Deno.serve(async (req) => {
 
   let b: Record<string, any>;
   try { b = await req.json(); } catch { return json({ error: "Petición no válida" }, 400); }
-  if (b.action === "status") return json({ env: ENV, ready: !!(KEY && SECRET && pickup()), sync: SYNC });
+  if (b.action === "status") return json({ env: ENV, ready: !!(KEY && SECRET), sync: SYNC });
   if (!KEY || !SECRET) return json({ error: "Faltan las claves de Lalamove (LALAMOVE_API_KEY / LALAMOVE_API_SECRET)" }, 500);
 
   const orderId = String(b.order_id || "");

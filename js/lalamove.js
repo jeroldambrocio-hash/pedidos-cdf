@@ -13,6 +13,20 @@ const llCall = async (body) => {
   }
   return data;
 };
+// Same reading of a pasted point as the server (supabase/functions/cdf-lalamove/lalamove.ts): "lat, lng" or a Google Maps link
+function llParseCoords(input) {
+  const s = String(input || "");
+  const m = /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(s)
+    || /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i.exec(s)
+    || /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
+    || /^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/.exec(s);
+  if (!m) return null;
+  const lat = +m[1], lng = +m[2];
+  return lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127 ? { lat, lng } : null;
+}
+// The shop the rider picks up from: the assigned florist's (Team → edit). null when there isn't one yet.
+const llShopOf = (o) => { const m = S.members.find((x) => x.email === o.vendor_email); return m?.pickup_lat != null && m.pickup_address ? m : null; };
+
 // Once per session: is the table there, and is the function set up?
 async function llDetect() {
   if (LL.cap !== null) return LL.cap;
@@ -34,6 +48,7 @@ function lalamoveSection(o) {
     try { await onclick(); } catch (x) { toastErr(x.message); } finally { busy = false; b.disabled = false; b.classList.remove("busy"); }
   } }, label);
   const fee = (n, cur) => (cur && cur !== "PHP" ? cur + " " + Math.round(n) : peso(n));
+  const shopLine = () => { const s = llShopOf(o); return s ? el("p", { class: "note ll-shop" }, icon("flower"), " " + t("llFrom", { name: s.name, address: s.pickup_address })) : null; };
   const coordsLink = (lat, lng) => el("a", { class: "note link-out", target: "_blank", rel: "noopener", href: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` }, t("llCheckPin"));
 
   // 1) Where to deliver: search the order's address (or a pasted Maps link / "lat, lng") and pick a result
@@ -55,7 +70,7 @@ function lalamoveSection(o) {
     const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || "MOTORCYCLE") }, t("llv_" + v))));
     const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: o.slot })));
     const go = async () => { row = (await llCall({ action: "quote", order_id: o.id, lat: place.lat, lng: place.lng, place: place.label, service: vehicle.value, schedule: when.value })).row; draw(); };
-    fill(box, el("p", {}, el("b", {}, t("llDeliverTo")), " ", place.label), coordsLink(place.lat, place.lng),
+    fill(box, shopLine(), el("p", {}, el("b", {}, t("llDeliverTo")), " ", place.label), coordsLink(place.lat, place.lng),
       el("div", { class: "row2" }, field(t("llVehicle"), vehicle), field(t("llPickup"), when)),
       el("div", { class: "btn-row" }, btn(t("llGetPrice"), go, true), btn(t("llChangePlace"), () => pickPlace(quote))));
   }
@@ -90,7 +105,7 @@ function lalamoveSection(o) {
       const phoneMissing = !phoneOk(o.customer_phone || o.buyer_phone) || !(o.customer_phone || o.buyer_phone);
       return fill(box,
         el("div", { class: "ll-line" }, el("b", { class: "ll-price" }, fee(row.quote_total, row.quote_currency)), el("span", { class: "note" }, t("llv_" + row.service) + " · " + t("llValidUntil", { time: when(row.quote_expires) }))),
-        el("p", { class: "note" }, t("llDeliverTo") + " " + (row.place || "")), coordsLink(row.lat, row.lng),
+        shopLine(), el("p", { class: "note" }, t("llDeliverTo") + " " + (row.place || "")), coordsLink(row.lat, row.lng),
         o.status !== "Ready" ? el("p", { class: "note" }, icon("alert"), " " + t("llNotReady")) : null,
         phoneMissing ? el("p", { class: "err" }, t("llNeedPhone")) : null, err,
         el("div", { class: "btn-row" },
@@ -100,8 +115,13 @@ function lalamoveSection(o) {
           }, true),
           btn(t("llChangePlace"), () => pickPlace(quote))));
     }
-    // Nothing yet (or the quote expired): start, reusing the last confirmed point if there is one
-    return fill(box, err,
+    // Nothing yet (or the quote expired): start, reusing the last confirmed point if there is one.
+    // The rider picks up at the assigned florist's shop, so there has to be one first.
+    if (!llShopOf(o)) {
+      const m = S.members.find((x) => x.email === o.vendor_email);
+      return fill(box, err, el("p", { class: "note" }, icon("flower"), " " + (m ? t("llShopMissing", { name: m.name }) : t("llNoFlorist"))));
+    }
+    return fill(box, err, shopLine(),
       row?.lat ? el("p", { class: "note" }, t("llDeliverTo") + " " + (row.place || `${row.lat}, ${row.lng}`)) : el("p", { class: "note" }, t("llIntro")),
       el("div", { class: "btn-row" },
         row?.lat ? btn(t("llGetPrice"), () => quote({ lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` }), true) : null,
