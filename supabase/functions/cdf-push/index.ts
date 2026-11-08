@@ -18,6 +18,9 @@ async function server() {
   appServer = await webpush.ApplicationServer.new({ contactInformation: CONTACT, vapidKeys });
   return appServer;
 }
+// High urgency: without it iPhones may hold a "normal" push for a while to save battery (seen: ~20 s).
+// A notice that is a day old is no longer worth showing, so the push service drops it after 24 h.
+const PUSH_OPTS = { urgency: webpush.Urgency.High, ttl: 24 * 3600 };
 const handle = (name: string) => (name || "").trim().split(/\s+/)[0].toLowerCase();
 
 Deno.serve(async (req) => {
@@ -72,7 +75,7 @@ Deno.serve(async (req) => {
   let sent = 0, gone = 0;
   for (const s of subs || []) {
     try {
-      await app.subscribe({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }).pushTextMessage(JSON.stringify(payload), {});
+      await app.subscribe({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }).pushTextMessage(JSON.stringify(payload), PUSH_OPTS);
       sent++;
       await service.from("cdf_push_subs").update({ last_ok_at: new Date().toISOString() }).eq("endpoint", s.endpoint);
     } catch (e) {
