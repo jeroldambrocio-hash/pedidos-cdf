@@ -52,11 +52,10 @@ const server = http.createServer((req, res) => {
     await a.waitForTimeout(500);
     assert.equal(await a.locator("#f-link").count(), 0, "tracking link shown");
     assert.equal(await a.locator("#f-carrier").count(), 0, "driver field shown");
-    assert(await a.locator("#linkSection").getByRole("button", { name: "WhatsApp" }).count(), "WhatsApp button gone");
-    const msgs = await a.evaluate(() => ["prep", "ready", "transit", "done", "fail", "cancel"].map((k) => notifyMsg(S.orders[0], "Ana", k)));
-    for (const m of msgs) { assert(!/\/p\/|Track it here|Details:/.test(m), "message still points to tracking: " + m); assert(/[.!]$/.test(m), "message ends oddly: " + m); }
-    console.log("ok order: no tracking link, messages read well without it");
-    console.log("   " + msgs[2]);
+    assert.equal(await a.locator("#linkSection").count(), 0, "customer message section shown");
+    assert.equal(await a.locator(".sheet").getByRole("button", { name: "Copiar mensaje" }).count(), 0, "copy message shown");
+    assert.equal(await a.locator('.sheet .notify-row').count(), 0, "WhatsApp message shown");
+    console.log("ok order: no tracking link and no WhatsApp/copied messages to the customer");
     await a.screenshot({ path: path.join(out, "features-off-order.png") });
     assert.equal(await a.locator('#aRole option[value="carrier"]').count(), 0, "can create drivers");
     const roles = await a.evaluate(() => { const m = S.members.find((x) => x.role === "vendor"); editMember(m); return [...document.querySelectorAll("#eRole option")].map((o) => o.value); });
@@ -73,10 +72,13 @@ const server = http.createServer((req, res) => {
     console.log("ok driver accounts are stopped at sign-in");
     await d.context().close();
 
-    // Florists still work as before
+    // Florists still work as before, without customer messages
     const v = await open("vendor");
     await v.locator("#list").waitFor({ state: "visible" });
-    console.log("ok florist signs in as usual");
+    await v.evaluate(() => openOrderView(S.orders[0]));
+    await v.locator(".sheet").waitFor();
+    assert.equal(await v.locator(".sheet .notify-row").count(), 0, "florist can still message the customer");
+    console.log("ok florist signs in as usual, no customer messages");
     await v.context().close();
 
     // Tracking page: says it's unavailable and never asks the server

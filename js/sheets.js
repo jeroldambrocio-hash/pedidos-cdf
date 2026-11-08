@@ -259,9 +259,7 @@ function slotPicker(val) {
 const CH_LABEL = { email: "Email", whatsapp: "WhatsApp", telegram: "Telegram", viber: "Viber", copy: t("copyShort") };
 function notifyMsg(o, name, k) {
   const st = { prep: "msgPrep", ready: "msgReady", transit: "msgTransit", done: "msgDone", fail: "msgFail", cancel: "msgCancel" }[k] || "msgTransit";
-  const msg = tIn("en", st, { name: name ? " " + name : "", num: o.num, link: feature("tracking") ? trackUrl(o) : "" });
-  // Tracking off: drop the "Track it here:" lead-in that would point at nothing
-  return feature("tracking") ? msg : msg.replace(/\s*(Track it here|Details):\s*$/, ".").replace(/\.\.$/, ".").trim();
+  return tIn("en", st, { name: name ? " " + name : "", num: o.num, link: trackUrl(o) });
 }
 async function logOpened(o, channel, recipient, label, message) {
   await sb.from("cdf_notifications").insert({ order_id: o.id, audience: "customer", channel, recipient, detail: label, subject: label, message, by_email: S.me.email });
@@ -360,7 +358,8 @@ function openOrderView(o) {
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
       chatSection(o),
-      el("section", {}, el("h3", {}, t("notifyBuyer")),
+      // Tracking off: no messages to the customer from the panel at all
+      !feature("tracking") ? null : el("section", {}, el("h3", {}, t("notifyBuyer")),
         notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
       el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
         S.cap.events ? el("details", { class: "hist" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null)),
@@ -683,7 +682,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
         field(t("cardMsg"), iCard)),
       el("section", {}, field(t("photo"), shot.node)),
       isNew ? null : chatSection(o),
-      isNew ? null : el("section", { id: "linkSection" }, feature("tracking") ? field(t("customerLink"), linkBlock) : field(t("notifyCustomer"), el("span")),
+      isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
       el("section", {}, el("details", { class: "hist", open: !!(f.notes || f.delivery_note || o?.proof_path || o?.bouquet_path) || null },
         el("summary", {}, t("moreDetails")),

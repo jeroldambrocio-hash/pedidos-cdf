@@ -3,7 +3,7 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
-    notifyCustomer: "Avisar al cliente", driversOff: "Las cuentas de repartidor están desactivadas por ahora. Si necesitas entrar, habla con el admin.",
+    driversOff: "Las cuentas de repartidor están desactivadas por ahora. Si necesitas entrar, habla con el admin.",
     trackingOffTitle: "Seguimiento no disponible", trackingOff: "El seguimiento de pedidos no está disponible por ahora. Si tienes cualquier duda, contacta con Casa de Flores.",
     viewProfile: "Ver perfil", profileStatsUnavailable: "Estadísticas no disponibles", openOrders: "Abiertos",
     expandPhoto: "Ampliar foto de referencia",
@@ -219,7 +219,7 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
-    notifyCustomer: "Let the customer know", driversOff: "Driver accounts are switched off for now. If you need to sign in, talk to the admin.",
+    driversOff: "Driver accounts are switched off for now. If you need to sign in, talk to the admin.",
     trackingOffTitle: "Tracking unavailable", trackingOff: "Order tracking isn't available right now. If you have any questions, please contact Casa de Flores.",
     viewProfile: "View profile", profileStatsUnavailable: "Statistics unavailable", openOrders: "Open",
     expandPhoto: "Enlarge reference photo",
