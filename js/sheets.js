@@ -671,6 +671,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
+      isNew || typeof lalamoveSection !== "function" ? null : lalamoveSection(o),
       el("section", {}, el("details", { class: "hist", open: !!(f.delivery_note || o?.proof_path || o?.extra_photos?.length || (priceEditable() && f.amount != null && f.amount !== "")) || null },
         el("summary", {}, t("moreDetails")),
         el("div", { class: "details-body" },
