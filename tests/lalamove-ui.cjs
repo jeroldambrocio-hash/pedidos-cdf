@@ -134,14 +134,14 @@ const server = http.createServer((req, res) => {
     await p.context().close();
 
     // Florist and driver: no block
-    for (const role of ["vendor", "carrier"]) {
+    for (const role of ["vendor"]) { // driver accounts are switched off (config.js), so they never reach an order
       const q2 = await open(role, 390);
       await q2.evaluate(() => S.orders[0] && openOrderView(S.orders[0]));
       await q2.waitForTimeout(800);
       assert.equal(await q2.locator("#lalamoveSection:not([hidden])").count(), 0, role + " sees Lalamove");
       await q2.context().close();
     }
-    console.log("ok florist and driver never see it");
+    console.log("ok florist never sees it");
     assert.deepEqual(errors, []);
     console.log("ok no page errors");
   } catch (e) { console.error("FAIL", e.message, errors); process.exitCode = 1; }
