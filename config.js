@@ -7,4 +7,10 @@ window.CDF_CONFIG = {
   vapidPublicKey: "BGIPCcDIYIJshzork6qA-J29exASHwFxK_DCLUEAuJgKLw-1rmdJwEPX0gLQNS76px1pkNs6YhoPzlUNz5wuZsM",
   // "Enviar sugerencia" opens the person's email app addressed here
   feedbackTo: "jerold.ambrocio@gmail.com",
+  // Features switched off for now, kept for later. Change to true to bring them back (the code is all still there).
+  // tracking: customer tracking link (/p/…) in the order, the WhatsApp/copied messages and the tracking page.
+  //   The emails follow the Supabase secret CDF_TRACKING=on in cdf-notify.
+  // drivers: the Driver role, the Driver field on orders, and sign-in for driver accounts.
+  //   Creating drivers follows the Supabase secret CDF_DRIVERS=on in cdf-users.
+  features: { tracking: false, drivers: false },
 };

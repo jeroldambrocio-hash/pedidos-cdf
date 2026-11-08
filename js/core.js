@@ -63,6 +63,8 @@ const longDate = (s) => cap(fromIso(s).toLocaleDateString(locale(), { weekday: "
 const shortDate = (s) => cap(fromIso(s).toLocaleDateString(locale(), { weekday: "short", day: "numeric", month: "short" }));
 const dayCount = (n) => (n === 1 ? t("oneOrder") : t("nOrders", { n }));
 const trackUrl = (o) => location.origin + "/p/" + o.code;
+// Switches in config.js (features); anything not listed there stays on
+const feature = (k) => window.CDF_CONFIG.features?.[k] !== false;
 const mapsUrl = (a) => "https://www.google.com/maps/search/?api=1&query=" + encodeURIComponent(a);
 const wait = (ms) => new Promise((r) => setTimeout(r, ms));
 

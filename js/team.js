@@ -27,7 +27,7 @@ function editMember(m) {
   const back = document.activeElement, scrim = el("div", { class: "scrim center-scrim" });
   const iName = el("input", { id: "eName", value: m.name, autocomplete: "off", required: true, maxlength: 80 });
   const iUsername = el("input", { id: "eUsername", value: m.username || "", autocomplete: "off", autocapitalize: "none", spellcheck: "false", pattern: "[A-Za-z0-9][A-Za-z0-9._\\-]{2,29}", minlength: 3, maxlength: 30 });
-  const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", "carrier", "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
+  const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", ...(feature("drivers") || m.role === "carrier" ? ["carrier"] : []), "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
   // Availability: florists only; the admin can set anyone's (the server checks it too)
   const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
   const err = el("div", { class: "err", role: "alert" });
@@ -115,3 +115,6 @@ $("addForm").addEventListener("submit", async (e) => {
   toast(t(data.existed ? "addedExisting" : "added", { name: body.name }));
   e.target.reset(); await loadMembers(); renderTeam();
 });
+
+// Drivers switched off (config.js): new accounts can't be drivers
+if (!feature("drivers")) $("aRole")?.querySelector('option[value="carrier"]')?.remove();

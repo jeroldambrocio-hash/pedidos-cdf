@@ -182,6 +182,8 @@ const server = http.createServer((req, res) => {
     if (e) { res.writeHead(404).end(); return; }
     res.setHeader("Content-Type", types[path.extname(f)] || "text/plain");
     // The fake supabase-js can't match the real file's integrity hash; drop it only on this test server
+    // These checks cover every feature, including the ones switched off in config.js (see tests/features-off.cjs)
+    if (name === "/config.js") return res.end(String(b) + "\nwindow.CDF_CONFIG.features = {};\n");
     res.end(f.endsWith(".html") ? String(b).replace(/ integrity="[^"]+"/g, "") : b);
   });
 });

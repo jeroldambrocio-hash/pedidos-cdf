@@ -114,3 +114,15 @@ La plantilla está en `supabase/functions/cdf-notify/email.ts` (HTML con tablas 
 El texto se adapta al estado del pedido cuando sale el correo; la foto del ramo va con un enlace firmado de 30 días y,
 si no hay foto, ese bloque no aparece. Para verlo sin enviar nada: `node tests/demo.cjs` y abrir http://localhost:4324/email.
 Comprobaciones: `NODE_PATH=.test-tools/node_modules node tests/email-check.cjs` (capturas en `.impeccable/review/email-*.png`).
+
+## Funciones apagadas (8/11/2026)
+
+El seguimiento del cliente y las cuentas de repartidor están apagados, no borrados. Para volver a activarlos:
+
+- **Seguimiento**: `tracking: true` en `config.js` (enlace en el pedido, mensajes de WhatsApp y página `/p/…`)
+  y el secreto `CDF_TRACKING=on` en Supabase (botón «View my order» de los correos y la función `cdf-track`).
+- **Repartidores**: `drivers: true` en `config.js` (rol, campo Repartidor y acceso de sus cuentas)
+  y el secreto `CDF_DRIVERS=on` en Supabase (crear cuentas de repartidor desde `cdf-users`).
+
+Las cuentas de repartidor y los pedidos asignados no se borran. Pruebas: `tests/features-off.cjs` (apagado)
+y `tests/ui-smoke.cjs` (todo encendido).

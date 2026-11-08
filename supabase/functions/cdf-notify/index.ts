@@ -75,7 +75,8 @@ async function orderEmail(service: Svc, o: Record<string, any>, message?: string
     appUrl: APP_URL, num: String(o.num), step: stepOf(o.status, o.delivery),
     // The email goes to the buyer; greet the buyer, or the recipient when they are the same person
     name: o.buyer_name || o.customer_name || "",
-    link: `${APP_URL}/p/${o.code}`, photoUrl: await bouquetUrl(service, o.bouquet_path), message,
+    // Tracking is switched off unless the secret CDF_TRACKING=on: the email then has no "View my order" button
+    link: Deno.env.get("CDF_TRACKING") === "on" ? `${APP_URL}/p/${o.code}` : "", photoUrl: await bouquetUrl(service, o.bouquet_path), message,
   });
 }
 

@@ -78,6 +78,12 @@ async function start(user) {
     $("tabStats").hidden = $("tabTeam").hidden = true;
     renderSub(); show("noaccess"); return;
   }
+  if (data.role === "carrier" && !feature("drivers")) {
+    S.me = null; S.email = email;
+    $("noaccessTxt").textContent = t("driversOff");
+    $("tabStats").hidden = $("tabTeam").hidden = true;
+    renderSub(); show("noaccess"); return;
+  }
   S.me = data; S.uid = user.id; // the avatar folder is the auth user id
   invalidateStats();
   document.body.dataset.role = data.role;

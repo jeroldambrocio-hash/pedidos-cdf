@@ -30,7 +30,7 @@ export type CustomerEmail = {
   num: string;           // order number
   name?: string | null;  // buyer, or the recipient when they are the same person
   step: Step;
-  link: string;          // the order's tracking link
+  link: string;          // the order's tracking link; empty = tracking switched off, the button is left out
   photoUrl?: string | null; // signed link to the bouquet photo; the block is left out without one
   message?: string | null;  // a note written by the shop, shown under the status line
 };
@@ -85,14 +85,14 @@ export function customerEmail(e: CustomerEmail): { subject: string; html: string
       <tr><td align="center" class="px title" style="padding:4px 28px 10px;font-family:${SERIF};font-size:36px;line-height:1.15;font-weight:500;color:${C.ink}">${esc(copy.title)}</td></tr>
       <tr><td align="center" class="px" style="padding:0 28px;font-family:${SERIF};font-size:19px;line-height:1.5;color:${C.body}">${esc(hi)}</td></tr>
       <tr><td align="center" class="px" style="padding:2px 28px 18px;font-family:${SERIF};font-size:17px;line-height:1.5;color:${C.body}">${esc(copy.line)}</td></tr>${noteRow}${photo}
-      <tr><td align="center" class="px" style="padding:24px 60px 8px">
+${e.link ? `      <tr><td align="center" class="px" style="padding:24px 60px 8px">
         <table role="presentation" class="btn" width="100%" cellpadding="0" cellspacing="0" border="0" style="max-width:440px">
           <tr><td align="center" bgcolor="${C.button}" style="background:${C.button};border-radius:8px">
             <a href="${esc(e.link)}" target="_blank" style="display:inline-block;padding:15px 28px;font-family:${SERIF};font-size:19px;line-height:1.2;color:#ffffff;text-decoration:none;border-radius:8px">View my order</a>
           </td></tr>
         </table>
       </td></tr>
-      <tr><td align="center" class="px" style="padding:6px 28px 26px;font-family:${SERIF};font-size:15px;line-height:1.5;color:${C.muted}">Track your order and view its details.</td></tr>
+      <tr><td align="center" class="px" style="padding:6px 28px 26px;font-family:${SERIF};font-size:15px;line-height:1.5;color:${C.muted}">Track your order and view its details.</td></tr>` : ""}
       <tr><td class="px" style="padding:0 44px"><div style="height:1px;line-height:1px;font-size:1px;background:${C.line}">&nbsp;</div></td></tr>
       <tr><td align="center" class="px" style="padding:20px 28px 4px;font-family:${SERIF};font-size:15px;letter-spacing:5px;color:${C.ink};text-transform:uppercase">Casa de Flores</td></tr>
       <tr><td align="center" class="px" style="padding:0 28px 28px;font-family:${SERIF};font-size:15px;line-height:1.5;color:${C.muted}">Thank you for letting us brighten your day.</td></tr>
@@ -104,7 +104,7 @@ export function customerEmail(e: CustomerEmail): { subject: string; html: string
 
   const text = [
     "CASA DE FLORES", "", `ORDER #${e.num}`, copy.title, "", hi, copy.line, ...(note ? ["", note] : []), "",
-    `View my order: ${e.link}`, "Track your order and view its details.", "", "Thank you for letting us brighten your day.",
+    ...(e.link ? [`View my order: ${e.link}`, "Track your order and view its details.", ""] : []), "Thank you for letting us brighten your day.",
   ].join("\n");
 
   return { subject, html, text };

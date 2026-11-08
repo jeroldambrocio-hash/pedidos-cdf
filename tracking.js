@@ -93,9 +93,15 @@ function render() {
 function stopPolling() { clearInterval(poll); poll = null; document.removeEventListener("visibilitychange", onVisible); }
 function onVisible() { if (!document.hidden) load(); }
 document.addEventListener("langchange", render);
-poll = setInterval(() => { if (!document.hidden) load(); }, 60000);
-document.addEventListener("visibilitychange", onVisible);
-load();
+// Tracking switched off in config.js: say so and never ask the server
+if (window.CDF_CONFIG.features?.tracking === false) {
+  const off = () => card.replaceChildren(h("h2", null, t("trackingOffTitle")), h("div", "meta", t("trackingOff")));
+  off(); document.addEventListener("langchange", off);
+} else {
+  poll = setInterval(() => { if (!document.hidden) load(); }, 60000);
+  document.addEventListener("visibilitychange", onVisible);
+  load();
+}
 
 // Pause the delivery loop while this page or its tracking card is out of view.
 let trackingCardVisible = true;

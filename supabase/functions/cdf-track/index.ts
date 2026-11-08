@@ -15,6 +15,8 @@ Deno.serve(async (req) => {
   let code = "";
   try { code = String((await req.json()).code || ""); } catch { /* empty */ }
   if (!/^[a-z0-9]{6,64}$/i.test(code)) return json({ order: null });
+  // Tracking is switched off unless the secret CDF_TRACKING=on
+  if (Deno.env.get("CDF_TRACKING") !== "on") return json({ order: null, off: true });
 
   const service = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
     auth: { persistSession: false },

@@ -37,6 +37,8 @@ Deno.serve(async (req) => {
     }
     const name = String(body.name || "").trim();
     const role = ["admin", "vendor", "carrier"].includes(body.role) ? body.role : "vendor";
+    // Drivers are switched off unless the secret CDF_DRIVERS=on
+    if (role === "carrier" && Deno.env.get("CDF_DRIVERS") !== "on") return json({ error: "Las cuentas de repartidor están desactivadas" }, 400);
     const password = String(body.password || "");
     if (!name) return json({ error: "Falta el nombre" }, 400);
     if (password.length < 8) return json({ error: "La contraseña necesita al menos 8 caracteres" }, 400);
