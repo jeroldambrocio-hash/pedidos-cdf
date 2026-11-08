@@ -7,7 +7,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import nodemailer from "npm:nodemailer@6.9.14";
 import { customerEmail, stepOf } from "./email.ts";
 
-const APP_URL = Deno.env.get("CDF_APP_URL") || "https://pedidos-cdf.netlify.app";
+const APP_URL = Deno.env.get("CDF_APP_URL") || "https://casadeflores-store.netlify.app";
 const FROM = Deno.env.get("CDF_MAIL_FROM") || "Casa de Flores <onboarding@resend.dev>";
 
 const CORS = {

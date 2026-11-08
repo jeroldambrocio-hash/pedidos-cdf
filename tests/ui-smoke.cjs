@@ -848,7 +848,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Installable app: manifest and icons, service worker, install entry, notifications row, notification links", async () => {
       const q = await open("admin");await q.locator("#list").waitFor();
       const man = await q.evaluate(async () => { const href = document.querySelector("link[rel=manifest]").href; const m = await (await fetch(href)).json(); const ok = await Promise.all(m.icons.map(async (i) => (await fetch(i.src)).ok)); return { name: m.short_name, display: m.display, icons: m.icons.length, ok: ok.every(Boolean), maskable: m.icons.some((i) => i.purpose === "maskable") }; });
-      assert.deepEqual(man, { name: "Pedidos", display: "standalone", icons: 3, ok: true, maskable: true });
+      assert.deepEqual(man, { name: "Casa de Flores", display: "standalone", icons: 3, ok: true, maskable: true });
       assert.equal(await q.locator('link[rel="apple-touch-icon"]').getAttribute("href"), "/img/apple-touch-icon.png");
       assert.equal(await q.evaluate(async () => !!(await navigator.serviceWorker.ready).active), true, "service worker active");
       await q.locator("#accountBtn").click();assert(await q.locator("#installBtn").isVisible(), "install entry in the account menu");

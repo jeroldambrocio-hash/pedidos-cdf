@@ -5,7 +5,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import * as webpush from "jsr:@negrel/webpush@0.5.0";
 
-const APP_URL = Deno.env.get("CDF_APP_URL") || "https://pedidos-cdf.netlify.app";
+const APP_URL = Deno.env.get("CDF_APP_URL") || "https://casadeflores-store.netlify.app";
 const CONTACT = Deno.env.get("CDF_PUSH_CONTACT") || "mailto:jerold.ambrocio@gmail.com";
 const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "Content-Type": "application/json" } });
 
