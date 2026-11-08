@@ -16,9 +16,10 @@ const llCall = async (body) => {
 // Same reading of a pasted point as the server (supabase/functions/cdf-lalamove/lalamove.ts): "lat, lng" or a Google Maps link
 function llParseCoords(input) {
   const s = String(input || "");
-  const m = /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(s)
+  // The place's own pin (!3d…!4d…) first: "@lat,lng" is only where the map was centred
+  const m = /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
+    || /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(s)
     || /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i.exec(s)
-    || /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
     || /^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/.exec(s);
   if (!m) return null;
   const lat = +m[1], lng = +m[2];

@@ -39,6 +39,8 @@ assert.deepEqual(parseCoords("14.6507, 121.0494"), { lat: 14.6507, lng: 121.0494
 assert.deepEqual(parseCoords("https://www.google.com/maps/place/SM/@14.6564,121.0300,17z/data"), { lat: 14.6564, lng: 121.03 });
 assert.deepEqual(parseCoords("https://maps.google.com/?q=14.676,121.0437"), { lat: 14.676, lng: 121.0437 });
 assert.deepEqual(parseCoords("https://www.google.com/maps/place/x/data=!3d14.65!4d121.05"), { lat: 14.65, lng: 121.05 });
+// A shared place link has both: the map centre (@) and the place's pin (!3d/!4d); the pin wins
+assert.deepEqual(parseCoords("https://www.google.com/maps/place/Calathea+Place+-+Marantina+Building/@14.4648698,121.0222691,20z/data=!4m6!3m5!1s0x3397cf1e331056c3:0xc79f124b420273ab!8m2!3d14.4647723!4d121.0223728!16s%2Fg%2F11l1n2lxrb?entry=ttu"), { lat: 14.4647723, lng: 121.0223728 });
 assert.equal(parseCoords("41.38, 2.17"), null); // Barcelona
 assert.equal(parseCoords("121.04, 14.65"), null); // swapped
 assert.equal(parseCoords("Tomas Morato Ave, Quezon City"), null);

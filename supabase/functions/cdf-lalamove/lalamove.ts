@@ -44,9 +44,10 @@ export async function call(env: Env, key: string, secret: string, method: string
 // Coordinates pasted by hand: "14.6507, 121.0494", or a Google Maps link (…/@14.65,121.04,17z or ?q=14.65,121.04).
 export function parseCoords(input: string): { lat: number; lng: number } | null {
   const s = String(input || "");
-  const m = /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(s)
+  // The place's own pin (!3d…!4d…) first: "@lat,lng" is only where the map was centred
+  const m = /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
+    || /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(s)
     || /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i.exec(s)
-    || /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
     || /^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/.exec(s);
   if (!m) return null;
   const lat = +m[1], lng = +m[2];
