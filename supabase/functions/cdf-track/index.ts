@@ -37,5 +37,5 @@ Deno.serve(async (req) => {
   if (cancelled_at) return json({ order: { num: rest.num, date: rest.date, slot: rest.slot, updated_at: rest.updated_at, cancelled: true, for_name: "", proof_url: null, bouquet_url: null } });
   // Recipient's first name only ("For: Maria"), and only when it is a gift for someone else
   const gift = buyer_name.trim() && buyer_name.trim() !== customer_name.trim();
-  return json({ order: { ...rest, for_name: gift ? customer_name.trim().split(/\s+/)[0] || "" : "", proof_url: await sign(proof_path), bouquet_url: await sign(bouquet_path) } });
+  return json({ order: { ...rest, for_name: gift ? customer_name.trim().split(/\s+/)[0] || "" : "", proof_url: await sign(proof_path), bouquet_url: null } });
 });

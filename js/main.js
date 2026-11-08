@@ -147,6 +147,8 @@ $("tabStats").onclick = () => setTab("stats");
 $("tabChat").onclick = () => setTab("chat");
 $("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { setStatsPeriod(b.dataset.days); } });
 for (const id of ["statsFrom", "statsTo"]) $(id).addEventListener("change", setStatsDates);
+$("periodSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) { setPeriod(b.dataset.p); if (b.dataset.p === "custom") $("periodFrom").focus({ preventScroll: true }); } });
+for (const id of ["periodFrom", "periodTo"]) $(id).addEventListener("change", () => { if ($("periodFrom").value && $("periodTo").value) setPeriod("custom", $("periodFrom").value, $("periodTo").value); });
 
 // ---------- sidebar: collapsed (56px) or open (200px) on desktop, remembered; a drawer on phones ----------
 const mobileNav = matchMedia("(max-width: 860px)");

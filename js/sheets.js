@@ -168,24 +168,8 @@ async function watchMail(o) {
   toast(t("mailUnknown"), { ms: 6000 });
 }
 
-// Ready: the florist can add a photo of the finished bouquet, which the customer sees on their link.
-function readyDialog(o) {
-  let setErr;
-  const pic = photoPicker({ current: o.bouquet_path, hint: t("bouquetHint"), alt: t("bouquetPhoto"), onErr: (m) => setErr?.(m) });
-  miniSheet(t("readyTitle", { num: o.num }), [field(t("bouquetPhoto"), pic.node)], t("confirmReady"), async (se) => {
-    setErr = se;
-    const bp = await pic.upload(o.id);
-    if (bp !== undefined) {
-      const { error } = isStaff() ? await sb.from("cdf_orders").update({ bouquet_path: bp }).eq("id", o.id)
-        : await sb.rpc("cdf_set_bouquet", { p_id: o.id, p_path: bp });
-      if (error) return t("saveFail", { msg: error.message });
-      o.bouquet_path = bp;
-      await pic.cleanup();
-    }
-    await closeSheet(true);
-    await advance(o, 1);
-  }, { dirty: () => pic.dirty, dispose: () => pic.dispose() });
-}
+// Ready: straight to the next step (the bouquet photo was dropped on 8/11/2026)
+function readyDialog(o) { return advance(o, 1); }
 function deliverDialog(o) {
   let setErr;
   const proof = photoPicker({ current: o.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: (m) => setErr?.(m) });
@@ -354,7 +338,7 @@ function openOrderView(o) {
         o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, o.card_message)] : null,
         el("dt", {}, t("note")), el("dd", {}, o.notes || t("noNotes")),
         el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"), true)) : t("noPhoto")),
-        o.bouquet_path ? [el("dt", {}, t("bouquetPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.bouquet_path, ENTREGAS, t("bouquetPhoto"))))] : null,
+        o.extra_photos?.length ? [el("dt", {}, t("extraPhotos")), el("dd", {}, el("div", { class: "photo-grid ro" }, o.extra_photos.map((p, i) => el("div", { class: "pic" }, imgOf(p, ENTREGAS, t("extraPhotos") + " " + (i + 1), true)))))] : null,
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
       chatSection(o),
@@ -480,13 +464,15 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), rows: 2 }, f.card_message);
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: 2 }, f.delivery_note);
   const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh"), rows: 3 }, f.notes);
-  const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "2500", value: f.amount ?? "" });
+  const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "2500", value: f.amount ?? "", "aria-label": t("amount") });
   // Florists: available on the order's date first, absences marked; redone when the date changes
   const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
   iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
   const iCarr = S.cap.carrier && feature("drivers") ? sel("f-carrier", [["", t("anyCarrier")], ...S.members.filter((m) => m.role === "carrier").map((m) => [m.email, m.name])], f.carrier_email) : null;
   const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true, expand: true });
-  const bouquet = photoPicker({ current: o?.bouquet_path, hint: t("bouquetHint"), alt: t("bouquetPhoto"), onErr: setErr });
+  // Extra photos (030); a stand-in that never changes anything while the column isn't there
+  const extras = S.cap.extra ? photoList({ current: o?.extra_photos, alt: t("extraPhotos"), onErr: setErr })
+    : { node: null, dirty: false, upload: async () => undefined, cleanup: async () => {}, dispose() {} };
   const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr });
   const hist = isNew ? null : historyBlock(o);
 
@@ -530,11 +516,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
       buyer_name: iBName.value.trim(), buyer_phone: phFull(iBPhone),
       card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(), notes: iNotes.value.trim(),
     };
-    if (pricesOn()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
+    if (priceEditable()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
     return row;
   };
   let initial = null;
-  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || bouquet.dirty || proof.dirty;
+  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty;
 
   const linkBlock = isNew ? el("p", { class: "note", style: "margin:0" }, t("linkAfterSave")) : (() => {
     const li = el("input", { id: "f-link", class: "input", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select(), "aria-label": t("customerLink") });
@@ -583,7 +569,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     else {
       // Only what this person changed, so a status set meanwhile by the florist or driver is never undone.
       const changed = Object.fromEntries(Object.entries(dbRow).filter(([k, v]) => JSON.stringify(v ?? "") !== JSON.stringify(initial[k] ?? "")));
-      if (!Object.keys(changed).length && !shot.dirty && !bouquet.dirty && !proof.dirty && (!pricesOn() || row.amount === initial.amount)) { await closeSheet(true); return; }
+      if (!Object.keys(changed).length && !shot.dirty && !extras.dirty && !proof.dirty && (!priceEditable() || row.amount === initial.amount)) { await closeSheet(true); return; }
       // The write only lands on the version this person was shown (updated_at), so two admins saving
       // at the same moment can't silently overwrite each other: if the row moved in between, it is
       // read again and anything that now clashes with these edits is asked about once more.
@@ -606,19 +592,19 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
-    if (pricesOn()) {
+    if (priceEditable()) {
       try { await savePrice(saved.id,row.amount); saved.amount=row.amount; }
       catch(e) { upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined};} setErr(e.message); return e.message; }
     }
     // Photos after the row exists; the old files go only once the row points at the new ones.
     const pics = {};
     let photoTrouble = false;
-    for (const [k, p, dest] of [["photo_path", shot, (id) => id + ".jpg"], ["bouquet_path", bouquet], ["proof_path", proof]]) {
+    for (const [k, p, dest] of [["photo_path", shot, (id) => id + ".jpg"], ["extra_photos", extras], ["proof_path", proof]]) {
       try { const v = await p.upload(saved.id, dest); if (v !== undefined) pics[k] = v; } catch { photoTrouble = true; }
     }
     if (Object.keys(pics).length) {
       const r = await sb.from("cdf_orders").update(pics).eq("id", saved.id).select().single();
-      if (r.error) photoTrouble = true; else { saved = r.data; await Promise.all([shot, bouquet, proof].map((p) => p.cleanup())); }
+      if (r.error) photoTrouble = true; else { saved = r.data; await Promise.all([shot, extras, proof].map((p) => p.cleanup())); }
     }
     if (isNew) writeDraft(null);
     upsertLocal(saved);
@@ -669,8 +655,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       el("section", {},
         el("div", { class: "row2 when-row" }, reqField(t("date"), iDate), reqField(t("slot"), iSlot)),
         el("div", { class: "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
-        iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null,
-        pricesOn() ? el("div", { class: "row2" }, field(t("amount"), iAmount, el("small", { class: "note" }, t("amountHint"))), el("span")) : null),
+        iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null),
       el("section", {}, el("h3", {}, t("buyerH")), el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
         el("div", { class: "row2" }, reqField(t("name"), iBName), reqField(t("phone"), phoneBox(iBPhone))),
         repeatTag,
@@ -679,16 +664,17 @@ function openEditor(o, { copyFrom, draft } = {}) {
         checkRow(iSame, t("sameAsBuyer")),
         recip,
         el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr), mapHint(iAddr)),
-        field(t("cardMsg"), iCard)),
+        field(t("cardMsg"), iCard),
+        field(t("note"), iNotes)),
       el("section", {}, field(t("photo"), shot.node)),
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
-      el("section", {}, el("details", { class: "hist", open: !!(f.notes || f.delivery_note || o?.proof_path || o?.bouquet_path) || null },
+      el("section", {}, el("details", { class: "hist", open: !!(f.delivery_note || o?.proof_path || o?.extra_photos?.length || (priceEditable() && f.amount != null && f.amount !== "")) || null },
         el("summary", {}, t("moreDetails")),
         el("div", { class: "details-body" },
-          field(t("note"), iNotes),
-          field(t("bouquetPhoto"), bouquet.node),
+          priceEditable() ? field(t("bouquetPrice"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP")), el("small", { class: "note" }, t("bouquetPriceHint"))) : null,
+          extras.node ? field(t("extraPhotos"), extras.node, el("small", { class: "note" }, t("extraPhotosHint"))) : null,
           field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
           field(t("proofPhoto"), proof.node)))),
       isNew ? null : el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
@@ -701,7 +687,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   function keepDraft() { if (!isNew || !initial) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); }
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
-  openLayer(node, { dirty, dispose: () => { [shot, bouquet, proof].forEach((p) => p.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
+  openLayer(node, { dirty, dispose: () => { [shot, extras, proof].forEach((p) => p.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
   syncSame(false); syncChan(); syncRepeat();
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.

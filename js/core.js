@@ -106,12 +106,15 @@ const phFull = (v) => {
 const norm = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
 // Prices: off unless an admin turns them on in this browser (needs migration 014)
 const pricesOn = () => S.cap.amount && isAdmin() && pref("cdf-prices") === "on";
+// The bouquet price field in the editor: always there for the admin, whatever "Show prices" says
+const priceEditable = () => S.cap.amount && isAdmin();
 const peso = (n) => "₱" + Math.round(n || 0).toLocaleString("en-PH");
 
 // ---------- state ----------
 const S = {
   me: null, tab: "orders", today: manilaToday(), sel: null, month: null,
   orders: [], members: [], photoUrls: {}, channel: null, range: null,
+  period: null, // office view: null = the day picked on the calendar, or { p: "7" | "30" | "custom", from, to }
   loaded: false, loadError: false, filter: null, query: "", hits: null, showArchived: false,
   pending: new Set(), selecting: false, selected: new Set(),
   // Columns and tables added by migrations 012/013; the panel works before and after they are applied
@@ -175,21 +178,25 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p] = await Promise.all([
+  const [a, c, e, m, p, x] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
     sb.from("cdf_order_prices").select("order_id").limit(1),
     sb.from("cdf_members").select("away_from").limit(1), // 017: photo, phone and availability
+    sb.from("cdf_orders").select("extra_photos").limit(1), // 030: several photos per order
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
 function wantedRange() {
   if (isStaff()) {
     const m = S.month;
-    return [iso(new Date(m.getFullYear(), m.getMonth() - 1, 1)), iso(new Date(m.getFullYear(), m.getMonth() + 2, 0))];
+    const r = [iso(new Date(m.getFullYear(), m.getMonth() - 1, 1)), iso(new Date(m.getFullYear(), m.getMonth() + 2, 0))];
+    // A chosen period (7 days, 30 days, dates) may reach past the months around the calendar
+    if (S.period) { if (S.period.from < r[0]) r[0] = S.period.from; if (S.period.to > r[1]) r[1] = S.period.to; }
+    return r;
   }
   return [addDays(S.today, -14), addDays(S.today, 31)];
 }
@@ -320,7 +327,7 @@ async function attachPrices(rows) {
  return rows;
 }
 async function savePrice(id,amount) {
- if(!pricesOn()) return;
+ if(!priceEditable()) return;
  const {error}=await sb.from("cdf_order_prices").upsert({order_id:id,amount},{onConflict:"order_id"});
  if(error) throw new Error(t("priceSaveFail"));
  invalidateStats();

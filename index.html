@@ -163,6 +163,13 @@
             </div>
           </div>
         </div>
+        <div class="period-bar" id="periodBar" hidden>
+          <div class="seg" id="periodSeg" role="group" data-i18n-aria="period" aria-label="Period"><button type="button" data-p="day" aria-pressed="true" data-i18n="periodDay">Day</button><button type="button" data-p="7" data-i18n="period7">7 days</button><button type="button" data-p="30" data-i18n="period30">30 days</button><button type="button" data-p="custom" data-i18n="periodDates">Dates</button></div>
+          <div class="stats-dates" id="periodDates" hidden>
+            <label class="field"><span data-i18n="statsFrom">From</span><input type="date" id="periodFrom"></label>
+            <label class="field"><span data-i18n="statsTo">To</span><input type="date" id="periodTo"></label>
+          </div>
+        </div>
         <div class="day-head">
           <div><h2 id="dLabel"></h2><p id="dSub"></p></div>
           <div class="day-sum" id="summary" role="status"></div>

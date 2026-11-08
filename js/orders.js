@@ -31,7 +31,7 @@ function renderCal() {
     const level = n ? Math.min(3, Math.ceil((n / max) * 3)) : 0;
     cal.append(el("button", {
       type: "button",
-      class: (d.getMonth() !== mo ? "out" : "") + (k === S.today ? " today" : "") + (k === S.sel ? " sel" : "") + (level ? " lvl-" + level : ""),
+      class: (d.getMonth() !== mo ? "out" : "") + (k === S.today ? " today" : "") + (!S.period && k === S.sel ? " sel" : "") + (S.period && k >= S.period.from && k <= S.period.to ? " in-period" : "") + (level ? " lvl-" + level : ""),
       "aria-label": d.toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" }) + (n ? ", " + dayCount(n) : ""),
       "aria-current": k === S.sel ? "date" : null, title: n ? dayCount(n) : null,
       onclick: () => { selectDay(k); $("calendarToggle").setAttribute("aria-expanded", "false"); $("calendarBody").classList.remove("expanded"); },
@@ -39,7 +39,7 @@ function renderCal() {
   }
 }
 function selectDay(k) {
-  S.sel = k; S.month = monthOf(k);
+  S.sel = k; S.month = monthOf(k); S.period = null;
   clearSearch(false);
   if (!inRange(k)) loadOrders(); else { renderCal(); flipDay(); renderTools(); }
 }
@@ -47,6 +47,30 @@ function shiftMonth(n) {
   S.month = new Date(S.month.getFullYear(), S.month.getMonth() + n, 1);
   const [from, to] = wantedRange();
   if (!S.range || from < S.range[0] || to > S.range[1]) loadOrders(); else renderCal();
+}
+
+// ---------- period: the picked day, the next 7 or 30 days, or any dates ----------
+const periodLabel = (p) => p.from === p.to ? longDate(p.from) : shortDate(p.from) + " – " + shortDate(p.to);
+function setPeriod(p, from, to) {
+  if (p === "day") S.period = null;
+  else if (p === "custom") {
+    from ||= S.period?.from || S.sel; to ||= S.period?.to || addDays(from, 6);
+    if (from > to) [from, to] = [to, from];
+    S.period = { p, from, to };
+  } else S.period = { p, from: S.today, to: addDays(S.today, +p - 1) };
+  clearSearch(false);
+  if (S.period) S.month = monthOf(S.period.from);
+  const [a, b] = wantedRange();
+  if (!S.range || a < S.range[0] || b > S.range[1]) loadOrders(); else { renderCal(); flipDay(); renderTools(); }
+}
+function renderPeriod() {
+  const bar = $("periodBar"); if (!bar) return;
+  bar.hidden = !isStaff() || !!S.hits;
+  const cur = S.period?.p || "day";
+  $("periodSeg").querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.p === cur)));
+  $("periodDates").hidden = cur !== "custom";
+  if (cur === "custom") { $("periodFrom").value = S.period.from; $("periodTo").value = S.period.to; }
+  if (!bar.hidden) requestAnimationFrame(() => placePill($("periodSeg")));
 }
 
 // ---------- orders at risk ----------
@@ -86,6 +110,11 @@ const STEP_ICON = ["box", "check", "truck", "check", "alert", "close"];
 // The orders the day shows: search hits, or the day plus anything overdue when looking at today
 function dayOrders() {
   if (S.hits) return S.hits.slice().sort(byTime);
+  if (S.period) {
+    const { from, to } = S.period;
+    const lateOnes = from <= S.today ? S.orders.filter((o) => o.date < from && isOpen(o)).sort(byTime) : [];
+    return [...lateOnes, ...S.orders.filter((o) => o.date >= from && o.date <= to).sort(byTime)];
+  }
   const lateOnes = S.sel === S.today ? S.orders.filter((o) => o.date < S.today && isOpen(o)).sort(byTime) : [];
   return [...lateOnes, ...S.orders.filter((o) => o.date === S.sel).sort(byTime)];
 }
@@ -123,7 +152,8 @@ function renderFilters(day) {
 function renderDay() {
   const searching = !!S.hits, day = dayOrders();
   $("clearSearch").hidden = !searching;
-  $("dLabel").textContent = searching ? (S.hitsTitle || t("searchResults")) : longDate(S.sel);
+  $("dLabel").textContent = searching ? (S.hitsTitle || t("searchResults")) : S.period ? periodLabel(S.period) : longDate(S.sel);
+  renderPeriod();
   $("dSub").textContent = dayCount(day.length) + " · " + t("manila");
   renderFilters(day);
 
@@ -144,7 +174,7 @@ function renderDay() {
       el("ul", {}, risky.slice(0, 4).map((o) => el("li", {}, el("button", { class: "missed-row", type: "button", onclick: () => openOrder(o) },
         el("b", {}, "#" + o.num), " · " + (o.customer_name || t("noName")) + " · ", el("small", {}, t("risk_" + riskOf(o))))))),
       risky.length > 4 ? el("button", { class: "linkish", type: "button", onclick: () => setFilter("risk") }, t("seeAll")) : null)));
-  const missedHere = !searching ? S.orders.filter((o) => o.missed_on === S.sel && o.date !== S.sel) : [];
+  const missedHere = !searching && !S.period ? S.orders.filter((o) => o.missed_on === S.sel && o.date !== S.sel) : [];
   if (missedHere.length) box.append(el("div", { class: "missed-banner", role: "status" }, el("span", {}, icon("alert")), el("div", {},
     el("b", {}, t("missedBanner", { n: missedHere.length })),
     ...missedHere.map((o) => el("button", { class: "missed-row", type: "button", onclick: () => { selectDay(o.date); openOrder(o); } },
@@ -157,11 +187,11 @@ function renderDay() {
       el("div", { class: "skel-lines" }, el("div", { class: "skel", style: "height:12px;width:30%" }), el("div", { class: "skel", style: "height:16px;width:55%" }), el("div", { class: "skel", style: "height:12px;width:70%" })))));
     return;
   }
-  if (!day.length) { empty(t(searching ? "emptySearch" : "noOrdersDay"), searching ? null : t("emptyAdmin")); renderBulk(); return; }
+  if (!day.length) { empty(t(searching ? "emptySearch" : S.period ? "noOrdersPeriod" : "noOrdersDay"), searching ? null : t("emptyAdmin")); renderBulk(); return; }
   const list = day.filter(filterMatch);
   if (!list.length) { empty(t("noneFiltered"), null, el("button", { class: "btn", type: "button", onclick: () => { S.filter = null; S.chan = null; flipDay(); } }, t("showAll"))); renderBulk(); return; }
   const firstDraw=!box.dataset.entered;
-  for (const o of list) box.append(timelineEntry(o, searching || o.date !== S.sel));
+  for (const o of list) box.append(timelineEntry(o, searching || !!S.period || o.date !== S.sel));
   if(firstDraw){stagger(box);box.dataset.entered="true";}
   renderBulk();
 }
@@ -207,7 +237,7 @@ function orderCard(o) {
       statusSel),
     el("div", { class: "o-bottom" }, stepper(o),
       el("div", { class: "actions" },
-        el("button", { class: "btn icon", type: "button", "aria-label": t("notify"), title: t("notify"), onclick: async () => { await openFresh(o); document.querySelector(".sheet #f-link")?.scrollIntoView({ block: "center" }); } }, icon("message")),
+        feature("tracking") ? el("button", { class: "btn icon", type: "button", "aria-label": t("notify"), title: t("notify"), onclick: async () => { await openFresh(o); document.querySelector(".sheet #f-link")?.scrollIntoView({ block: "center" }); } }, icon("message")) : null,
         cancelled && isAdmin() && !archived ? el("button", { class: "btn", type: "button", disabled: busy, onclick: () => reinstateOrder(o) }, t("reinstate")) : null,
         cur === 2 && !archived ? el("button", { class: "btn to-fail", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("actMissed")) : null,
         cur === 4 && !archived ? el("button", { class: "btn danger", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("reschedule")) : null,

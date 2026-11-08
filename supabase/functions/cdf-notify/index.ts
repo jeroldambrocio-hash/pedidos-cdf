@@ -61,14 +61,7 @@ async function sendMail(to: string, subject: string, html: string, text: string)
   return r.ok ? { ok: true, via: "resend", id: out.id } : { ok: false, via: "resend", error: out?.message || `HTTP ${r.status}` };
 }
 
-// The bouquet photo is private: a signed link long enough for the email to be opened later (30 days)
-const PHOTO_DAYS = 30;
 type Svc = ReturnType<typeof createClient>;
-async function bouquetUrl(service: Svc, path: string | null) {
-  if (!path) return null;
-  const { data } = await service.storage.from("cdf-entregas").createSignedUrl(path, PHOTO_DAYS * 86400);
-  return data?.signedUrl || null;
-}
 // The branded customer email for an order, worded for the step it is on right now
 async function orderEmail(service: Svc, o: Record<string, any>, message?: string) {
   return customerEmail({
@@ -76,7 +69,7 @@ async function orderEmail(service: Svc, o: Record<string, any>, message?: string
     // The email goes to the buyer; greet the buyer, or the recipient when they are the same person
     name: o.buyer_name || o.customer_name || "",
     // Tracking is switched off unless the secret CDF_TRACKING=on: the email then has no "View my order" button
-    link: Deno.env.get("CDF_TRACKING") === "on" ? `${APP_URL}/p/${o.code}` : "", photoUrl: await bouquetUrl(service, o.bouquet_path), message,
+    link: Deno.env.get("CDF_TRACKING") === "on" ? `${APP_URL}/p/${o.code}` : "", photoUrl: null /* bouquet photo dropped on 8/11/2026 */, message,
   });
 }
 

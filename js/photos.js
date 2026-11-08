@@ -29,11 +29,11 @@ const imgOf = (path, bkt, alt, expand = false) => {
   photoUrl(path, bkt).then((u) => box.replaceChildren(u ? photoPreview(u, alt, expand) : t("photoFail")));
   return box;
 };
-// The bouquet once it exists, otherwise the reference photo, otherwise the emblem
+// The reference photo, otherwise the emblem
 function thumb(o, cls = "thumb") {
-  const photo = o.bouquet_path || o.photo_path;
+  const photo = o.photo_path;
   const th = el("div", { class: cls + (photo ? " has-photo" : "") }, photo ? "" : el("img", { src: "/img/emblem.webp", alt: "", class: "placeholder-emblem" }));
-  if (photo) photoUrl(photo, o.bouquet_path ? ENTREGAS : bucket).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "", loading: "lazy" })); });
+  if (photo) photoUrl(photo, bucket).then((u) => { if (u) th.replaceChildren(el("img", { src: u, alt: "", loading: "lazy" })); });
   return th;
 }
 
@@ -130,10 +130,63 @@ function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = f
   return picker;
 }
 
+// Several photos (order "extra_photos", migration 030): add any number, remove any. upload(orderId) stores the new
+// ones and returns the full list (undefined when nothing changed); removed files go only in cleanup(), after
+// the row points at the new list, like photoPicker.
+const MAX_EXTRA = 12;
+function photoList({ current = [], bkt = ENTREGAS, alt = "", onErr }) {
+  let kept = [...(current || [])], added = [], gone = [];
+  const urls = new Map();
+  const input = el("input", { type: "file", accept: "image/*,.heic,.heif", multiple: true, hidden: true });
+  const grid = el("div", { class: "photo-grid" });
+  const tile = (src, onRemove, label) => el("div", { class: "photo-tile" },
+    el("img", { src, alt: label, loading: "lazy", onclick: () => window.open(src, "_blank", "noopener") }),
+    el("button", { class: "btn icon ghost photo-x", type: "button", "aria-label": t("remove") + " · " + label, title: t("remove"), onclick: onRemove }, icon("close")));
+  const draw = async () => {
+    const paths = await Promise.all(kept.map(async (p) => [p, await photoUrl(p, bkt)]));
+    fill(grid,
+      paths.map(([p, u], i) => u ? tile(u, () => { kept = kept.filter((x) => x !== p); gone.push(p); list.dirty = true; draw(); }, alt + " " + (i + 1)) : null),
+      added.map((a, i) => tile(a.url, () => { URL.revokeObjectURL(a.url); added = added.filter((x) => x !== a); list.dirty = added.length > 0 || gone.length > 0; draw(); }, alt + " " + (kept.length + i + 1))),
+      kept.length + added.length < MAX_EXTRA ? el("button", { class: "photo-add", type: "button", onclick: () => input.click() }, icon("plus"), el("span", {}, t("addPhotos"))) : null);
+  };
+  const take = async (files) => {
+    const imgs = [...files].filter(isImage);
+    if (imgs.length < files.length) onErr(t("notImage"));
+    for (const f of imgs.slice(0, Math.max(0, MAX_EXTRA - kept.length - added.length))) {
+      if (isHeic(f)) toast(t("converting"));
+      try { const blob = await compress(f); added.push({ blob, url: URL.createObjectURL(blob) }); list.dirty = true; } catch { onErr(t("readFail")); }
+    }
+    draw();
+  };
+  input.addEventListener("change", () => { take(input.files); input.value = ""; });
+  grid.addEventListener("dragover", (e) => { e.preventDefault(); grid.classList.add("over"); });
+  grid.addEventListener("dragleave", () => grid.classList.remove("over"));
+  grid.addEventListener("drop", (e) => { e.preventDefault(); grid.classList.remove("over"); take(e.dataTransfer.files); });
+  draw();
+  const list = {
+    node: el("div", { style: "display:contents" }, grid, input),
+    dirty: false,
+    async upload(orderId) {
+      if (!list.dirty) return undefined;
+      const fresh = [];
+      for (const a of added) {
+        const path = orderId + "/" + crypto.randomUUID() + ".jpg";
+        const up = await sb.storage.from(bkt).upload(path, a.blob, { contentType: "image/jpeg" });
+        if (up.error) { if (fresh.length) await sb.storage.from(bkt).remove(fresh); throw new Error(t("photoUploadFail")); }
+        fresh.push(path);
+      }
+      return [...kept, ...fresh];
+    },
+    async cleanup() { if (gone.length) { await sb.storage.from(bkt).remove(gone); gone = []; } },
+    dispose() { added.forEach((a) => URL.revokeObjectURL(a.url)); },
+  };
+  return list;
+}
+
 // Remove every file an order points at (used when an admin deletes orders for good)
 async function removeFiles(orders) {
   const shots = orders.map((o) => o.photo_path).filter(Boolean);
-  const pics = orders.flatMap((o) => [o.proof_path, o.bouquet_path]).filter(Boolean);
+  const pics = orders.flatMap((o) => [o.proof_path, o.bouquet_path, ...(o.extra_photos || [])]).filter(Boolean);
   if (shots.length) await sb.storage.from(bucket).remove(shots);
   if (pics.length) await sb.storage.from(ENTREGAS).remove(pics);
 }

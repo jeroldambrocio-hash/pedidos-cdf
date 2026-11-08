@@ -8,13 +8,18 @@ const clock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit
 const person = (email) => S.members.find((m) => m.email === email) || { email, name: email?.split("@")[0] || "?" };
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 
+// Only the team channel since 8/11/2026: order conversations and private chats are hidden (their messages
+// stay in the database, and TEAM_ONLY = false brings them back).
+const TEAM_ONLY = true;
+const inScopeMsg = (m) => !TEAM_ONLY || (!m.order_id && !m.direct_id);
 async function loadChat() {
   const [m, r, x, d, dm] = await Promise.all([
-    sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000),
+    TEAM_ONLY ? sb.from("cdf_messages").select("*").is("order_id", null).order("created_at", { ascending: false }).limit(2000)
+      : sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000),
     sb.from("cdf_message_reads").select("*").eq("member_email", S.me.email),
     sb.from("cdf_message_reactions").select("*").limit(5000),
-    sb.from("cdf_direct_threads").select("*"),
-    sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000),
+    TEAM_ONLY ? { error: true } : sb.from("cdf_direct_threads").select("*"),
+    TEAM_ONLY ? { error: true } : sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000),
   ]);
   CH.on = !m.error && !r.error;
   $("tabChat").hidden = !CH.on;
@@ -22,7 +27,7 @@ async function loadChat() {
   CH.reactOn = !x.error;
   CH.directOn = !d.error && !dm.error;
   CH.directs = new Map((d.data || []).map((thread) => [thread.id, thread]));
-  CH.msgs = [...(m.data || []), ...(CH.directOn ? dm.data || [] : [])].sort(msgOrder);
+  CH.msgs = [...(m.data || []), ...(CH.directOn ? dm.data || [] : [])].filter(inScopeMsg).sort(msgOrder);
   CH.reads = new Map((r.data || []).map((y) => [y.thread, y.last_read_at]));
   CH.reacts = new Map();
   for (const y of x.data || []) CH.reacts.set(y.message_id, [...(CH.reacts.get(y.message_id) || []), y]);
@@ -74,7 +79,7 @@ function markRead(thread) {
 
 // A message from realtime or from our own send; the same one twice is ignored.
 function addMessage(m, live) {
-  if (!CH.on || !m?.id || CH.msgs.some((x) => x.id === m.id)) return;
+  if (!CH.on || !m?.id || !inScopeMsg(m) || CH.msgs.some((x) => x.id === m.id)) return;
   CH.msgs.push(m); CH.msgs.sort(msgOrder);
   const th = threadOf(m);
   CH.typing.get(th)?.delete(m.author_email); // whoever was typing just sent it
@@ -451,13 +456,13 @@ function refreshViews(thread) {
 document.addEventListener("pointerdown", (e) => { if (!e.target.closest?.(".cmsg.tools-on")) document.querySelectorAll(".cmsg.tools-on").forEach((x) => x.classList.remove("tools-on")); });
 
 // The conversation section inside an order sheet
-const chatSection = (o) => (CH.on && o?.id ? el("section", { class: "chat-sec", id: "chatSection" },
+const chatSection = (o) => (CH.on && !TEAM_ONLY && o?.id ? el("section", { class: "chat-sec", id: "chatSection" },
   el("h3", {}, icon("message"), t("chatOrderTitle")),
   el("p", { class: "chat-privacy" }, t("chatOrderPrivacy")),
   threadView(o.id)) : null);
 // The 💬 chip on order cards: how many messages, and the unread ones highlighted
 function chatChip(o) {
-  if (!CH.on) return null;
+  if (!CH.on || TEAM_ONLY) return null;
   const n = CH.msgs.filter((m) => m.order_id === o.id).length; if (!n) return null;
   const u = unreadIn(o.id);
   return el("button", { class: "chat-chip" + (u ? " unread" : ""), type: "button", "data-chat": o.id, title: u ? t("chatUnread", { n: u }) : t("chatCount", { n }), "aria-label": (u ? t("chatUnread", { n: u }) : t("chatCount", { n })) + " · #" + o.num,

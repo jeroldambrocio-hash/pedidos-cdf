@@ -3,6 +3,9 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    periodDay: "Día", period7: "7 días", period30: "30 días", periodDates: "Fechas", noOrdersPeriod: "No hay pedidos en estas fechas",
+    bouquetPrice: "Precio del ramo", bouquetPriceHint: "En pesos filipinos (PHP). Solo lo ve el admin.",
+    extraPhotos: "Fotos", extraPhotosHint: "Puedes añadir varias. Las ve también la florista del pedido.", addPhotos: "Añadir fotos",
     driversOff: "Las cuentas de repartidor están desactivadas por ahora. Si necesitas entrar, habla con el admin.",
     trackingOffTitle: "Seguimiento no disponible", trackingOff: "El seguimiento de pedidos no está disponible por ahora. Si tienes cualquier duda, contacta con Casa de Flores.",
     viewProfile: "Ver perfil", profileStatsUnavailable: "Estadísticas no disponibles", openOrders: "Abiertos",
@@ -78,7 +81,7 @@ const I18N = {
     chatEmoji: "Emojis", chatEmojiSearch: "Buscar emoji (flor, ok, camión…)", chatReact: "Reaccionar", chatMoreReact: "Más reacciones", chatCopy: "Copiar texto", chatCopied: "Texto copiado",
     chatPeople: "{n} personas", chatEmptyHint: "Usa @ para mencionar a alguien y # para enlazar un pedido.",
     emo_recent: "Recientes", emo_flowers: "Flores", emo_work: "Entregas", emo_faces: "Caras", emo_hands: "Gestos", emo_hearts: "Corazones", emo_party: "Celebración",
-    tabChat: "Conversaciones", chatSub: "Comentarios de cada pedido y el canal de todo el equipo.", chatTeam: "equipo", chatTeamDesc: "Avisos para todo el equipo",
+    tabChat: "Conversaciones", chatSub: "El canal de todo el equipo.", chatTeam: "equipo", chatTeamDesc: "Avisos para todo el equipo",
     chatTitle: "Conversación", chatPh: "Escribe un mensaje… @ para mencionar a alguien, # para un pedido", chatNoOrder: "No se encontró el pedido #{num} o no tienes acceso.", chatSend: "Enviar", chatEmpty: "Aún no hay mensajes. Escribe el primero.",
     chatOpenOrder: "Abrir pedido", chatMentioned: "{name} te ha mencionado en {where}", chatSee: "Ver", chatYesterday: "Ayer", chatYou: "Tú", chatBack: "Volver a conversaciones",
     chatCount: "{n} mensajes", chatUnread: "{n} sin leer", chatPick: "Elige una conversación de la lista.", chatFail: "No se pudo enviar. Inténtalo de nuevo.",
@@ -219,6 +222,9 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    periodDay: "Day", period7: "7 days", period30: "30 days", periodDates: "Dates", noOrdersPeriod: "No orders in these dates",
+    bouquetPrice: "Bouquet price", bouquetPriceHint: "In Philippine pesos (PHP). Only the admin sees it.",
+    extraPhotos: "Photos", extraPhotosHint: "Add as many as you need. The order's florist sees them too.", addPhotos: "Add photos",
     driversOff: "Driver accounts are switched off for now. If you need to sign in, talk to the admin.",
     trackingOffTitle: "Tracking unavailable", trackingOff: "Order tracking isn't available right now. If you have any questions, please contact Casa de Flores.",
     viewProfile: "View profile", profileStatsUnavailable: "Statistics unavailable", openOrders: "Open",
@@ -294,7 +300,7 @@ const I18N = {
     chatEmoji: "Emoji", chatEmojiSearch: "Search emoji (flower, ok, truck…)", chatReact: "React", chatMoreReact: "More reactions", chatCopy: "Copy text", chatCopied: "Text copied",
     chatPeople: "{n} people", chatEmptyHint: "Use @ to mention someone and # to link an order.",
     emo_recent: "Recent", emo_flowers: "Flowers", emo_work: "Deliveries", emo_faces: "Faces", emo_hands: "Gestures", emo_hearts: "Hearts", emo_party: "Celebration",
-    tabChat: "Conversations", chatSub: "Comments on each order and the whole team's channel.", chatTeam: "team", chatTeamDesc: "Notes for the whole team",
+    tabChat: "Conversations", chatSub: "The whole team's channel.", chatTeam: "team", chatTeamDesc: "Notes for the whole team",
     chatTitle: "Conversation", chatPh: "Write a message… @ to mention someone, # for an order", chatNoOrder: "Order #{num} wasn't found or you don't have access.", chatSend: "Send", chatEmpty: "No messages yet. Write the first one.",
     chatOpenOrder: "Open order", chatMentioned: "{name} mentioned you in {where}", chatSee: "View", chatYesterday: "Yesterday", chatYou: "You", chatBack: "Back to conversations",
     chatCount: "{n} messages", chatUnread: "{n} unread", chatPick: "Pick a conversation from the list.", chatFail: "Couldn't send. Try again.",
