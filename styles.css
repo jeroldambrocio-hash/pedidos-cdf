@@ -2101,3 +2101,10 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .chip:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
 .track-cancel { margin: 18px 0 6px; padding: 14px 16px; border-radius: 12px; background: var(--cancel-bg); border: 1px solid color-mix(in srgb, var(--cancel) 30%, var(--line)); animation: item-in var(--dur-base) var(--ease-out) both; }
 .track-cancel b { font: 500 1.15rem var(--serif); color: var(--fg); }
+
+/* Ask to turn notifications on (orders page) */
+.notif-banner { margin: 0 0 12px; background: var(--surface); border-color: color-mix(in srgb, var(--primary) 35%, transparent); }
+.notif-banner > .svg-icon { color: var(--primary); }
+.notif-ask { display: grid; gap: 2px; min-width: 0; }
+.notif-ask p { margin: 0; color: var(--muted); }
+.notif-ask-acts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 8px; }

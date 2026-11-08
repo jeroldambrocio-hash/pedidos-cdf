@@ -52,6 +52,7 @@ const ICONS = {
   kStar: '<path class="fill" d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/><path class="edge" d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
   kCheck: '<circle class="ring" cx="12" cy="12" r="9"/><path class="ln" pathLength="1" d="m7 12 3 3 7-7"/>',
   kUser: '<g class="who"><circle cx="11" cy="8" r="4"/><path d="M3 22v-3a8 8 0 0 1 16 0v3"/></g><path class="heart" d="M19.5 3.6c-.7-1-2.2-.8-2.5.4-.3-1.2-1.8-1.4-2.5-.4-.6.9 0 2 2.5 3.8 2.5-1.8 3.1-2.9 2.5-3.8Z"/>',
+  bell: '<path d="M10.27 21a2 2 0 0 0 3.46 0"/><path d="M3.26 15.33A1 1 0 0 0 4 17h16a1 1 0 0 0 .74-1.67C19.41 13.96 18 12.5 18 8A6 6 0 0 0 6 8c0 4.5-1.41 5.96-2.74 7.33"/>',
   kAlert: '<path class="tri" d="m12 3 10 18H2L12 3Zm0 6v5m0 3v1"/>',
 };
 // Laid out like text inside its parent (display: contents), so buttons and labels need no wrapper rules

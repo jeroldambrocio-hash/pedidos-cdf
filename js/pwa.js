@@ -1,7 +1,7 @@
 // Installable app (iPhone and Android) and push notifications.
 // Android/Chrome offer an install prompt; iPhone installs from Safari's Share menu (we show the steps).
 // On iPhone, notifications only exist inside the installed app (iOS 16.4+), so we say so instead of failing.
-const PWA = { prompt: null, reg: null, saved: null };
+const PWA = { prompt: null, reg: null, saved: null, synced: false };
 const isStandalone = () => matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
 const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
 const pushSupported = () => "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
@@ -69,9 +69,9 @@ async function disablePush() {
   paintPwa();
 }
 // After signing in on a device that already allowed notifications: link it to whoever is signed in now
-async function syncPush() { try { const sub = await currentSub(); if (sub && Notification.permission === "granted") await saveSub(sub); } catch {} finally { paintPwa(); } }
+async function syncPush() { try { const sub = await currentSub(); if (sub && Notification.permission === "granted") await saveSub(sub); } catch {} finally { PWA.synced = true; paintPwa(); } }
 // Signing out: this device stops receiving that person's notifications
-async function forgetPush() { PWA.saved = null; try { const sub = await currentSub(); if (sub) { await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); } } catch {} }
+async function forgetPush() { PWA.saved = null; PWA.synced = false; paintNotifBanner("off"); try { const sub = await currentSub(); if (sub) { await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); } } catch {} }
 
 async function paintPwa() {
   const inst = $("installBtn"); if (inst) inst.hidden = isStandalone();
@@ -83,6 +83,7 @@ async function paintPwa() {
     (await currentSub())?.endpoint === PWA.saved?.endpoint) state = "on";
   btn.dataset.state = state;
   btn.textContent = t({ on: "notifTurnOff", off: "notifTurnOn", needInstall: "installApp", denied: "notifHelp", unsupported: "notifHelp" }[state]);
+  paintNotifBanner(state);
   btn.disabled = state === "unsupported";
   note.textContent = t({ on: "notifIsOn", off: "notifIsOff", needInstall: "notifNeedInstall", denied: "notifIsDenied", unsupported: "notifUnsupported" }[state]);
 }
@@ -92,6 +93,27 @@ async function onNotifBtn() {
   if (s === "needInstall") return installApp();
   if (s === "denied") return toast(t("notifDeniedHelp"), { type: "info", ms: 9000 });
   return enablePush();
+}
+
+// The menu button is easy to miss, so whoever has notifications off on this device is asked on the orders page.
+// "Not now" quiets it for three days on this device; turning them on hides it for good.
+const NOTIF_LATER_MS = 3 * 864e5;
+const notifLaterKey = () => "cdf-notif-later:" + (S.me?.email || "");
+function notifLater() { try { return Date.now() - Number(localStorage.getItem(notifLaterKey()) || 0) < NOTIF_LATER_MS; } catch { return false; } }
+function paintNotifBanner(state) {
+  const box = $("notifBanner"); if (!box) return;
+  const ask = !!S.me && PWA.synced && (state === "off" || state === "needInstall") && !notifLater();
+  if (!ask) { box.hidden = true; box.replaceChildren(); delete box.dataset.state; return; }
+  if (!box.hidden && box.dataset.state === state) return; // same message already showing: don't replay its entrance
+  const inst = state === "needInstall";
+  box.dataset.state = state;
+  box.replaceChildren(icon("bell"), el("div", { class: "notif-ask" },
+    el("b", {}, t(inst ? "notifAskInstallTitle" : "notifAskTitle")),
+    el("p", {}, t(inst ? "notifAskInstallTxt" : "notifAskTxt")),
+    el("div", { class: "notif-ask-acts" },
+      el("button", { class: "btn primary", type: "button", onclick: () => (inst ? installApp() : enablePush()) }, t(inst ? "installApp" : "notifTurnOn")),
+      el("button", { class: "linkish", type: "button", onclick: () => { try { localStorage.setItem(notifLaterKey(), String(Date.now())); } catch {} paintNotifBanner(state); } }, t("notifLater")))));
+  box.hidden = false;
 }
 
 // ?chat=<order id | team> and ?order=<id>: where a notification takes you

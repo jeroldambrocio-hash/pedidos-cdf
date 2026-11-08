@@ -310,6 +310,17 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#pricesBtn").click(); await p.waitForTimeout(650);
       assert.equal(await p.evaluate(() => localStorage.getItem("cdf-prices")), null);
     });
+    await step("Notifications off on this device: the orders page asks once, Not now quiets it (remembered)", async () => {
+      const b = p.locator("#notifBanner");
+      await b.waitFor({ state: "visible" });
+      assert(/Turn on notifications/.test(await b.innerText()));
+      assert(await b.locator("button", { hasText: "Turn on" }).isVisible());
+      await capture(p, "notif-ask");
+      await b.locator("button", { hasText: "Not now" }).click();
+      assert(await b.isHidden());
+      await p.reload(); await p.locator("#list").waitFor({ state: "visible" }); await p.waitForTimeout(600);
+      assert(await p.locator("#notifBanner").isHidden(), "stays quiet after a reload");
+    });
     await step("Brand name goes to Orders", async () => {
       await p.locator("#railToggle").click(); await p.locator("#tabTeam").click();
       await p.locator("#brandHome").click();
