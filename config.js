@@ -12,5 +12,6 @@ window.CDF_CONFIG = {
   //   The emails follow the Supabase secret CDF_TRACKING=on in cdf-notify.
   // drivers: the Driver role, the Driver field on orders, and sign-in for driver accounts.
   //   Creating drivers follows the Supabase secret CDF_DRIVERS=on in cdf-users.
-  features: { tracking: false, drivers: false },
+  // chats: the conversation inside each order and private chats between people (the team channel always stays).
+  features: { tracking: false, drivers: false, chats: false },
 };

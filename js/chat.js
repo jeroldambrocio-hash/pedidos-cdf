@@ -9,8 +9,8 @@ const person = (email) => S.members.find((m) => m.email === email) || { email, n
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 
 // Only the team channel since 8/11/2026: order conversations and private chats are hidden (their messages
-// stay in the database, and TEAM_ONLY = false brings them back).
-const TEAM_ONLY = true;
+// stay in the database). chats: true in config.js features brings them back.
+const TEAM_ONLY = !feature("chats");
 const inScopeMsg = (m) => !TEAM_ONLY || (!m.order_id && !m.direct_id);
 async function loadChat() {
   const [m, r, x, d, dm] = await Promise.all([

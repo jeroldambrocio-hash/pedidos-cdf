@@ -613,15 +613,15 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
         await q.close();
       }
     });
-    await step("Florist: ready with bouquet, then head out asks first (RPCs)", async () => {
+    await step("Florist: ready in one tap (no bouquet photo), then head out asks first (RPCs)", async () => {
       const q = await open("vendor", { width: 390 });
       await q.locator(".work").first().waitFor();
       await q.locator("#summary .done-stats").waitFor();
       assert.match(await q.locator("#summary .done-stats").innerText(), /3\s+7 days/);
       await capture(q, "florist-mobile");
       await q.getByRole("button", { name: "Mark ready" }).first().click();
-      await q.locator(".sheet").getByRole("button", { name: "Mark ready", exact: true }).click();
-      await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      await q.waitForTimeout(500);
+      assert.equal(await q.locator("#sheetRoot .scrim").count(), 0, "Ready opened a dialog");
       assert((await calls(q)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "ready"));
       await q.getByRole("button", { name: "Head out", exact: true }).first().click();
       await q.locator(".dialog").getByRole("button", { name: "Yes, on the way" }).click();
