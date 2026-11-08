@@ -276,7 +276,7 @@ function historyBlock(o) {
 const EV_FIELDS = { num: "orderNum", date: "date", slot: "slot", channel: "channel", vendor_email: "vendor", carrier_email: "carrier",
   customer_name: "customerName", customer_phone: "phone", customer_email: "email", buyer_name: "buyerName", buyer_phone: "buyerPhone",
   address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery", cancel_reason: "cancelReason",
-  photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", amount: "amount" };
+  photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount" };
 const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
   if (typeof v === "boolean") return v ? t("evPhotoYes") : t("evPhotoNo");
@@ -592,7 +592,8 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
-    if (priceEditable()) {
+    // Only a price that was typed or changed is written: an order whose price never loaded keeps it
+    if (priceEditable() && (isNew || row.amount !== initial.amount)) {
       try { await savePrice(saved.id,row.amount); saved.amount=row.amount; }
       catch(e) { upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined};} setErr(e.message); return e.message; }
     }
@@ -693,6 +694,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
   sheet.order = o;
+  // An order that arrived live may not have its price yet: fetch it so the field never shows empty by mistake
+  if (priceEditable() && o?.id && o.amount === undefined) sb.from("cdf_order_prices").select("amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {
+    o.amount = data?.amount ?? null;
+    if (data?.amount != null && iAmount.value === "" && iAmount.isConnected) { iAmount.value = data.amount; initial = { ...initial, amount: Math.max(0, +data.amount) }; }
+  });
 }
 function mapHint(input) {
   const a = el("a", { target: "_blank", rel: "noopener", class: "note link-out" }, t("openMaps"));

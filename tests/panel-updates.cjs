@@ -101,6 +101,18 @@ const server = http.createServer((req, res) => {
       assert(await a.evaluate(() => window.__calls.some((c) => c.remove === "cdf-entregas")), "removed file not deleted");
     });
 
+    await step("a price that hadn't loaded is fetched and never wiped by saving", async () => {
+      const id = await a.evaluate(() => { const o = S.orders.find((x) => !x.extra_photos?.length); delete o.amount; window.__prices.find((p) => p.order_id === o.id).amount = 1800; return o.id; });
+      await a.evaluate((id) => openOrder(S.orders.find((o) => o.id === id)), id);
+      const more = a.locator(".sheet details.hist").filter({ hasText: "Más detalles" });
+      if (!(await more.evaluate((d) => d.open))) await more.locator("summary").click();
+      await a.waitForFunction(() => document.getElementById("f-amount")?.value === "1800");
+      await a.locator("#f-notes").fill("Edited note");
+      await a.locator(".sheet .sheet-foot .btn.primary").click();
+      await a.locator(".sheet").waitFor({ state: "detached" });
+      assert.equal(await a.evaluate((id) => window.__prices.find((p) => p.order_id === id).amount, id), 1800);
+    });
+
     await step("office view: Day, 7 days, 30 days, Dates", async () => {
       const seg = a.locator("#periodSeg");
       await seg.waitFor();
