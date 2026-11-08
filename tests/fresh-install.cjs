@@ -88,4 +88,11 @@ const dir = path.resolve(__dirname, '..', 'supabase', 'migrations');
   await as('dri@t'); await db.query(`select public.cdf_progress(${O1},'done')`); ok('Reinstated, it moves on from where it was');
   await db.exec('reset role');
   assert.equal((await db.query(`select count(*)::int n from public.cdf_order_events where order_id=${O1} and kind='reinstated'`)).rows[0].n, 1); ok('Reinstating is in the history too');
+
+  // Private messages ask cdf-push to tell the other person (stand-in pg_net, nothing sent)
+  { const th = (await db.query("insert into public.cdf_direct_threads(member_a,member_b) values ('admin@t','dri@t') returning id")).rows[0].id;
+    const m = (await db.query("insert into public.cdf_direct_messages(direct_id,author_email,body) values ($1,'admin@t','@Dri hola') returning id", [th])).rows[0].id;
+    const c = (await db.query("select body from net.calls order by id desc limit 1")).rows[0].body;
+    assert.equal(c.kind, 'direct'); assert.equal(c.id, m); }
+  ok('A private message asks for a push');
 })().catch((e) => { console.error(e); process.exit(1); });

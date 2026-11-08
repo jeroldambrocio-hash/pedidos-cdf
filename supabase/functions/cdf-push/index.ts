@@ -1,5 +1,5 @@
 // Web push for the installed app (iPhone 16.4+ from the home screen, Android): chat messages that mention
-// someone or happen on their order, and orders handed to a florist or a driver.
+// someone or happen on their order, private messages, and orders handed to (or cancelled for) a florist or a driver.
 // Called only by database triggers (cdf_push_hook) with the shared x-cdf-hook secret, like cdf-notify.
 // Needs the CDF_VAPID_KEYS secret (JSON {publicKey, privateKey} JWKs); without it nothing is sent.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -57,6 +57,14 @@ Deno.serve(async (req) => {
       url: APP_URL + "/?chat=" + (m.order_id || "team"),
       tag: "chat-" + (m.order_id || "team"),
     };
+  } else if (body.kind === "direct") {
+    // A private chat: the other person in the thread hears it, the author doesn't
+    const { data: m } = await service.from("cdf_direct_messages").select("id,direct_id,author_email,body").eq("id", body.id).maybeSingle();
+    if (!m) return json({ sent: 0 });
+    const { data: th } = await service.from("cdf_direct_threads").select("member_a,member_b").eq("id", m.direct_id).maybeSingle();
+    if (!th) return json({ sent: 0 });
+    to = [th.member_a, th.member_b].filter((e) => e && e !== m.author_email);
+    payload = { title: nameOf(m.author_email), body: String(m.body).slice(0, 180), url: APP_URL + "/?chat=" + m.direct_id, tag: "chat-" + m.direct_id };
   } else if (body.kind === "assigned" && body.to) {
     const { data: o } = await service.from("cdf_orders").select("id,num,date,slot,customer_name").eq("id", body.id).maybeSingle();
     if (!o) return json({ sent: 0 });
