@@ -109,7 +109,7 @@ const I18N = {
     subAdmin: "Admin · {name}", subVendor: "Florista · {name}", subCarrier: "Repartidor · {name}",
     role_admin: "Admin", role_vendor: "Florista", role_carrier: "Repartidor",
     settings: "Ajustes", language: "Idioma", textSize: "Tamaño de letra", normal: "Normal", large: "Grande", theme: "Modo", light: "Claro", dark: "Oscuro", auto: "Auto",
-    motion: "Animaciones", motionFull: "Completas", motionReduced: "Reducidas",
+    motion: "Animaciones", motionFull: "Completas", motionReduced: "Reducidas", sounds: "Sonidos", soundOn: "Activados", soundOff: "Desactivados",
     offline: "Sin conexión. Lo que ves puede no estar al día; reconéctate antes de guardar.", loadError: "No se pudieron actualizar los pedidos.", retry: "Reintentar", loading: "Cargando…",
     loadFail: "No se pudieron cargar los pedidos",
     // calendar and day
@@ -323,7 +323,7 @@ const I18N = {
     subAdmin: "Admin · {name}", subVendor: "Florist · {name}", subCarrier: "Driver · {name}",
     role_admin: "Admin", role_vendor: "Florist", role_carrier: "Driver",
     settings: "Settings", language: "Language", textSize: "Text size", normal: "Normal", large: "Large", theme: "Mode", light: "Light", dark: "Dark", auto: "Auto",
-    motion: "Animations", motionFull: "Full", motionReduced: "Reduced",
+    motion: "Animations", motionFull: "Full", motionReduced: "Reduced", sounds: "Sounds", soundOn: "On", soundOff: "Off",
     offline: "You're offline. What you see may be out of date; reconnect before saving.", loadError: "Orders could not be refreshed.", retry: "Try again", loading: "Loading…",
     loadFail: "Couldn't load the orders",
     chooseDate: "Choose date", prevMonth: "Previous month", nextMonth: "Next month", today: "Today", tomorrow: "Tomorrow", newOrder: "New order",
@@ -463,6 +463,8 @@ function applyPrefs() {
   for (const b of document.querySelectorAll("button[data-size]")) b.setAttribute("aria-pressed", String(b.dataset.size === sz));
   for (const b of document.querySelectorAll("[data-theme-set]")) b.setAttribute("aria-pressed", String(b.dataset.themeSet === th));
   for (const b of document.querySelectorAll("[data-motion-set]")) b.setAttribute("aria-pressed", String(b.dataset.motionSet === mo));
+  const so = pref("cdf-sound") === "off" ? "off" : "on";
+  for (const b of document.querySelectorAll("[data-sound-set]")) b.setAttribute("aria-pressed", String(b.dataset.soundSet === so));
   document.getElementById("pricesBtn")?.setAttribute("aria-pressed", String(pref("cdf-prices") === "on"));
   for (const s of document.querySelectorAll(".seg")) placePill(s);
 }
@@ -533,6 +535,7 @@ document.addEventListener("click", (e) => {
   const z = e.target.closest("button[data-size]"); if (z) { savePref("cdf-size", z.dataset.size); applyPrefs(); return; }
   const th = e.target.closest("button[data-theme-set]"); if (th) { savePref("cdf-theme", th.dataset.themeSet); applyPrefs(); return; }
   const mo = e.target.closest("button[data-motion-set]"); if (mo) { savePref("cdf-motion", mo.dataset.motionSet === "reduced" ? "reduced" : ""); applyPrefs(); return; }
+  const so = e.target.closest("button[data-sound-set]"); if (so) { const on = so.dataset.soundSet === "on"; savePref("cdf-sound", on ? "" : "off"); applyPrefs(); if (on && typeof playSound === "function") playSound("order", true); return; }
 });
 document.addEventListener("keydown", (e) => {
   const m = openMenu();

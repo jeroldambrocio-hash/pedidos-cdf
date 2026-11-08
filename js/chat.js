@@ -83,6 +83,7 @@ function addMessage(m, live) {
   if (seen) markRead(th);
   else if (live && m.author_email !== S.me.email && (m.direct_id || mentionsMe(m.body))) {
     toast(t("chatMentioned", { name: person(m.author_email).name, where: threadTitle(th) }), { type: "info", ms: 9000, action: t("chatSee"), onAction: () => openThread(th) });
+    if (!pushActive()) playSound("message"); // with notifications on, the push plays it (and covers order chats too)
   }
   paintChatCounts();
 }

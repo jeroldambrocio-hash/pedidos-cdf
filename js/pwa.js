@@ -13,7 +13,10 @@ const vapidKey = () => {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/sw.js").then((r) => { PWA.reg = r; paintPwa(); }).catch(() => {});
   // A tapped notification while the app is open: go to that conversation or order
-  navigator.serviceWorker.addEventListener("message", (e) => { if (e.data?.type === "open") openDeepLink(new URL(e.data.url, location.origin).searchParams); });
+  navigator.serviceWorker.addEventListener("message", (e) => {
+    if (e.data?.type === "open") openDeepLink(new URL(e.data.url, location.origin).searchParams);
+    if (e.data?.type === "sound") playSound(e.data.kind);
+  });
 }
 window.addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); PWA.prompt = e; paintPwa(); });
 window.addEventListener("appinstalled", () => { PWA.prompt = null; paintPwa(); toast(t("installDone")); });
@@ -34,7 +37,7 @@ async function currentSub() {
 }
 async function saveSub(sub) {
   const j = sub.toJSON(), email = S.me.email;
-  const { error } = await sb.from("cdf_push_subs").upsert({ endpoint: j.endpoint, member_email: email, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200) }, { onConflict: "endpoint" });
+  const { error } = await sb.from("cdf_push_subs").upsert({ endpoint: j.endpoint, member_email: email, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), lang: LANG }, { onConflict: "endpoint" });
   if (error) throw new Error(t("notifFail"));
   if (S.me?.email === email) PWA.saved = { email, endpoint: j.endpoint };
 }
@@ -93,6 +96,46 @@ async function onNotifBtn() {
   if (s === "needInstall") return installApp();
   if (s === "denied") return toast(t("notifDeniedHelp"), { type: "info", ms: 9000 });
   return enablePush();
+}
+
+// Notifications arrive in this device's language: changing it here updates what the server sends
+document.addEventListener("langchange", () => { if (S.me && PWA.saved?.email === S.me.email) currentSub().then((s) => s && saveSub(s)).catch(() => {}); });
+const pushActive = () => pushSupported() && Notification.permission === "granted" && !!PWA.saved && PWA.saved.email === S.me?.email;
+
+// ---------- sounds while the app is open ----------
+// Made on the fly (no audio files): a soft two-note "tin" for messages, a brighter three-note chime for an
+// order handed to you or cancelled. A push tells the open app which one to play; without notifications on
+// this device, chat messages for you still play theirs. On by default; Preferences turns them off.
+let audioCtx = null;
+const soundOn = () => pref("cdf-sound") !== "off";
+function audio() {
+  if (!audioCtx) { const C = window.AudioContext || window.webkitAudioContext; if (!C) return null; audioCtx = new C(); }
+  if (audioCtx.state === "suspended") audioCtx.resume().catch(() => {});
+  return audioCtx;
+}
+// iPhone only lets a page make sound after a tap: wake the audio on the first one
+addEventListener("pointerdown", () => { try { audio(); } catch {} }, { once: true, capture: true });
+const SOUNDS = {
+  message: { wave: "sine", notes: [[880, 0], [1318.5, 0.11]], len: 0.32, vol: 0.18 },
+  order: { wave: "triangle", notes: [[1046.5, 0], [1318.5, 0.16], [1568, 0.32]], len: 0.9, vol: 0.3 },
+};
+function playSound(kind, force) {
+  if (!force && !soundOn()) return;
+  const s = SOUNDS[kind] || SOUNDS.message;
+  window.__sounds = [...(window.__sounds || []), kind]; // for the UI test
+  try {
+    const ctx = audio(); if (!ctx) return;
+    const t0 = ctx.currentTime + 0.02;
+    for (const [freq, at] of s.notes) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = s.wave; o.frequency.value = freq;
+      g.gain.setValueAtTime(0.0001, t0 + at);
+      g.gain.exponentialRampToValueAtTime(s.vol, t0 + at + 0.015);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + at + s.len);
+      o.connect(g).connect(ctx.destination);
+      o.start(t0 + at); o.stop(t0 + at + s.len + 0.05);
+    }
+  } catch {}
 }
 
 // The menu button is easy to miss, so whoever has notifications off on this device is asked on the orders page.

@@ -276,6 +276,22 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await p.evaluate(() => [document.documentElement.dataset.motion, localStorage.getItem("cdf-motion")].join()), "reduced,reduced");
       await p.locator("#account [data-motion-set=full]").click(); await p.keyboard.press("Escape");
     });
+    await step("Sounds on by default; a push plays its own sound for messages and orders; Settings turns them off and remembers", async () => {
+      await p.evaluate(() => { window.__sounds = []; });
+      await p.locator("#accountBtn").click(); await p.locator('#account [data-goto="prefs"]').click();
+      assert.equal(await p.locator("#account [data-sound-set=on]").getAttribute("aria-pressed"), "true");
+      // What the service worker sends the open app when a push arrives
+      await p.evaluate(() => { for (const kind of ["message", "order"]) navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: { type: "sound", kind } })); });
+      assert.deepEqual(await p.evaluate(() => window.__sounds), ["message", "order"]);
+      await p.locator("#account [data-sound-set=off]").click();
+      assert.equal(await p.evaluate(() => localStorage.getItem("cdf-sound")), "off");
+      await p.evaluate(() => navigator.serviceWorker.dispatchEvent(new MessageEvent("message", { data: { type: "sound", kind: "order" } })));
+      assert.equal((await p.evaluate(() => window.__sounds)).length, 2, "no sound while off");
+      await p.locator("#account [data-sound-set=on]").click(); // turning them on plays a sample
+      assert.deepEqual((await p.evaluate(() => window.__sounds)).slice(-1), ["order"]);
+      assert.equal(await p.evaluate(() => localStorage.getItem("cdf-sound")), null);
+      await p.keyboard.press("Escape");
+    });
     await step("Profile menu: four entries, Preferences and My account views, Back, Escape returns focus", async () => {
       await p.locator("#accountBtn").click();
       const main = p.locator('#account .mview[data-view="main"]');
@@ -283,7 +299,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await main.locator(".mhead small").innerText(), "Admin");
       assert.equal(await p.locator("#account .mrow:visible").count(), 0);
       await p.locator('#account [data-goto="prefs"]').click();
-      assert.equal(await p.locator("#account .mrow:visible").count(), 5);
+      assert.equal(await p.locator("#account .mrow:visible").count(), 6); // language, mode, text size, animations, sounds, notifications
       assert.equal(await p.evaluate(() => document.activeElement.classList.contains("mback")), true);
       const row = await p.locator('#account .mview[data-view="prefs"] .mrow').first().evaluate((r) => { const a = r.firstElementChild.getBoundingClientRect(), b = r.lastElementChild.getBoundingClientRect(); return Math.abs((a.top + a.bottom) / 2 - (b.top + b.bottom) / 2) < 4 && b.left > a.right; });
       assert(row, "label and control side by side on desktop");
