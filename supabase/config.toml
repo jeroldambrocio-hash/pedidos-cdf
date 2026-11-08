@@ -1,3 +1,7 @@
 [functions.cdf-login]
 # Public login entry point; credentials are verified inside the handler.
 verify_jwt = false
+
+[functions.cdf-lalamove]
+# Lalamove's webhook has no Supabase token; admin calls are checked in the handler and the webhook needs ?token=.
+verify_jwt = false

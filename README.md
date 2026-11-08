@@ -126,3 +126,30 @@ El seguimiento del cliente y las cuentas de repartidor están apagados, no borra
 
 Las cuentas de repartidor y los pedidos asignados no se borran. Pruebas: `tests/features-off.cjs` (apagado)
 y `tests/ui-smoke.cjs` (todo encendido).
+## Lalamove (en pruebas)
+
+En el editor de un pedido, el admin ve un bloque **Lalamove**: busca el punto de entrega (o pega un enlace de Google Maps),
+ve el precio, reserva un rider, sigue su estado y su nombre/matrícula, y cancela mientras Lalamove lo permita.
+Floristas y repartidores no lo ven. Rama `lalamove-sandbox`; no está publicado.
+
+Piezas:
+- `supabase/migrations/029_cdf_lalamove.sql`: tabla `cdf_lalamove` (solo lectura para admin; escribe solo la función). Solo añade.
+- `supabase/functions/cdf-lalamove`: cotizar, reservar, consultar, cancelar y webhook. Desplegar con `--no-verify-jwt`.
+- `js/lalamove.js`: el bloque del editor. Si no hay migración o función, no aparece nada.
+
+Secretos de la función (Edge Functions → Secrets):
+- `LALAMOVE_API_KEY`, `LALAMOVE_API_SECRET`: del Partner Portal de Lalamove (pestaña Sandbox).
+- `LALAMOVE_ENV`: `sandbox` (por defecto) o `production`.
+- `LALAMOVE_PICKUP`: `{"lat":14.65,"lng":121.04,"address":"…","name":"Casa de Flores","phone":"+63…"}` (la tienda).
+- `LALAMOVE_WEBHOOK_TOKEN`: texto largo aleatorio. Webhook en el Partner Portal:
+  `https://<proyecto>.supabase.co/functions/v1/cdf-lalamove?token=<ese texto>`.
+- `LALAMOVE_SYNC_ORDERS=on`: solo en producción. Mueve el pedido a «En camino» al recogerlo y a «Entregado» al completarlo.
+  En sandbox nunca toca los pedidos, porque los riders de prueba no son reales.
+
+Pruebas (sin red ni producción):
+
+```bash
+node --experimental-strip-types tests/lalamove.test.mjs
+NODE_PATH=.test-tools/node_modules node tests/lalamove-db.cjs
+NODE_PATH=.test-tools/node_modules node tests/lalamove-ui.cjs
+```
