@@ -145,6 +145,16 @@ async function cancel(orderId: string) {
 async function webhook(req: Request) {
   const token = Deno.env.get("LALAMOVE_WEBHOOK_TOKEN") || "";
   if (!token || new URL(req.url).searchParams.get("token") !== token) return json({ error: "token" }, 401);
+  // ?check=1: are the keys right? A read-only call (the cities list); nothing is created or charged
+  if (new URL(req.url).searchParams.get("check") === "1") {
+    if (!KEY || !SECRET) return json({ ok: false, env: ENV, error: "missing keys" });
+    try {
+      const cities = await ll("GET", "/v3/cities");
+      return json({ ok: true, env: ENV, keyKind: KEY.slice(0, 7), pickup: !!pickup(), cities: (cities || []).map((c: any) => ({ code: c.locode, name: c.name, services: (c.services || []).map((s: any) => s.key) })) });
+    } catch (e) {
+      return json({ ok: false, env: ENV, keyKind: KEY.slice(0, 7), error: e instanceof LalamoveError ? `${e.status} ${e.code}: ${e.message}` : String(e) });
+    }
+  }
   let body: any = {};
   try { body = await req.json(); } catch { /* Lalamove's test ping can be empty */ }
   const id = body?.data?.order?.orderId || body?.data?.orderId || body?.orderId;
