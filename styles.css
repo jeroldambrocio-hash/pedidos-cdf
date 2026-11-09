@@ -2146,3 +2146,10 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .ll-driver { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 .ll-manual { justify-self: start; font-size: 0.875rem; }
+
+/* iPhone Safari: date and time fields keep their own minimum width and centre the text, so they spill past
+   the right edge of the form. Let them shrink to the field and read like the other inputs. */
+input[type="date"], input[type="time"], input[type="datetime-local"] {
+  -webkit-appearance: none; appearance: none; display: block; min-width: 0; max-width: 100%; box-sizing: border-box;
+}
+input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
