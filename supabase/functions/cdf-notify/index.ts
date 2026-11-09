@@ -132,6 +132,10 @@ Deno.serve(async (req) => {
   if (!o.vendor_email) return json({ skipped: "no vendor" });
   const { data: m } = await service.from("cdf_members").select("email,name").eq("email", o.vendor_email).maybeSingle();
   if (!m) return json({ skipped: "no member" });
+  // Accounts made with a placeholder address on the shop's domain (no mailbox behind it, 9/11/2026):
+  // no email, they see their orders in the app. Giving them their real address turns the alert back on.
+  const shopBox = (Deno.env.get("SMTP_USER") || "").toLowerCase();
+  if (/@casadeflores\.store$/i.test(m.email) && m.email.toLowerCase() !== shopBox) return json({ skipped: "placeholder address" });
 
   const when = `${fmtDate(o.date)} · ${o.slot}`;
   const rows = [
