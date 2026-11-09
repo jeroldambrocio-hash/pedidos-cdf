@@ -35,6 +35,12 @@ function editMember(m) {
     addr: el("input", { id: "ePickAddr", value: m.pickup_address || "", maxlength: 300, autocomplete: "off", placeholder: t("pickupAddrPh") }),
     point: el("input", { id: "ePickPoint", value: m.pickup_lat != null ? `${+m.pickup_lat}, ${+m.pickup_lng}` : "", autocomplete: "off", inputmode: "url", placeholder: t("pickupPointPh") }),
   } : null;
+  // A short share link (maps.app.goo.gl): the server opens it and the field shows the point it leads to
+  pick?.point.addEventListener("change", async () => {
+    const v = pick.point.value.trim();
+    if (!v || llParseCoords(v) || !/goo\.gl\//i.test(v)) return;
+    try { const r = (await llCall({ action: "geocode", query: v })).results?.[0]; if (r) pick.point.value = `${r.lat}, ${r.lng}`; } catch {}
+  });
   const err = el("div", { class: "err", role: "alert" });
   const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(330); scrim.remove(); back?.focus?.(); };
   const save = el("button", { class: "btn primary", type: "submit" }, t("save"));

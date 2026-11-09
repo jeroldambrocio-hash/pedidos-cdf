@@ -149,6 +149,30 @@ const server = http.createServer((req, res) => {
       await p.locator("#dialogRoot .btn.danger-solid").click();
       await sec.getByRole("button", { name: "Pedir otro rider" }).waitFor();
       console.log("ok cancel");
+    // The customer's point saved with the order: booking goes straight to "Get price"
+    await p.evaluate(() => closeSheet(true));
+    await p.evaluate((f) => { S.cap.drop = true; const o = (0, eval)("(" + f + ")")(); Object.assign(o, { status: "Ready", delivery: "-" }); openOrder(o); }, ord.toString());
+    await p.locator("#f-drop").waitFor();
+    await p.locator("#f-drop").fill("https://www.google.com/maps/place/x/@41.38,2.17,17z");
+    await p.locator(".sheet-foot .btn.primary").click();
+    await p.getByText("No reconozco esa ubicación").first().waitFor();
+    await p.locator("#f-drop").fill("https://www.google.com/maps/place/Home/@14.60,121.00,17z/data=!3d14.6123!4d121.0456");
+    await p.getByText("Punto guardado").waitFor();
+    await p.locator(".sheet-foot .btn.primary").click();
+    await p.locator(".sheet").waitFor({ state: "detached" });
+    const savedDrop = await p.evaluate(() => window.__calls.filter((c) => c.action === "update" && c.table === "cdf_orders" && "drop_lat" in (c.row || {})).pop()?.row);
+    assert.equal(savedDrop?.drop_lat, 14.6123); assert.equal(savedDrop?.drop_lng, 121.0456);
+    await p.evaluate((f) => { const o = (0, eval)("(" + f + ")")(); Object.assign(o, { drop_lat: 14.6123, drop_lng: 121.0456 }); __ll.row = null; }, ord.toString());
+    await p.evaluate((f) => openOrder((0, eval)("(" + f + ")")()), ord.toString());
+    const sec3 = p.locator("#lalamoveSection");
+    await sec3.waitFor({ state: "visible" });
+    await sec3.getByRole("button", { name: "Ver precio" }).first().click();
+    await sec3.getByRole("button", { name: "Ver precio" }).first().click();
+    await sec3.locator(".ll-price").waitFor();
+    const q2 = await p.evaluate(() => __ll.calls.filter((c) => c.action === "quote").pop());
+    assert.equal(q2.lat, 14.6123); assert.equal(q2.lng, 121.0456);
+    console.log("ok customer point saved with the order (bad links refused); booking goes straight to the price");
+
     // Manual fallback: moves the order to On the way through the usual confirm
     const sec2 = p.locator("#lalamoveSection");
     await p.evaluate(() => closeSheet(true));
@@ -172,7 +196,7 @@ const server = http.createServer((req, res) => {
       console.log("ok order without phone cannot be booked");
     }
     // The order form was never saved by any of this
-    assert(!(await p.evaluate(() => (window.__calls || []).some((c) => (c.action === "update" || c.action === "insert") && c.table === "cdf_orders" && c.row?.delivery !== "In transit"))), "the order was saved");
+    assert(!(await p.evaluate(() => (window.__calls || []).some((c) => (c.action === "update" || c.action === "insert") && c.table === "cdf_orders" && c.row?.delivery !== "In transit" && !("drop_lat" in (c.row || {}))))), "the Lalamove flow saved the order");
     await p.context().close();
 
     // Florist: books a rider for her own Ready order, from the card's button; not for orders that aren't Ready

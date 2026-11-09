@@ -84,9 +84,27 @@ async function refresh(orderId: string) {
   return saved;
 }
 
+// A short share link (maps.app.goo.gl/…): follow its redirects and read the point from where it lands
+async function openShortLink(url: string) {
+  let u = url;
+  for (let i = 0; i < 4; i++) {
+    const res = await fetch(u, { redirect: "manual", headers: { "User-Agent": "Mozilla/5.0 (pedidos-cdf)" } });
+    const loc = res.headers.get("location");
+    const p = parseCoords(loc || "") || parseCoords(u);
+    if (p) return p;
+    if (!loc) { const body = await res.text().catch(() => ""); return parseCoords(body.slice(0, 200000)); }
+    u = new URL(loc, u).toString();
+  }
+  return null;
+}
+
 async function geocode(query: string) {
   const direct = parseCoords(query);
   if (direct) return [{ label: `${direct.lat}, ${direct.lng}`, ...direct }];
+  if (/^https?:\/\/(maps\.app\.goo\.gl|goo\.gl\/maps)\//i.test(query.trim())) {
+    const p = await openShortLink(query.trim()).catch(() => null);
+    return p ? [{ label: `${p.lat}, ${p.lng}`, ...p }] : [];
+  }
   // OpenStreetMap search, limited to the Philippines and nudged towards Metro Manila
   const u = new URL("https://nominatim.openstreetmap.org/search");
   Object.entries({ q: query, format: "jsonv2", countrycodes: "ph", limit: "5", viewbox: "120.90,14.80,121.15,14.35", "accept-language": "en" }).forEach(([k, v]) => u.searchParams.set(k, v));

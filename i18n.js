@@ -3,6 +3,8 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    dropPoint: "Ubicación exacta (para Lalamove)", dropPh: "Enlace de Google Maps del cliente", dropHint: "Opcional. Pega el enlace de Maps que te mande el cliente: así pedir rider va directo al precio.",
+    dropOk: "Punto guardado · comprobar en el mapa ↗", dropBad: "No reconozco esa ubicación. Pega un enlace de Google Maps (en Filipinas) o «lat, lng».", dropResolving: "Abriendo el enlace…",
     llManualOut: "Lo lleva otra persona: marcar «En camino» sin Lalamove", llShopMissingMine: "Tu tienda aún no tiene dirección de recogida. Pídesela al admin.",
     llSandboxNoMove: "Modo pruebas: este envío no es real y el pedido no avanzará solo.",
     notifPushServiceErr: "Este navegador no consigue activar las notificaciones (su servicio de avisos no responde). En Brave: Ajustes → Privacidad → activa «Usar servicios de Google para mensajes push». Si no, prueba con Chrome o con la app instalada en el móvil.",
@@ -244,6 +246,8 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    dropPoint: "Exact location (for Lalamove)", dropPh: "Customer's Google Maps link", dropHint: "Optional. Paste the Maps link the customer sends: booking a rider then goes straight to the price.",
+    dropOk: "Point saved · check it on the map ↗", dropBad: "Can't read that location. Paste a Google Maps link (in the Philippines) or \"lat, lng\".", dropResolving: "Opening the link…",
     llManualOut: "Someone else is taking it: mark \"On the way\" without Lalamove", llShopMissingMine: "Your shop has no pickup address yet. Ask the admin to add it.",
     llSandboxNoMove: "Test mode: this booking isn't real and the order won't move on its own.",
     notifPushServiceErr: "This browser can't turn on notifications (its push service isn't answering). In Brave: Settings → Privacy → turn on \"Use Google services for push messaging\". Otherwise try Chrome, or the app installed on your phone.",

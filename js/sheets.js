@@ -454,6 +454,29 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", class: "num", required: true });
   const iName = el("input", { id: "f-name", value: f.customer_name, placeholder: t("namePh"), autocomplete: "off" });
   const iAddr = el("input", { id: "f-addr", value: f.address, placeholder: t("addrPh"), autocomplete: "off" });
+  // The exact point for Lalamove (033): a Google Maps link or "lat, lng", read once here so booking a rider
+  // later goes straight to the price. Short links (maps.app.goo.gl) are opened by the server.
+  const iDrop = S.cap.drop ? el("input", { id: "f-drop", inputmode: "url", autocomplete: "off", placeholder: t("dropPh"),
+    value: o?.drop_lat != null ? `${+o.drop_lat}, ${+o.drop_lng}` : (copyFrom?.drop_lat != null ? `${+copyFrom.drop_lat}, ${+copyFrom.drop_lng}` : "") }) : null;
+  const dropNote = el("small", { class: "note" });
+  const dropPoint = () => (iDrop && iDrop.value.trim() ? (typeof llParseCoords === "function" ? llParseCoords(iDrop.value) : null) : null);
+  const paintDrop = () => {
+    if (!iDrop) return;
+    const p = dropPoint(), v = iDrop.value.trim();
+    iDrop.closest(".field")?.classList.toggle("invalid", !!v && !p);
+    fill(dropNote, !v ? t("dropHint") : p ? el("a", { class: "link-out", target: "_blank", rel: "noopener", href: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` }, t("dropOk")) : t("dropBad"));
+  };
+  if (iDrop) {
+    iDrop.addEventListener("input", paintDrop);
+    // A short share link: let the server open it and keep the point it leads to
+    iDrop.addEventListener("change", async () => {
+      const v = iDrop.value.trim();
+      if (!v || dropPoint() || !/goo\.gl\//i.test(v) || typeof llCall !== "function") return;
+      fill(dropNote, t("dropResolving"));
+      try { const r = (await llCall({ action: "geocode", query: v })).results?.[0]; if (r) iDrop.value = `${r.lat}, ${r.lng}`; } catch {}
+      paintDrop();
+    });
+  }
   const iPhone = el("input", { id: "f-phone", type: "tel", inputmode: "tel", value: phLocal(f.customer_phone), "data-cc": phSplit(f.customer_phone).cc, placeholder: "917 123 4567", autocomplete: "off" });
   const iEmail = el("input", { id: "f-email", type: "email", value: f.customer_email, placeholder: "cliente@email.com", autocomplete: "off" });
   const iBName = el("input", { id: "f-bname", value: f.buyer_name, placeholder: t("buyerNamePh"), autocomplete: "off" });
@@ -517,6 +540,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       buyer_name: iBName.value.trim(), buyer_phone: phFull(iBPhone),
       card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(), notes: iNotes.value.trim(),
     };
+    if (iDrop) { const p = dropPoint(); row.drop_lat = p ? p.lat : null; row.drop_lng = p ? p.lng : null; }
     if (priceEditable()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
     return row;
   };
@@ -558,6 +582,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       return miss.length ? (iSlot.closest(".field").classList.contains("invalid") && iSlot.first.value ? t("slotInvalid") : t("fillRequired")) : t("phoneInvalid");
     }
     if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
+    if (iDrop && iDrop.value.trim() && !dropPoint()) { paintDrop(); iDrop.focus(); return t("dropBad"); }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
     delete dbRow.amount;
@@ -666,6 +691,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
         checkRow(iSame, t("sameAsBuyer")),
         recip,
         el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr), mapHint(iAddr)),
+        iDrop ? field(t("dropPoint"), iDrop, dropNote) : null,
         field(t("cardMsg"), iCard),
         field(t("note"), iNotes)),
       el("section", {}, field(t("photo"), shot.node)),
@@ -695,6 +721,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
+  paintDrop();
   sheet.order = o;
   // An order that arrived live may not have its price yet: fetch it so the field never shows empty by mistake
   if (priceEditable() && o?.id && o.amount === undefined) sb.from("cdf_order_prices").select("amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {

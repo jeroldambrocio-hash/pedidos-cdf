@@ -20,6 +20,7 @@ function llParseCoords(input) {
   const m = /!3d(-?\d{1,2}\.\d+)!4d(-?\d{1,3}\.\d+)/.exec(s)
     || /@(-?\d{1,2}\.\d+),\s*(-?\d{1,3}\.\d+)/.exec(s)
     || /[?&](?:q|query|ll|destination)=(-?\d{1,2}\.\d+)(?:,|%2C)\s*(-?\d{1,3}\.\d+)/i.exec(s)
+    || /\/(?:search|place|dir)\/(-?\d{1,2}\.\d+)(?:,|%2C)\+?\s*(-?\d{1,3}\.\d+)/i.exec(s)
     || /^\s*(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)\s*$/.exec(s);
   if (!m) return null;
   const lat = +m[1], lng = +m[2];
@@ -142,7 +143,9 @@ function lalamoveSection(o) {
           btn(t("llChangePlace"), () => pickPlace(quote))),
         manualOut());
     }
-    // Nothing yet (or the quote expired): start, reusing the last confirmed point if there is one.
+    // Nothing yet (or the quote expired): start from the last confirmed point, else the one saved with the order (033).
+    const known = row?.lat != null ? { lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` }
+      : o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng, label: o.address || `${o.drop_lat}, ${o.drop_lng}` } : null;
     // The rider picks up at the assigned florist's shop, so there has to be one first.
     if (!llShopOf(o)) {
       const m = S.members.find((x) => x.email === o.vendor_email);
@@ -151,10 +154,11 @@ function lalamoveSection(o) {
       return fill(box, err, el("p", { class: "note" }, icon("flower"), " " + msg), manualOut());
     }
     return fill(box, err, shopLine(),
-      row?.lat ? el("p", { class: "note" }, t("llDeliverTo") + " " + (row.place || `${row.lat}, ${row.lng}`)) : el("p", { class: "note" }, t("llIntro")),
+      known ? el("p", { class: "note" }, t("llDeliverTo") + " " + known.label) : el("p", { class: "note" }, t("llIntro")),
+      known ? coordsLink(known.lat, known.lng) : null,
       el("div", { class: "btn-row" },
-        row?.lat ? btn(t("llGetPrice"), () => quote({ lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` }), true) : null,
-        btn(row?.lat ? t("llChangePlace") : t("llStart"), () => pickPlace(quote), !row?.lat)),
+        known ? btn(t("llGetPrice"), () => quote(known), true) : null,
+        btn(known ? t("llChangePlace") : t("llStart"), () => pickPlace(quote), !known)),
       manualOut());
   }
 
