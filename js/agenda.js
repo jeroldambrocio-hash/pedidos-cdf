@@ -56,7 +56,8 @@ function workCard(o, withDate, late) {
     if (await askConfirm(t("confirmTransit", { num: o.num }), t("markTransit"), { detail: to ? t("transitMailTo", { to }) : t("transitNoMail") })) advance(o, 2);
   }, "primary to-transit"));
   if (cur === 2) acts.push(big(t("actDelivered"), "check", () => deliverDialog(o), "primary to-done"), big(t("actMissed"), "alert", () => missedDialog(o), "to-fail"));
-  const phone = o.customer_phone && isOpen(o) ? intlPhone(o.customer_phone) : "";
+  // Call / WhatsApp were for the driver at the door; florists hand over to the Lalamove rider, who calls the customer
+  const phone = o.customer_phone && isOpen(o) && isCarrier() ? intlPhone(o.customer_phone) : "";
   const small = [
     phone ? el("a", { class: "btn", href: "tel:+" + phone }, icon("phone"), t("call")) : null,
     phone ? el("a", { class: "btn", href: "https://wa.me/" + phone, target: "_blank", rel: "noopener" }, icon("message"), "WhatsApp") : null,

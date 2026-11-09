@@ -206,6 +206,8 @@ const server = http.createServer((req, res) => {
       await v.waitForTimeout(400);
       const readyCard = v.locator("article.work.k-ready").first();
       await readyCard.waitFor();
+      // No Call / WhatsApp on her cards: the Lalamove rider is the one who contacts the customer
+      assert.equal(await v.locator('article.work a[href^="tel:"], article.work a[href*="wa.me"]').count(), 0, "florist still has Call/WhatsApp");
       // "Head out" on her Ready order opens the rider booking instead of moving the order by hand
       const before = await v.evaluate(() => window.__calls.length);
       await readyCard.getByRole("button", { name: "Salir a repartir" }).click();
