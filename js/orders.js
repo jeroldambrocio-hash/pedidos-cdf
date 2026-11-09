@@ -235,7 +235,7 @@ function orderCard(o) {
         floristPicker(o),
         tags.length ? el("div", { class: "o-tags" }, tags) : null,
         el("div", { class: "o-sub" },
-          /^\d{7,15}$/.test(phone) ? el("a", { href: "tel:+" + phone }, icon("phone"), "+" + phone) : null,
+          /^\d{7,15}$/.test(phone) ? el("a", { href: "tel:+" + phone }, icon("phone"), phoneNice(phone)) : null,
           o.address ? el("a", { class: "o-addr", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), o.address) : el("span", { class: "note" }, t("noAddress"))),
         cancelled && o.cancel_reason ? el("div", { class: "o-cancel" }, el("b", {}, t("cancelReasonShort")), " " + o.cancel_reason) : null,
         o.card_message || o.notes ? el("div", { class: "o-card" }, icon("note"), o.card_message || o.notes) : null),

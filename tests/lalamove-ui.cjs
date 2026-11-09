@@ -203,7 +203,8 @@ const server = http.createServer((req, res) => {
     // Florist: books a rider for her own Ready order, from the card's button; not for orders that aren't Ready
     {
       const v = await open("vendor", 390);
-      await v.evaluate(() => { const m = S.members.find((x) => x.email === S.me.email); Object.assign(m, { pickup_address: "Ana's shop, Quezon City", pickup_lat: 14.65, pickup_lng: 121.03 }); S.cap.pickup = true; renderAgenda?.(); render(); });
+      // As in real life: her shop is in her own profile; the team directory a florist loads has no addresses
+      await v.evaluate(() => { S.members.forEach((m) => { delete m.pickup_address; delete m.pickup_lat; delete m.pickup_lng; }); Object.assign(S.me, { pickup_address: "Ana's shop, Quezon City", pickup_lat: 14.65, pickup_lng: 121.03 }); S.cap.pickup = true; renderAgenda?.(); render(); });
       await v.waitForTimeout(400);
       const readyCard = v.locator("article.work.k-ready").first();
       await readyCard.waitFor();

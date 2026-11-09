@@ -176,6 +176,32 @@ const server = http.createServer((req, res) => {
       await a.screenshot({ path: path.join(out, "panel-branch.png") });
       await a.keyboard.press("Escape");
     });
+
+    await step("a selection that ends outside the window doesn't close it; a real tap outside does", async () => {
+      await a.evaluate(() => openOrder(S.orders[0]));
+      const scrim = a.locator("#sheetRoot .scrim");
+      await a.locator("#f-addr").waitFor();
+      // press inside the address field, let go over the backdrop (what a click-drag selection does)
+      await a.evaluate(() => { const s = document.querySelector("#sheetRoot .scrim"), f = document.getElementById("f-addr");
+        f.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); s.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+      assert(await a.locator("#sheetRoot .sheet").isVisible(), "the sheet closed after a selection");
+      await a.evaluate(() => { const s = document.querySelector("#sheetRoot .scrim");
+        s.dispatchEvent(new PointerEvent("pointerdown", { bubbles: true })); s.dispatchEvent(new MouseEvent("click", { bubbles: true })); });
+      await scrim.waitFor({ state: "detached" });
+    });
+
+    await step("chat: order chats by branch; names open the profile", async () => {
+      await a.evaluate(() => { const v = S.members.filter((m) => m.role === "vendor"); v.forEach((m, i) => (m.branch = i ? "Pasig" : "Parañaque")); try { localStorage.setItem("cdf-chat-branch", "group"); } catch {} CH.branch = "group"; });
+      await a.evaluate(() => setTab("chat"));
+      await a.evaluate(() => { document.querySelector("#chatList").replaceChildren(); renderChatList(); });
+      await a.locator(".chat-branch").waitFor();
+      assert.equal(await a.locator(".chat-branch").inputValue(), "group");
+      await a.locator(".thread-group").first().waitFor();
+      assert.match(await a.locator(".thread-group").first().innerText(), /Casa de Flores · |Sin sucursal/i);
+      await a.screenshot({ path: path.join(out, "panel-chat-branch.png") });
+      await a.locator(".chat-branch").selectOption("all");
+      assert.equal(await a.locator(".thread-group").count(), 0);
+    });
     await a.context().close();
 
     await step("florist: Ready needs no photo; no bouquet in the order view", async () => {

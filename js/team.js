@@ -89,7 +89,7 @@ function editMember(m) {
       err),
     el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: close }, t("cancel")), save));
   scrim.append(form);
-  scrim.addEventListener("click", (e) => { if (e.target === scrim) close(); });
+  closeOnBackdrop(scrim, () => close());
   scrim.addEventListener("dismiss", close);
   $("dialogRoot").append(scrim);
   queueMicrotask(() => { iName.focus(); iName.select(); });
@@ -117,7 +117,7 @@ function renderTeam() {
     box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
       employeeProfileButton(m, avatarNode(m), "profile-avatar"),
       el("div", {}, el("b", {}, employeeProfileButton(m, m.name, "profile-name"), bloomTag(m)), branchLine(m), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
-        phone ? el("a", { class: "m-phone", href: "tel:+" + phone }, icon("phone"), "+" + phone) : null,
+        phone ? el("a", { class: "m-phone", href: "tel:+" + phone }, icon("phone"), phoneNice(phone)) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
         m.role === "vendor" ? doneLine(m.email) : null),

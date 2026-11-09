@@ -2181,3 +2181,16 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .hist-part + .hist-part { margin-top: 12px; }
 .hist-part h4 { margin: 8px 0 6px; font-size: .8125rem; color: var(--muted); font-weight: 600; }
 .veh-seg { justify-self: start; max-width: 100%; }
+/* Chat: the author's name and photo open their profile */
+.msg-name, .msg-pic-btn { background: none; border: 0; padding: 0; color: inherit; font: inherit; cursor: pointer; }
+.msg-name:hover b { text-decoration: underline; }
+.msg-pic-btn { border-radius: 50%; align-self: flex-start; }
+/* Chat list by branch */
+.chat-branch { min-height: 36px; max-width: 100%; }
+.thread-group { display: flex; align-items: center; gap: 6px; margin: 14px 10px 4px; font-size: .75rem; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); font-weight: 600; }
+.thread-group svg { width: 14px; height: 14px; }
+.thread-group small { margin-left: auto; font-weight: 500; }
+/* A phone shown for reading: flag, code, grouped number */
+.phone-nice { display: inline-flex; align-items: center; gap: 6px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.phone-nice .flag { width: 18px; height: 13px; border-radius: 2px; object-fit: cover; flex: none; box-shadow: 0 0 0 1px rgb(0 0 0 / .12); }
+.phone-cc { color: var(--muted); }

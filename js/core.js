@@ -94,6 +94,18 @@ const phSplit = (p) => {
   return m ? { cc: m, local: d.slice(m.length) } : { cc: "", local: s };
 };
 const phLocal = (p) => phSplit(p).local;
+// A phone to read: the country's flag, its code, then the number in groups ("🇵🇭 +63 994 693 8665")
+function phoneNice(raw) {
+  const d = intlPhone(raw);
+  if (!/^\d{7,15}$/.test(d)) return el("span", { class: "phone-nice" }, String(raw || ""));
+  const cc = CCODES.map((c) => c[0]).filter((c) => d.startsWith(c)).sort((a, b) => b.length - a.length)[0];
+  const iso = cc ? CCODES.find((c) => c[0] === cc)[1] : "";
+  const rest = cc ? d.slice(cc.length) : d;
+  // 3-3-4 for 10 digits (Philippine mobiles), otherwise threes with the remainder last
+  const groups = rest.length === 10 ? [rest.slice(0, 3), rest.slice(3, 6), rest.slice(6)] : rest.match(/.{1,3}/g);
+  return el("span", { class: "phone-nice" }, iso && typeof flagImg === "function" ? flagImg(iso) : null,
+    cc ? el("span", { class: "phone-cc" }, "+" + cc) : null, el("span", { class: "phone-num" }, (cc ? "" : "+") + groups.join(" ")));
+}
 // Accepts the input itself (uses its country code) or a plain string (treated as +63)
 const phFull = (v) => {
   const cc = v && v.nodeType ? (v.dataset.cc ?? "63") : "63", s = String((v && v.nodeType ? v.value : v) || "").trim();
@@ -354,6 +366,13 @@ document.addEventListener("submit",e=>{
  queueMicrotask(()=>{if(!button.disabled){observer.disconnect();endRequest()}});
 },true);
 
+// Tapping the dimmed backdrop closes a sheet or dialog, but only when the press also started there:
+// selecting text in a field and letting go outside the window must not close it (and lose the work).
+function closeOnBackdrop(scrim, close) {
+  let downOnScrim = false;
+  scrim.addEventListener("pointerdown", (e) => { downOnScrim = e.target === scrim; });
+  scrim.addEventListener("click", (e) => { if (e.target === scrim && downOnScrim) close(); downOnScrim = false; });
+}
 // What is still owed on an order (price − paid). null without a price, or for anyone who can't see money.
 const dueOf = (o) => S.cap.paid && o.amount != null && o.amount !== "" ? Math.max(0, +o.amount - (+o.paid || 0)) : null;
 // Prices live behind their own administrator-only row policies, never in the shared order row.

@@ -302,7 +302,7 @@ async function showEmployeeProfile(member, trigger) {
       close),
     el("div", { class: "employee-contact" },
       el("span", {}, member.email),
-      phone ? el("a", { href: "tel:+" + phone }, "+" + phone) : null,
+      phone ? el("a", { class: "phone-link", href: "tel:+" + phone }, phoneNice(phone)) : null,
       member.role === "vendor" && S.cap.profiles ? awayBadge(member) : null),
     stats);
   dialog.addEventListener("keydown", (event) => {

@@ -27,7 +27,12 @@ function llParseCoords(input) {
   return lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127 ? { lat, lng } : null;
 }
 // The shop the rider picks up from: the assigned florist's (Team → edit). null when there isn't one yet.
-const llShopOf = (o) => { const m = S.members.find((x) => x.email === o.vendor_email); return m?.pickup_lat != null && m.pickup_address ? m : null; };
+// A florist doesn't load the whole team (her list comes from a directory without addresses): for her own
+// orders her shop is in her own profile (S.me).
+const llShopOf = (o) => {
+  const m = o.vendor_email && S.me?.email === o.vendor_email ? S.me : S.members.find((x) => x.email === o.vendor_email);
+  return m?.pickup_lat != null && m.pickup_address ? m : null;
+};
 
 // Who books riders: admins for any order, a florist for the orders assigned to her (the server checks it too)
 const llCanBook = (o) => !!o?.id && (isAdmin() || (S.me?.role === "vendor" && o.vendor_email === S.me.email));

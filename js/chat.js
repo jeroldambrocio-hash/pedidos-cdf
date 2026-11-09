@@ -1,12 +1,15 @@
 // Order chats and #team use cdf_messages. Private conversations use separate participant-scoped tables.
 const TEAM = "team";
-const CH = { on: false, reactOn: false, directOn: false, directs: new Map(), msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, views: new Set(), channel: null, info: new Map(), q: "", filter: "all", sentTyping: 0 };
+const CH = { on: false, reactOn: false, directOn: false, directs: new Map(), msgs: [], reads: new Map(), reacts: new Map(), typing: new Map(), open: null, views: new Set(), channel: null, info: new Map(), q: "", filter: "all", sentTyping: 0,
+  // Branch view of the order chats: "all", "group" (one heading per branch) or one branch's name (remembered per device)
+  branch: (() => { try { return localStorage.getItem("cdf-chat-branch") || "all"; } catch { return "all"; } })() };
 const threadOf = (m) => m.direct_id || m.order_id || TEAM;
 const msgOrder = (a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
 const manilaDay = (ts) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ts));
 const clock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: TZ });
 const person = (email) => S.members.find((m) => m.email === email) || { email, name: email?.split("@")[0] || "?" };
 const coarse = () => matchMedia("(pointer: coarse)").matches;
+const canSeeProfile = (p) => typeof employeeProfileButton === "function" && S.members.some((m) => m.email === p.email) && (isAdmin() || p.email === S.me?.email);
 
 // Switches in config.js (features): orderChats = each order's own conversation (all admins + the order's
 // florist see it), directChats = private chats between two people. The team channel always stays.
@@ -307,9 +310,10 @@ function threadView(thread, { autofocus = false, onDraft = null } = {}) {
       canEdit ? el("button", { type: "button", class: "tool-edit", "aria-label": t("chatEdit"), title: t("chatEdit"), onclick: () => editRow(r, m) }, icon("edit")) : null,
       el("button", { type: "button", class: "tool-copy", "aria-label": t("chatCopy"), title: t("chatCopy"), onclick: () => navigator.clipboard?.writeText(m.body).then(() => toast(t("chatCopied")), () => {}) }, icon("copy")));
     const r = el("div", { class: "cmsg" + (joined ? " joined" : "") + (mine ? " mine" : "") + (!mine && mentionsMe(m.body) ? " for-me" : "") + (big ? " jumbo" : ""), "data-id": m.id },
-      mine ? null : joined ? el("span", { class: "msg-gap" }) : avatarNode(p, "avatar msg-pic"),
+      mine ? null : joined ? el("span", { class: "msg-gap" }) : canSeeProfile(p) ? employeeProfileButton(p, avatarNode(p, "avatar msg-pic"), "msg-pic-btn") : avatarNode(p, "avatar msg-pic"),
       el("div", { class: "msg-main" },
-        !mine && !joined ? el("div", { class: "msg-head" }, el("b", {}, p.name)) : null,
+        // The name (and photo) open that person's profile, for whoever may see it (admins; anyone for themselves)
+        !mine && !joined ? el("div", { class: "msg-head" }, canSeeProfile(p) ? employeeProfileButton(p, el("b", {}, p.name), "msg-name") : el("b", {}, p.name)) : null,
         el("div", { class: "msg-bubble" }, el("p", { class: "msg-body" }, messageText(m.body)),
           m.edited_at ? el("small", { class: "msg-time" }, t("chatEdited")) : null,
           el("time", { class: "msg-time", datetime: m.created_at, title: longDate(manilaDay(m.created_at)) + " · " + clock(m.created_at) }, clock(m.created_at))),
@@ -571,11 +575,24 @@ function chatListTools(box) {
     if (email) openDirect(email, select);
   } }, el("option", { value: "" }, t("chatDirectNew")),
   S.members.filter((m) => m.email !== S.me.email).map((m) => el("option", { value: m.email }, m.name + " · " + t("role_" + m.role)))) : null;
-  tools = el("div", { class: "chat-tools" }, el("label", { class: "chat-search-wrap" }, icon("search"), q), seg, direct);
+  // By branch (office only: a florist's chats are her own orders anyway)
+  const branches = chatBranches();
+  const byBranch = isStaff() && branches.length ? el("select", { class: "chat-branch", "aria-label": t("chatBranch"), onchange: (e) => {
+    CH.branch = e.currentTarget.value; try { localStorage.setItem("cdf-chat-branch", CH.branch); } catch {} renderChatList();
+  } }, el("option", { value: "all" }, t("chatBranchAll")), el("option", { value: "group" }, t("chatBranchGroup")),
+    branches.map((b) => el("option", { value: b }, t("branchOf", { b }))), el("option", { value: "-" }, t("chatBranchNone"))) : null;
+  if (byBranch) byBranch.value = [...byBranch.options].some((o) => o.value === CH.branch) ? CH.branch : "all";
+  tools = el("div", { class: "chat-tools" }, el("label", { class: "chat-search-wrap" }, icon("search"), q), seg, byBranch, direct);
   const list = el("div", { class: "chat-threads" });
   box.replaceChildren(tools, list);
   requestAnimationFrame(() => placePill(seg));
   return list;
+}
+// Branches in the team (Team → edit), and the branch an order chat belongs to: its florist's
+const chatBranches = () => [...new Set(S.members.map((m) => m.branch).filter(Boolean))].sort((a, b) => a.localeCompare(b));
+function threadBranch(th) {
+  const o = byId(th) || CH.info.get(th);
+  return (o?.vendor_email && S.members.find((m) => m.email === o.vendor_email)?.branch) || "-";
 }
 const THREAD_STATUS_ICONS = { prep: "flower", ready: "clock", transit: "truck", done: "doubleCheck", fail: "close" };
 function renderChatList() {
@@ -583,9 +600,13 @@ function renderChatList() {
   const list = chatListTools(box);
   const all = threads();
   loadThreadInfo(all.map(([th]) => th));
-  const ts = all.filter(([th, m]) => (CH.filter !== "unread" || unreadIn(th)) && (!CH.q || threadTitle(th).toLowerCase().includes(CH.q) || (m?.body || "").toLowerCase().includes(CH.q)));
+  const branch = isStaff() && chatBranches().length ? CH.branch : "all";
+  const isOrder = (th) => th !== TEAM && !directPeer(th);
+  let ts = all.filter(([th, m]) => (CH.filter !== "unread" || unreadIn(th)) && (!CH.q || threadTitle(th).toLowerCase().includes(CH.q) || (m?.body || "").toLowerCase().includes(CH.q)));
+  // One branch: its order chats (the team chat and private chats stay)
+  if (branch !== "all" && branch !== "group") ts = ts.filter(([th]) => !isOrder(th) || threadBranch(th) === branch);
   if (!ts.length) { list.replaceChildren(el("p", { class: "chat-list-empty" }, t(CH.filter === "unread" && !CH.q ? "chatAllRead" : "chatNoResults"))); return; }
-  list.replaceChildren(...ts.map(([th, m]) => {
+  const row = ([th, m]) => {
     const u = unreadIn(th), team = th === TEAM, p = m ? person(m.author_email) : null;
     const peer = directPeer(th);
     const o = team ? null : byId(th) || CH.info.get(th);
@@ -601,7 +622,15 @@ function renderChatList() {
         el("span", { class: "thread-top" }, el("b", {}, threadTitle(th)), m ? el("time", {}, manilaDay(m.created_at) === S.today ? clock(m.created_at) : shortDate(manilaDay(m.created_at))) : null),
         el("small", {}, typingText(th) ? el("em", { class: "thread-typing" }, typingText(th)) : m ? who + m.body : t(peer ? "chatDirect" : "chatTeamDesc"))),
       u ? el("span", { class: "thread-count" }, String(u)) : null);
-  }));
+  };
+  if (branch !== "group") { list.replaceChildren(...ts.map(row)); return; }
+  // Grouped: the team and private chats first, then one heading per branch (newest first inside each)
+  const head = ts.filter(([th]) => !isOrder(th)), groups = new Map();
+  for (const x of ts.filter(([th]) => isOrder(th))) { const b = threadBranch(x[0]); if (!groups.has(b)) groups.set(b, []); groups.get(b).push(x); }
+  const names = [...groups.keys()].sort((a, b) => (a === "-") - (b === "-") || a.localeCompare(b));
+  list.replaceChildren(...head.map(row), ...names.flatMap((b) => [
+    el("h4", { class: "thread-group" }, icon("flower"), b === "-" ? t("chatBranchNone") : t("branchOf", { b }), el("small", {}, String(groups.get(b).length))),
+    ...groups.get(b).map(row)]));
 }
 function renderChatPane() {
   const pane = $("chatPane"), th = CH.open;

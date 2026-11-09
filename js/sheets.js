@@ -35,7 +35,7 @@ function askConfirm(text, okLabel, { danger = false, detail } = {}) {
       el("div", { class: "sheet-body" }, el("p", { id: "askText", class: "dialog-text" }, text), detail ? el("div", { class: "hint" }, detail) : null),
       el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: () => done(false) }, t("cancel")), ok));
     scrim.append(box);
-    scrim.addEventListener("click", (e) => { if (e.target === scrim) done(false); });
+    closeOnBackdrop(scrim, () => done(false));
     scrim.addEventListener("dismiss", () => done(false));
     $("dialogRoot").append(scrim);
     queueMicrotask(() => ok.focus());
@@ -49,7 +49,7 @@ function openLayer(node, { dirty = () => false, dispose = () => {} } = {}) {
   const back = document.activeElement;
   const scrim = el("div", { class: "scrim" });
   scrim.append(node);
-  scrim.addEventListener("click", (e) => { if (e.target === scrim) closeSheet(); });
+  closeOnBackdrop(scrim, () => closeSheet());
   scrim.addEventListener("dismiss", () => closeSheet());
   $("sheetRoot").append(scrim);
   document.body.classList.add("locked");
@@ -343,7 +343,7 @@ function openOrderView(o) {
         el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
         el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
         el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
-        o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "link-out" }, o.customer_phone))] : null,
+        o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "link-out" }, phoneNice(o.customer_phone)))] : null,
         o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, o.card_message)] : null,
         o.notes ? [el("dt", {}, t("note")), el("dd", {}, o.notes)] : null,
         o.photo_path ? [el("dt", {}, t("photo")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"), true)))] : null,

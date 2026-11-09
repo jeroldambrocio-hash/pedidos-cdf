@@ -1045,7 +1045,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator("#tabTeam").click();
       const row = q.locator(".member", { hasText: "Ana" });
       assert.match(await row.locator(".avail").innerText(), /Away until further notice\s*· Rest/);
-      assert.match(await row.innerText(), /\+639171112222/);
+      assert.match(await row.innerText(), /\+63\s*917 111 2222/);
       assert.match(await row.innerText(), /48 total/);
       await capture(q, "team-availability");
       await q.getByRole("button", { name: /Edit person: Ana/ }).click();
