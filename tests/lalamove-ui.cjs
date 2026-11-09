@@ -227,6 +227,54 @@ const server = http.createServer((req, res) => {
       await v.context().close();
     }
     console.log("ok florist: Head out books a rider for her own order (nothing moved by hand; never for others)");
+
+    {
+      const q = await open("admin", 390);
+      // New order: delivery instructions next to the address, vehicle, the point found from the address, no proof photo
+      await q.evaluate(() => openEditor(null));
+      const sh = q.locator(".sheet");
+      await sh.locator("#f-drop").waitFor();
+      const pos = await q.evaluate(() => ["f-addr", "f-dnote", "f-drop", "f-vehicle"].map((id) => [...document.querySelectorAll(".sheet .field")].indexOf(document.getElementById(id)?.closest(".field"))));
+      assert(pos.every((n, i) => n >= 0 && (!i || n > pos[i - 1])), "field order " + pos);
+      assert(!(await q.evaluate(() => document.getElementById("f-dnote").closest("details"))), "instructions still hidden in More details");
+      assert.equal(await sh.getByText("Foto de prueba", { exact: true }).count(), 0, "proof photo on a new order");
+      await q.locator("#f-addr").fill("Tomas Morato Ave, Quezon City");
+      await q.locator("#f-dropfind").click();
+      await sh.locator(".drop-find .ll-hit").first().click();
+      assert.equal(await q.locator("#f-drop").inputValue(), "14.6337, 121.0338");
+      await q.locator("#f-vehicle").selectOption("SEDAN");
+      assert.equal(await q.evaluate(() => document.getElementById("f-vehicle").value), "SEDAN");
+      await q.screenshot({ path: path.join(out, "lalamove-6-new-order.png") });
+      await q.evaluate(() => closeSheet(true));
+      console.log("ok new order: instructions under the address, point found from the typed address, vehicle, no proof photo");
+
+      // Taking the florist off an upcoming order asks first ("Save anyway"); cancelling keeps it unsaved
+      const id = await q.evaluate(() => { const o = S.orders.find((x) => x.vendor_email && isOpen(x) && !x.cancelled_at); o.date = manilaToday(); openOrder(o); return o.id; });
+      await sh.locator("#f-vendor").waitFor();
+      await q.locator("#f-vendor").selectOption("");
+      const n0 = await q.evaluate(() => window.__calls.length);
+      await q.evaluate(() => document.querySelector(".sheet").requestSubmit());
+      await q.getByText("A este pedido le falta algo para pedir el rider").waitFor();
+      assert.match(await q.locator(".dialog").last().innerText(), /sin florista/);
+      await q.locator(".dialog").last().getByRole("button", { name: "Cancelar" }).click();
+      assert(!(await q.evaluate((n) => window.__calls.slice(n).some((c) => c.action === "update" && c.table === "cdf_orders"), n0)), "saved without asking");
+      await q.evaluate(() => closeSheet(true));
+      console.log("ok saving without a florist asks first");
+
+      // The office banner: today's order with no florist
+      await q.evaluate((id) => { const o = S.orders.find((x) => x.id === id); o.vendor_email = null; o.date = manilaToday(); render(); }, id);
+      await q.locator("#gapBanner:not([hidden])").waitFor();
+      assert.match(await q.locator("#gapBanner").innerText(), /sin florista asignada/);
+      await q.screenshot({ path: path.join(out, "lalamove-7-banner.png") });
+      console.log("ok office banner: orders for today/tomorrow that can't get a rider");
+
+      // Stats: what riders cost in the period (sandbox says so)
+      await q.evaluate(() => setTab("stats"));
+      await q.locator(".chart-card").filter({ hasText: "Riders Lalamove" }).waitFor();
+      assert.match(await q.locator(".chart-card").filter({ hasText: "Riders Lalamove" }).innerText(), /Modo prueba/);
+      console.log("ok stats: Lalamove rider spend for the period");
+      await q.context().close();
+    }
     assert.deepEqual(errors, []);
     console.log("ok no page errors");
   } catch (e) { console.error("FAIL", e.message, errors); process.exitCode = 1; }

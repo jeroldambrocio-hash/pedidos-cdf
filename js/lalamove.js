@@ -86,7 +86,7 @@ function lalamoveSection(o) {
 
   // 2) Price for the chosen point
   async function quote(place) {
-    const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || "MOTORCYCLE") }, t("llv_" + v))));
+    const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || o.vehicle || "MOTORCYCLE") }, t("llv_" + v))));
     const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: o.slot })));
     const go = async () => { row = (await llCall({ action: "quote", order_id: o.id, lat: place.lat, lng: place.lng, place: place.label, service: vehicle.value, schedule: when.value })).row; draw(); };
     fill(box, shopLine(), el("p", {}, el("b", {}, t("llDeliverTo")), " ", place.label), coordsLink(place.lat, place.lng),

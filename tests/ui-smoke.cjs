@@ -219,6 +219,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
   }
   // A failed step reports the action and what blocked it, then closes any open layer so the next step starts clean
   const step = async (name, fn) => {
+    if (process.env.ONLY && !name.includes(process.env.ONLY)) return; // ONLY="part of a step name" runs just that step
     try { await fn(); results.push("ok   " + name); } catch (e) {
       const lines = e.message.split("\n").map((l) => l.trim()).filter((l) => l && !/^-? ?(waiting|attempting|retrying|\d+ ×|wait for|scrolling|done scrolling)/.test(l));
       results.push("FAIL " + name + " · " + lines.slice(0, 4).join(" ⏎ "));
@@ -410,6 +411,8 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#f-same").check();
       await p.locator("#f-addr").fill("Rockwell, Makati");
       await p.locator(".sheet button[type=submit]").click();
+      // No florist yet: it asks once ("Save anyway") so a rider can't be booked by surprise
+      await p.locator(".dialog").getByRole("button", { name: "Save anyway" }).click();
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       const ins = (await calls(p)).find((c) => c.action === "insert");
       assert.equal(ins.row.vendor_email, null); assert.equal(ins.row.buyer_phone, "+639175550101"); assert.equal(ins.row.customer_name, "Buyer test");
@@ -807,6 +810,8 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
         await preview.locator(".photo-preview-zoom").waitFor();
         await q.locator("#chatSection").getByRole("heading", { name: "Internal conversation" }).waitFor();
         assert.equal(await q.locator("#chatSection .chat-privacy").innerText(), "Only visible to team members who can access this order.");
+        // The photo is lower in the editor now and loads lazily: bring it on screen first, as a person would scroll to it
+        await preview.evaluate((b) => b.scrollIntoView({ block: "center" }));
         await preview.click();
         await q.getByRole("dialog", { name: "Reference photo" }).waitFor();
         await q.keyboard.press("Escape");

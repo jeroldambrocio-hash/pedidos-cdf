@@ -178,7 +178,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d, b] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -188,8 +188,9 @@ async function detectSchema() {
     sb.from("cdf_members").select("pickup_lat").limit(1), // 031: each florist's pickup point (Lalamove)
     sb.from("cdf_orders").select("drop_lat").limit(1), // 033: the customer's exact delivery point
     sb.from("cdf_members").select("branch").limit(1), // 035: each person's branch of the shop
+    sb.from("cdf_orders").select("vehicle").limit(1), // 036: Lalamove vehicle per order
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
@@ -296,6 +297,32 @@ function render() {
   else if (S.tab === "chat") renderChat();
   else renderOrders();
   refreshAwayConflicts();
+  paintGapBanner();
+}
+
+// The office: today's and tomorrow's open orders that a rider can't be booked for yet
+// (no florist, so no shop to pick up from; or a florist whose shop has no pickup address)
+function orderGaps() {
+  if (!isStaff()) return [];
+  const today = manilaToday(), tomorrow = addDays(today, 1);
+  return S.orders.filter((o) => (o.date === today || o.date === tomorrow) && isOpen(o) && !o.archived_at && o.delivery !== "In transit")
+    .map((o) => {
+      const m = o.vendor_email && S.members.find((x) => x.email === o.vendor_email);
+      const why = !o.vendor_email ? t("gapNoFlorist") : S.cap.pickup && m && m.role === "vendor" && (m.pickup_lat == null || !m.pickup_address) ? t("gapNoShop", { name: m.name }) : null;
+      return why ? { o, why } : null;
+    }).filter(Boolean).sort((a, b) => (a.o.date + a.o.slot).localeCompare(b.o.date + b.o.slot));
+}
+function paintGapBanner() {
+  const box = $("gapBanner"); if (!box) return;
+  const gaps = S.tab === "orders" ? orderGaps() : [];
+  box.hidden = !gaps.length;
+  if (box.hidden) return;
+  const today = manilaToday();
+  box.replaceChildren(icon("alert"), el("div", {},
+    el("b", {}, t("gapBanner", { n: gaps.length })),
+    ...gaps.map(({ o, why }) => el("div", { class: "away-row" },
+      el("button", { class: "linkish", type: "button", onclick: () => openOrder(o) }, "#" + o.num + " · " + (o.date === today ? t("today") : t("tomorrow")) + (o.slot ? " " + o.slot : "")),
+      el("span", {}, why)))));
 }
 
 let requests = 0;

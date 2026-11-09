@@ -3,7 +3,7 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
-    dropPoint: "Ubicación exacta (para Lalamove)", dropPh: "Enlace de Google Maps del cliente", dropHint: "Opcional. Pega el enlace de Maps que te mande el cliente: así pedir rider va directo al precio.",
+    dropPoint: "Ubicación exacta (para Lalamove)", dropPh: "Enlace de Google Maps del cliente", dropHint: "Opcional. Pulsa «Buscar la dirección en el mapa» y elige la buena, o pega el enlace de Maps si el cliente te lo manda.", dropFind: "Buscar la dirección en el mapa",
     dropOk: "Punto guardado · comprobar en el mapa ↗", dropBad: "No reconozco esa ubicación. Pega un enlace de Google Maps (en Filipinas) o «lat, lng».", dropResolving: "Abriendo el enlace…",
     llManualOut: "Lo lleva otra persona: marcar «En camino» sin Lalamove", llShopMissingMine: "Tu tienda aún no tiene dirección de recogida. Pídesela al admin.",
     llSandboxNoMove: "Modo pruebas: este envío no es real y el pedido no avanzará solo.",
@@ -24,6 +24,12 @@ const I18N = {
     llSearchPh: "Dirección o enlace de Google Maps", llSearch: "Buscar", llNoHits: "No la encuentro. Prueba con menos detalle o pega un enlace de Google Maps.",
     llDeliverTo: "Entrega en:", llCheckPin: "Comprobar el punto en el mapa ↗", llVehicle: "Vehículo", llPickup: "Recogida", llNow: "Ahora", llInSlot: "Para llegar en la franja {slot}",
     llv_MOTORCYCLE: "Moto", llv_SEDAN: "Coche", llv_MPV: "Monovolumen",
+    vehicleHint: "Moto para ramos normales; coche para arreglos grandes o varias piezas.",
+    statsRiders: "Riders Lalamove", statsRidersHint: "Lo pagado a Lalamove por los pedidos del periodo", statsRidersTest: "Modo prueba: precios de sandbox, no se ha cobrado nada",
+    statsRidersTrips: "{n} viajes", statsRidersAvg: "media {sum}", statsRidersShare: "{n}% de las ventas",
+    gapBanner: "{n} pedido(s) de hoy o mañana sin poder pedir rider todavía", gapNoFlorist: "sin florista asignada", gapNoShop: "{name} no tiene la dirección de su tienda (Equipo → Editar)",
+    gapAsk: "A este pedido le falta algo para pedir el rider", saveAnyway: "Guardar igualmente",
+    gapFlorist: "sin florista (no se sabe de qué tienda sale)", gapRecipientPhone: "sin teléfono de quien recibe (el rider llamará al comprador)",
     llGetPrice: "Ver precio", llChangePlace: "Cambiar dirección", llValidUntil: "precio válido hasta {time}",
     llNotReady: "El pedido aún no está listo. Reserva cuando el ramo esté preparado o programa la recogida.", llNeedPhone: "Falta un teléfono válido de quien recibe: el rider lo necesita.",
     llBook: "Reservar rider", llBookAsk: "¿Reservar un rider por {fee}?", llBookSandbox: "Modo pruebas: no se cobra nada y no vendrá ningún rider.", llBookLive: "Se cobrará de la wallet de Lalamove.",
@@ -248,7 +254,7 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
-    dropPoint: "Exact location (for Lalamove)", dropPh: "Customer's Google Maps link", dropHint: "Optional. Paste the Maps link the customer sends: booking a rider then goes straight to the price.",
+    dropPoint: "Exact location (for Lalamove)", dropPh: "Customer's Google Maps link", dropHint: "Optional. Tap «Find the address on the map» and pick the right one, or paste the Maps link if the customer sends it.", dropFind: "Find the address on the map",
     dropOk: "Point saved · check it on the map ↗", dropBad: "Can't read that location. Paste a Google Maps link (in the Philippines) or \"lat, lng\".", dropResolving: "Opening the link…",
     llManualOut: "Someone else is taking it: mark \"On the way\" without Lalamove", llShopMissingMine: "Your shop has no pickup address yet. Ask the admin to add it.",
     llSandboxNoMove: "Test mode: this booking isn't real and the order won't move on its own.",
@@ -269,6 +275,12 @@ const I18N = {
     llSearchPh: "Address or Google Maps link", llSearch: "Search", llNoHits: "Can't find it. Try with less detail or paste a Google Maps link.",
     llDeliverTo: "Deliver to:", llCheckPin: "Check the point on the map ↗", llVehicle: "Vehicle", llPickup: "Pickup", llNow: "Now", llInSlot: "To arrive in the {slot} slot",
     llv_MOTORCYCLE: "Motorcycle", llv_SEDAN: "Car", llv_MPV: "MPV",
+    vehicleHint: "Motorcycle for regular bouquets; car for large arrangements or several pieces.",
+    statsRiders: "Lalamove riders", statsRidersHint: "Paid to Lalamove for the period's orders", statsRidersTest: "Test mode: sandbox prices, nothing was charged",
+    statsRidersTrips: "{n} trips", statsRidersAvg: "average {sum}", statsRidersShare: "{n}% of sales",
+    gapBanner: "{n} order(s) for today or tomorrow can't get a rider yet", gapNoFlorist: "no florist assigned", gapNoShop: "{name} has no shop address (Team → Edit)",
+    gapAsk: "This order is missing something for booking the rider", saveAnyway: "Save anyway",
+    gapFlorist: "no florist (we don't know which shop it leaves from)", gapRecipientPhone: "no recipient phone (the rider will call the buyer)",
     llGetPrice: "Get price", llChangePlace: "Change address", llValidUntil: "price valid until {time}",
     llNotReady: "The order isn't ready yet. Book once the bouquet is done, or schedule the pickup.", llNeedPhone: "A valid recipient phone is missing: the rider needs it.",
     llBook: "Book rider", llBookAsk: "Book a rider for {fee}?", llBookSandbox: "Test mode: nothing is charged and no rider will come.", llBookLive: "It will be charged to the Lalamove wallet.",

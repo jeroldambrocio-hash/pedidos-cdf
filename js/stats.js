@@ -16,6 +16,20 @@ function setStatsDates(){
  if(from>to)[from,to]=[to,from];
  statsCustom={from,to};statsDays="custom";renderStats();
 }
+// What the shop spent on Lalamove riders for the orders in the period (cancelled bookings don't count).
+// Sandbox bookings are test prices: the card says so.
+async function ridersCard(rows,sum,prices,card){
+ if(!rows.length)return null;
+ let data;
+ try{if(typeof llDetect==="function"&&(await llDetect())===false)return null;const r=await sb.from("cdf_lalamove").select("order_id,price_total,quote_total,status,ll_order_id");if(r.error)return null;data=(r.data||[]).filter(x=>x.ll_order_id)}catch{return null}
+ const ids=new Set(rows.map(o=>o.id)),trips=data.filter(r=>ids.has(r.order_id)&&r.status!=="CANCELED");
+ const spent=trips.reduce((a,r)=>a+(+r.price_total||+r.quote_total||0),0),sales=sum(rows);
+ const test=typeof LL!=="undefined"&&LL.env&&LL.env!=="production";
+ return card(t("statsRiders"),test?t("statsRidersTest"):t("statsRidersHint"),
+  el("div",{class:"riders"},el("b",{class:"riders-sum"},peso(spent)),
+   el("span",{},t("statsRidersTrips",{n:trips.length})+(trips.length?" · "+t("statsRidersAvg",{sum:peso(spent/trips.length)}):"")),
+   prices&&sales?el("span",{},t("statsRidersShare",{n:Math.round(100*spent/sales)})):null));
+}
 async function renderStats(){
  if(!isAdmin())return;
  const box=$("statsBody"),account=S.me.email,key=[account,S.today,pricesOn(),statsVersion].join("|"),request=++statsRequest;
@@ -90,6 +104,7 @@ async function renderStats(){
  const panels=[daily,card(t(prices?"bySales":"byChannel"),null,bars(channels.map(c=>({name:c.ch,value:c.value,detail:prices?dayCount(c.os.length)+" · "+t("statsTicket")+" "+(ticket(c.os)==null?"—":peso(ticket(c.os))):pct(rows.length?c.os.length/rows.length:null)})),fmt,true)),card(t("statsHours"),t("statsHoursHint"),hourChart),card(t("byFlorist"),null,bars([...vendors].map(([name,value])=>({name,value})).sort((a,b)=>b.value-a.value))),card(t("statsCustomers"),t("statsHistoryHint"),best.length?customers:el("p",{class:"hint"},t("noData"))),card(t("statsIdeas"),t("statsIdeasHint"),el("ul",{class:"ideas"},ideas.map(([glyph,title,detail])=>el("li",{},el("span",{class:"ic"},icon(glyph)),el("div",{},el("b",{},title),el("small",{},detail))))))];
  box.replaceChildren(el("div",{class:"kpis six"},...primary,kpi("check",t("kpiFirstTry"),pct(first),null,t("statsFirstHint")),kpi("user",t("kpiRepeat"),pct(repeat),null,t("statsRepeatHint")),kpi("alert",t("kpiAttempts"),String(rows.reduce((n,o)=>n+(o.attempts||0),0)),null,t("kpiAttemptsHint"))),el("div",{class:"chart-grid"},...panels));
  stagger(box.querySelector(".kpis"));
+ ridersCard(rows,sum,prices,card).then(c=>{if(c&&request===statsRequest&&S.tab==="stats")box.querySelector(".chart-grid")?.prepend(c)});
  // Card icons play once as the cards arrive, and again whenever the pointer enters a card.
  const play=k=>{k.classList.remove("play");void k.offsetWidth;k.classList.add("play");};
  box.querySelectorAll(".kpi").forEach((k,i)=>{k.style.setProperty("--kd",i*120+"ms");k.addEventListener("pointerenter",()=>{if(prefersReducedMotion())return;k.style.setProperty("--kd","0ms");play(k);});if(!prefersReducedMotion())play(k);});

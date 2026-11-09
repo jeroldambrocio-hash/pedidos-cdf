@@ -279,7 +279,7 @@ function historyBlock(o) {
 const EV_FIELDS = { num: "orderNum", date: "date", slot: "slot", channel: "channel", vendor_email: "vendor", carrier_email: "carrier",
   customer_name: "customerName", customer_phone: "phone", customer_email: "email", buyer_name: "buyerName", buyer_phone: "buyerPhone",
   address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery", cancel_reason: "cancelReason",
-  photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount" };
+  vehicle: "llVehicle", photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount" };
 const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
   if (typeof v === "boolean") return v ? t("evPhotoYes") : t("evPhotoNo");
@@ -464,6 +464,10 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iDrop = S.cap.drop ? el("input", { id: "f-drop", inputmode: "url", autocomplete: "off", placeholder: t("dropPh"),
     value: o?.drop_lat != null ? `${+o.drop_lat}, ${+o.drop_lng}` : (copyFrom?.drop_lat != null ? `${+copyFrom.drop_lat}, ${+copyFrom.drop_lng}` : "") }) : null;
   const dropNote = el("small", { class: "note" });
+  // Lalamove vehicle (036): motorcycle unless the arrangement needs a car
+  const vehNow = (o ? o.vehicle : copyFrom ? copyFrom.vehicle : draft?.vehicle) || "";
+  const iVeh = S.cap.vehicle ? el("select", { id: "f-vehicle" }, ...[["", t("llv_MOTORCYCLE")], ["SEDAN", t("llv_SEDAN")], ["MPV", t("llv_MPV")]]
+    .map(([v, l]) => el("option", { value: v, selected: v === (vehNow === "MOTORCYCLE" ? "" : vehNow) }, l))) : null;
   const dropPoint = () => (iDrop && iDrop.value.trim() ? (typeof llParseCoords === "function" ? llParseCoords(iDrop.value) : null) : null);
   const paintDrop = () => {
     if (!iDrop) return;
@@ -471,6 +475,20 @@ function openEditor(o, { copyFrom, draft } = {}) {
     iDrop.closest(".field")?.classList.toggle("invalid", !!v && !p);
     fill(dropNote, !v ? t("dropHint") : p ? el("a", { class: "link-out", target: "_blank", rel: "noopener", href: `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` }, t("dropOk")) : t("dropBad"));
   };
+  // "Find on the map": search the typed address and pick the right result (no Maps link needed)
+  const dropHits = el("div", { class: "ll-results" });
+  const dropFind = iDrop && typeof llCall === "function" ? el("button", { class: "btn", type: "button", id: "f-dropfind", onclick: async (e) => {
+    const q = iAddr.value.trim(), b = e.currentTarget;
+    if (!q) { iAddr.closest(".field").classList.add("invalid"); iAddr.focus(); return; }
+    b.disabled = true; b.classList.add("busy");
+    try {
+      const { results } = await llCall({ action: "geocode", query: q });
+      fill(dropHits, results.length ? results.map((r) => el("button", { class: "ll-hit", type: "button", onclick: () => {
+        iDrop.value = `${r.lat}, ${r.lng}`; dropHits.replaceChildren(); paintDrop(); iDrop.dispatchEvent(new Event("change", { bubbles: true }));
+      } }, icon("map"), el("span", {}, r.label))) : el("p", { class: "note" }, t("llNoHits")));
+    } catch (x) { fill(dropHits, el("p", { class: "err" }, x.message)); }
+    finally { b.disabled = false; b.classList.remove("busy"); }
+  } }, icon("search"), " " + t("dropFind")) : null;
   if (iDrop) {
     iDrop.addEventListener("input", paintDrop);
     // A short share link: let the server open it and keep the point it leads to
@@ -546,6 +564,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       card_message: iCard.value.trim(), delivery_note: iDNote.value.trim(), notes: iNotes.value.trim(),
     };
     if (iDrop) { const p = dropPoint(); row.drop_lat = p ? p.lat : null; row.drop_lng = p ? p.lng : null; }
+    if (iVeh) row.vehicle = iVeh.value || null;
     if (priceEditable()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
     return row;
   };
@@ -588,6 +607,17 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
     if (iDrop && iDrop.value.trim() && !dropPoint()) { paintDrop(); iDrop.focus(); return t("dropBad"); }
+    // Things a rider booking will need: a heads-up, never a block. Only for orders still to come.
+    if (!o?.cancelled_at && o?.delivery !== "Delivered" && row.date >= manilaToday()) {
+      const gaps = [
+        !row.vendor_email ? t("gapFlorist") : null,
+        !iSame.checked && !row.customer_phone ? t("gapRecipientPhone") : null,
+      ].filter(Boolean);
+      const before = initial ? [!initial.vendor_email, !initial.customer_phone] : null;
+      const same = !isNew && before && gaps.length && [!row.vendor_email, !iSame.checked && !row.customer_phone].every((g, i) => !g || before[i]);
+      // Asked when creating, or when an edit leaves a gap that wasn't there; not on every later save
+      if (gaps.length && !same && !(await askConfirm(t("gapAsk"), t("saveAnyway"), { detail: gaps.join(" · ") }))) return;
+    }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
     delete dbRow.amount;
@@ -696,7 +726,10 @@ function openEditor(o, { copyFrom, draft } = {}) {
         checkRow(iSame, t("sameAsBuyer")),
         recip,
         el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr), mapHint(iAddr)),
+        field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
         iDrop ? field(t("dropPoint"), iDrop, dropNote) : null,
+        dropFind ? el("div", { class: "drop-find" }, dropFind, dropHits) : null,
+        iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
         field(t("cardMsg"), iCard),
         field(t("note"), iNotes)),
       el("section", {}, field(t("photo"), shot.node)),
@@ -704,13 +737,12 @@ function openEditor(o, { copyFrom, draft } = {}) {
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
       isNew || typeof lalamoveSection !== "function" ? null : lalamoveSection(o),
-      el("section", {}, el("details", { class: "hist", open: !!(f.delivery_note || o?.proof_path || o?.extra_photos?.length || (priceEditable() && f.amount != null && f.amount !== "")) || null },
+      el("section", {}, el("details", { class: "hist", open: !!(o?.proof_path || o?.extra_photos?.length || (priceEditable() && f.amount != null && f.amount !== "")) || null },
         el("summary", {}, t("moreDetails")),
         el("div", { class: "details-body" },
           priceEditable() ? field(t("bouquetPrice"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP")), el("small", { class: "note" }, t("bouquetPriceHint"))) : null,
           extras.node ? field(t("extraPhotos"), extras.node, el("small", { class: "note" }, t("extraPhotosHint"))) : null,
-          field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
-          field(t("proofPhoto"), proof.node)))),
+          isNew ? null : field(t("proofPhoto"), proof.node)))),
       isNew ? null : el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
         S.cap.events ? el("details", { class: "hist" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null),
       err),
