@@ -4,7 +4,7 @@
 // - internal note between the card message and the reference photo
 // - "More details": bouquet price in ₱ (always, for the admin) and several photos
 // - office view: Day / 7 days / 30 days / Dates
-// - chat: only the team channel
+// - chat: team channel and each order's own conversation (admins + that order's florist); no private chats
 const fs = require("fs"), path = require("path"), http = require("http"), assert = require("assert"), { execFileSync } = require("child_process");
 const { chromium } = require("playwright");
 const root = path.resolve(__dirname, ".."), out = path.join(root, ".impeccable/review");
@@ -152,15 +152,16 @@ const server = http.createServer((req, res) => {
       assert.equal(await a.locator("#dLabel").innerText(), dayLabel);
     });
 
-    await step("chat: only the team channel; nothing about it on orders", async () => {
-      assert.equal(await a.locator(".chat-chip").count(), 0, "chat chips on cards");
+    await step("chat: team channel + each order's own conversation; no private chats", async () => {
       await a.evaluate(() => openOrder(S.orders[0]));
       await a.locator(".sheet").waitFor();
-      assert.equal(await a.locator(".sheet #chatSection").count(), 0, "order conversation still there");
+      await a.locator(".sheet #chatSection").waitFor();
       await a.evaluate(() => closeSheet(true));
       await a.locator("#tabChat").click();
       await a.locator("#chatList .thread").first().waitFor();
-      assert.equal(await a.locator("#chatList .thread").count(), 1, "more than the team thread");
+      const titles = await a.locator("#chatList .thread b").allInnerTexts();
+      assert(titles.some((x) => /#\d{4}/.test(x)), "no order conversations in the list: " + titles);
+      assert(!(await a.evaluate(() => CH.msgs.some((m) => m.direct_id))), "private messages loaded");
       assert.equal(await a.locator(".chat-direct-picker").count(), 0, "private chats still offered");
       await a.screenshot({ path: path.join(out, "panel-chat.png") });
     });
@@ -177,6 +178,8 @@ const server = http.createServer((req, res) => {
       await v.evaluate(() => openOrderView(S.orders[0]));
       await v.locator(".sheet").waitFor();
       assert.equal(await v.locator(".sheet").getByText("Foto del ramo", { exact: true }).count(), 0);
+      await v.locator(".sheet #chatSection").waitFor(); // her order's conversation with the admins
+      assert(!(await v.evaluate(() => CH.msgs.some((m) => m.order_id && !S.orders.some((o) => o.id === m.order_id)))), "florist sees another order's conversation");
       await v.context().close();
     });
 

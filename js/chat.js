@@ -8,18 +8,20 @@ const clock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit
 const person = (email) => S.members.find((m) => m.email === email) || { email, name: email?.split("@")[0] || "?" };
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 
-// Only the team channel since 8/11/2026: order conversations and private chats are hidden (their messages
-// stay in the database). chats: true in config.js features brings them back.
-const TEAM_ONLY = !feature("chats");
-const inScopeMsg = (m) => !TEAM_ONLY || (!m.order_id && !m.direct_id);
+// Switches in config.js (features): orderChats = each order's own conversation (all admins + the order's
+// florist see it), directChats = private chats between two people. The team channel always stays.
+// Messages of a switched-off kind stay in the database and come back with the switch.
+const ORDER_CHATS = feature("orderChats"), DIRECT_CHATS = feature("directChats");
+const TEAM_ONLY = !ORDER_CHATS; // order conversation block and chips
+const inScopeMsg = (m) => (m.direct_id ? DIRECT_CHATS : m.order_id ? ORDER_CHATS : true);
 async function loadChat() {
   const [m, r, x, d, dm] = await Promise.all([
-    TEAM_ONLY ? sb.from("cdf_messages").select("*").is("order_id", null).order("created_at", { ascending: false }).limit(2000)
-      : sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000),
+    ORDER_CHATS ? sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000)
+      : sb.from("cdf_messages").select("*").is("order_id", null).order("created_at", { ascending: false }).limit(2000),
     sb.from("cdf_message_reads").select("*").eq("member_email", S.me.email),
     sb.from("cdf_message_reactions").select("*").limit(5000),
-    TEAM_ONLY ? { error: true } : sb.from("cdf_direct_threads").select("*"),
-    TEAM_ONLY ? { error: true } : sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000),
+    DIRECT_CHATS ? sb.from("cdf_direct_threads").select("*") : { error: true },
+    DIRECT_CHATS ? sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000) : { error: true },
   ]);
   CH.on = !m.error && !r.error;
   $("tabChat").hidden = !CH.on;
