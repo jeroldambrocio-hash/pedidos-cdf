@@ -105,12 +105,23 @@ async function geocode(query: string) {
     const p = await openShortLink(query.trim()).catch(() => null);
     return p ? [{ label: `${p.lat}, ${p.lng}`, ...p }] : [];
   }
-  // OpenStreetMap search, limited to the Philippines and nudged towards Metro Manila
-  const u = new URL("https://nominatim.openstreetmap.org/search");
-  Object.entries({ q: query, format: "jsonv2", countrycodes: "ph", limit: "5", viewbox: "120.90,14.80,121.15,14.35", "accept-language": "en" }).forEach(([k, v]) => u.searchParams.set(k, v));
+  // OpenStreetMap data through Photon (komoot): limited to the Philippines and nudged towards Metro Manila.
+  // (Nominatim refuses requests from Supabase's servers, checked 9/11/2026.)
+  const u = new URL("https://photon.komoot.io/api/");
+  Object.entries({ q: query, limit: "6", lat: "14.6", lon: "121.03", bbox: "116,4,127,21.5", lang: "en" }).forEach(([k, v]) => u.searchParams.set(k, v));
   const res = await fetch(u, { headers: { "User-Agent": "pedidos-cdf/1.0 (Casa de Flores order panel; casadeflores.store)" } });
   if (!res.ok) throw new Error("Map search unavailable, paste a Google Maps link instead");
-  return (await res.json()).map((r: any) => ({ label: r.display_name, lat: +(+r.lat).toFixed(6), lng: +(+r.lon).toFixed(6) }));
+  const seen = new Set<string>();
+  return ((await res.json()).features || [])
+    .filter((f: any) => (f.properties?.countrycode || "PH") === "PH" && f.geometry?.coordinates)
+    .map((f: any) => {
+      const p = f.properties || {}, [lng, lat] = f.geometry.coordinates;
+      const street = [p.housenumber, p.street].filter(Boolean).join(" ");
+      const label = [p.name, street, p.district || p.locality, p.city, p.state].filter((x, i, a) => x && a.indexOf(x) === i).join(", ");
+      return { label: label || `${lat}, ${lng}`, lat: +(+lat).toFixed(6), lng: +(+lng).toFixed(6) };
+    })
+    .filter((r: any) => inPhilippines(r.lat, r.lng) && !seen.has(r.label) && seen.add(r.label))
+    .slice(0, 5);
 }
 
 async function quote(orderId: string, b: Record<string, any>) {
