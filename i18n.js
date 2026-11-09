@@ -240,7 +240,7 @@ const I18N = {
     addPerson: "Añadir persona", role: "Rol", roleHint: "Florista: sus pedidos. Repartidor: las entregas. Admin: todo, también el equipo.",
     initialPass: "Contraseña inicial", passPh: "Mínimo 8 caracteres", addHint: "Pásale el email y esta contraseña. Si ya tenía cuenta en este proyecto, conserva la suya.", add: "Añadir",
     team: "Equipo", teamSub: "Los floristas solo ven los pedidos que tienen asignados.", you: "Tú", openLoad: "{n} pedidos abiertos", doneTitle: "Completados", doneToday: "hoy", doneWeek: "7 días", doneMonth: "este mes", doneTotal: "en total",
-    removeAsk: "¿Quitar a {name} del equipo?", removeHint: "Pierde el acceso al momento. Sus pedidos se quedan sin asignar.", removeFail: "No se pudo quitar", removed: "{name} ya no tiene acceso",
+    removeAsk: "¿Quitar a {name} del equipo?", removeHint: "Pierde el acceso al momento y sus pedidos se quedan sin asignar. Su cuenta no se borra: puedes volver a añadirla más tarde.", removeFail: "No se pudo quitar", removed: "{name} ya no tiene acceso",
     addFail: "No se pudo añadir", addedExisting: "{name} añadido (ya tenía cuenta, usa su contraseña)", added: "{name} añadido",
     // statistics
     statsSub: "Cómo han ido los últimos días, archivados incluidos.", period: "Periodo", noData: "Sin datos en este periodo.",
@@ -495,7 +495,7 @@ const I18N = {
     addPerson: "Add person", role: "Role", roleHint: "Florist: their own orders. Driver: deliveries. Admin: everything, including the team.",
     initialPass: "Initial password", passPh: "At least 8 characters", addHint: "Give them the email and this password. If they already had an account in this project, they keep theirs.", add: "Add",
     team: "Team", teamSub: "Florists only see the orders assigned to them.", you: "You", openLoad: "{n} open orders", doneTitle: "Completed", doneToday: "today", doneWeek: "7 days", doneMonth: "this month", doneTotal: "total",
-    removeAsk: "Remove {name} from the team?", removeHint: "They lose access at once. Their orders become unassigned.", removeFail: "Couldn't remove them", removed: "{name} no longer has access",
+    removeAsk: "Remove {name} from the team?", removeHint: "They lose access at once and their orders become unassigned. Their account isn't deleted: you can add them back later.", removeFail: "Couldn't remove them", removed: "{name} no longer has access",
     addFail: "Couldn't add them", addedExisting: "{name} added (they already had an account, use their password)", added: "{name} added",
     statsSub: "How the last days went, archived orders included.", period: "Period", noData: "No data in this period.",
     kpiOrders: "Orders", kpiPerDay: "{n} a day", kpiDelivered: "Delivered", kpiFirstTry: "Delivered first time", kpiFirstTryHint: "No “nobody home”",

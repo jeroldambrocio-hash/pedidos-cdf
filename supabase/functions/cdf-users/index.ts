@@ -56,13 +56,13 @@ Deno.serve(async (req) => {
 
   if (body.action === "remove") {
     if (email === caller.user.email.toLowerCase()) return json({ error: "No puedes quitarte a ti mismo" }, 400);
+    // Removing someone only takes away their access to this app (the cdf_members row decides it, RLS reads it).
+    // The login itself is never deleted: this Supabase project is shared with another app that may use the same
+    // account (decided 9/11/2026). Adding them again later gives access back with the same password.
     const { error } = await service.from("cdf_members").delete().eq("email", email);
     if (error) return json({ error: error.message }, 400);
-    // Only delete the login if this app created it; accounts shared with other apps stay.
-    // The mark lives in app_metadata, which only the server can write (users can edit their own user_metadata).
-    const { data: list } = await service.auth.admin.listUsers({ page: 1, perPage: 1000 });
-    const u = list?.users.find((x) => x.email?.toLowerCase() === email);
-    if (u?.app_metadata?.cdf === true) await service.auth.admin.deleteUser(u.id);
+    // Their phones stop getting this app's notifications
+    await service.from("cdf_push_subs").delete().eq("member_email", email);
     return json({ ok: true });
   }
 
