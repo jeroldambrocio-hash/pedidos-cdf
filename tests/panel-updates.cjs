@@ -113,6 +113,16 @@ const server = http.createServer((req, res) => {
       assert.equal(await a.evaluate((id) => window.__prices.find((p) => p.order_id === id).amount, id), 1800);
     });
 
+    await step("new order number follows the latest order in the database, not only the ones on screen", async () => {
+      await a.evaluate(() => { window.__orders.push({ ...window.__orders[0], id: "99999999-9999-9999-9999-999999999999", num: "0420", date: "2027-06-01", created_at: new Date().toISOString() }); });
+      await a.evaluate(() => newOrder());
+      await a.locator(".sheet").waitFor();
+      const num = await a.locator(".sheet input#f-num, .sheet input[id*=num]").first().inputValue();
+      assert.equal(num, "0421", "next number " + num);
+      await a.evaluate(() => closeSheet(true));
+      await a.evaluate(() => { window.__orders = window.__orders.filter((o) => o.num !== "0420"); S.numTop = 0; });
+    });
+
     await step("office view: Day, 7 days, 30 days, Dates", async () => {
       const seg = a.locator("#periodSeg");
       await seg.waitFor();

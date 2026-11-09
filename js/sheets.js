@@ -439,7 +439,9 @@ const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier
   "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
 function openEditor(o, { copyFrom, draft } = {}) {
   let isNew = !o;
-  const nextNum = String(Math.max(0, ...S.orders.map((x) => parseInt(x.num, 10) || 0)) + 1).padStart(4, "0");
+  // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
+  // long ago aren't loaded, and another admin may have just added one). The database still refuses a repeat.
+  const nextNum = String(Math.max(0, S.numTop || 0, ...S.orders.map((x) => (/^\d+$/.test(x.num) ? +x.num : 0))) + 1).padStart(4, "0");
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
     customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "" };
@@ -647,7 +649,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   const archived = !!o?.archived_at;
   const footLeft = isNew ? el("span") : el("div", { class: "btn-row" },
-    el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) openEditor(null, { copyFrom: o }); } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
+    el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) { await refreshNumTop().catch(() => {}); openEditor(null, { copyFrom: o }); } } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
     S.cap.archive ? el("button", { class: "btn foot-act", type: "button", "aria-label": t(archived ? "restore" : "archive"), onclick: () => setArchived([o], !archived) }, icon("archive"), el("span", { class: "lbl" }, t(archived ? "restore" : "archive"))) : null,
     isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
     isAdmin() && o.cancelled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("reinstate"), onclick: async () => { if (await closeSheet()) reinstateOrder(o); } }, icon("refresh"), el("span", { class: "lbl" }, t("reinstate"))) : null,
@@ -736,8 +738,12 @@ function mapHint(input) {
   return a;
 }
 // New order: offer the unsaved draft first, if there is one
+async function refreshNumTop() {
+  const { data } = await sb.from("cdf_orders").select("num").order("created_at", { ascending: false }).limit(200);
+  S.numTop = Math.max(0, ...(data || []).map((x) => (/^\d+$/.test(x.num) ? +x.num : 0)));
+}
 async function newOrder() {
-  if (isStaff()) await loadMembers();
+  if (isStaff()) await Promise.all([loadMembers(), refreshNumTop().catch(() => {})]);
   const d = readDraft();
   if (d && (d.buyer_name || d.customer_name || d.address || d.notes)) {
     const restore = await askConfirm(t("draftFound"), t("draftRestore"), { detail: [d.buyer_name || d.customer_name, d.address].filter(Boolean).join(" · ") });
