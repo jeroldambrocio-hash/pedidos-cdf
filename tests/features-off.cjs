@@ -56,6 +56,21 @@ const server = http.createServer((req, res) => {
     assert.equal(await a.locator(".sheet").getByRole("button", { name: "Copiar mensaje" }).count(), 0, "copy message shown");
     assert.equal(await a.locator('.sheet .notify-row').count(), 0, "WhatsApp message shown");
     console.log("ok order: no tracking link and no WhatsApp/copied messages to the customer");
+    // The old "note for the customer" is now delivery instructions for the rider
+    assert.match(await a.locator(".sheet").innerText(), /Indicaciones de entrega/);
+    assert(!(await a.locator(".sheet").innerText()).includes("enlace de seguimiento"), "still mentions the tracking link");
+    await a.evaluate(() => closeSheet(true));
+    await a.evaluate(() => deliverDialog(S.orders[0]));
+    await a.locator(".sheet").waitFor();
+    assert(!(await a.locator(".sheet").innerText()).includes("Nota para el cliente"), "Delivered still asks for a customer note");
+    await a.evaluate(() => closeSheet(true));
+    await a.evaluate(() => missedDialog(S.orders[0]));
+    await a.locator(".sheet").waitFor();
+    assert.match(await a.locator(".sheet").innerText(), /Indicaciones para el próximo intento/);
+    await a.evaluate(() => closeSheet(true));
+    await a.evaluate(() => openOrder(S.orders.find((o) => o.buyer_phone || o.customer_phone) || S.orders[0]));
+    await a.locator(".sheet").waitFor();
+    console.log("ok delivery instructions instead of a customer note (Delivered / Nobody home don't overwrite them)");
     await a.screenshot({ path: path.join(out, "features-off-order.png") });
     assert.equal(await a.locator('#aRole option[value="carrier"]').count(), 0, "can create drivers");
     const roles = await a.evaluate(() => { const m = S.members.find((x) => x.role === "vendor"); editMember(m); return [...document.querySelectorAll("#eRole option")].map((o) => o.value); });

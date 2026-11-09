@@ -174,7 +174,8 @@ function deliverDialog(o) {
   let setErr;
   const proof = photoPicker({ current: o.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: (m) => setErr?.(m) });
   const note = el("textarea", { placeholder: t("deliveredNotePh"), rows: 2 });
-  miniSheet(t("deliverTitle", { num: o.num }), [field(t("proofPhoto"), proof.node), field(t("noteOpt"), note)], t("confirmDelivered"), async (se) => {
+  // Tracking off: nobody would read a note for the customer, and it would replace the delivery instructions
+  miniSheet(t("deliverTitle", { num: o.num }), [field(t("proofPhoto"), proof.node), feature("tracking") ? field(t("noteOpt"), note) : null], t("confirmDelivered"), async (se) => {
     setErr = se;
     const extra = {}, pp = await proof.upload(o.id);
     if (pp !== undefined) extra.proof_path = pp;
@@ -193,18 +194,20 @@ function missedDialog(o) {
   const proof = photoPicker({ current: o.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: (m) => setErr?.(m) });
   const iDate = el("input", { type: "date", value: addDays(S.today, 1), min: isStaff() ? null : S.today, required: true });
   const iSlot = slotPicker(o.slot);
-  const note = el("textarea", { placeholder: t("missedNotePh"), rows: 2 });
+  const track = feature("tracking");
+  const note = el("textarea", { placeholder: t(track ? "missedNotePh" : "riderNotePh"), rows: 2 });
   miniSheet(t("missedTitle", { num: o.num }), [
     el("p", { class: "note", style: "margin:0" }, t("missedHint")),
     field(t("proofPhoto"), proof.node),
     el("div", { class: "row2 when-row" }, field(t("newDate"), iDate), field(t("newSlot"), iSlot)),
-    field(t("noteOpt"), note)], t("confirmMissed"), async (se) => {
+    field(t(track ? "noteOpt" : "riderNoteOpt"), note)], t("confirmMissed"), async (se) => {
     setErr = se;
     const slot = iSlot.value();
     if (!iDate.value || !slot) return t("slotInvalid");
     const at = new Intl.DateTimeFormat("en-PH", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(new Date());
     const when = fromIso(iDate.value).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" });
-    const text = note.value.trim() || `We came at ${at} but nobody was home. We'll come back on ${when}, ${slot}.`;
+    // With tracking on, the customer reads this on their link; off, it is only the rider's instructions (kept if empty)
+    const text = note.value.trim() || (track ? `We came at ${at} but nobody was home. We'll come back on ${when}, ${slot}.` : null);
     const pp = await proof.upload(o.id);
     const { data, error } = await sb.rpc("cdf_reschedule", { p_id: o.id, p_date: iDate.value, p_slot: slot, p_note: text,
       p_proof: pp ?? null, p_set_proof: pp !== undefined });
