@@ -93,6 +93,12 @@ function lalamoveSection(o) {
       el("div", { class: "btn-row" }, btn(t("llGetPrice"), go, true), btn(t("llChangePlace"), () => pickPlace(quote))));
   }
 
+  // Taken out another way (own car, another courier) or a test booking in sandbox: move the order by hand.
+  // Same "On the way" as before Lalamove (it asks first and emails the customer).
+  const manualOut = () => o.status === "Ready" && (o.delivery === "-" || o.delivery === "Failed")
+    ? el("button", { class: "linkish ll-manual", type: "button", onclick: async () => { await requestStep(o, 2); if (stepOf(o) === 2) closeSheet(true); } }, t("llManualOut"))
+    : null;
+
   function draw() {
     const ready = LL.cap === "ready";
     sec.querySelector(".ll-env").textContent = LL.env === "production" ? t("llLive") : t("llSandbox");
@@ -109,13 +115,15 @@ function lalamoveSection(o) {
           : live ? el("p", { class: "note" }, t("llFinding")) : null,
         row.place ? el("p", { class: "note" }, t("llDeliverTo") + " " + row.place) : null,
         row.share_link ? el("a", { class: "link-out", href: row.share_link, target: "_blank", rel: "noopener" }, t("llTrack")) : null,
+        LL.env !== "production" && live ? el("p", { class: "note" }, t("llSandboxNoMove")) : null,
         err,
         el("div", { class: "btn-row" },
           btn(t("llRefresh"), async () => { row = (await llCall({ action: "refresh", order_id: o.id })).row; draw(); }),
           live ? btn(t("llCancel"), async () => {
             if (!(await askConfirm(t("llCancelAsk"), t("llCancel"), { danger: true }))) return;
             row = (await llCall({ action: "cancel", order_id: o.id })).row; draw(); toast(t("llCancelled"));
-          }) : btn(t("llAgain"), () => pickPlace(quote))));
+          }) : btn(t("llAgain"), () => pickPlace(quote))),
+        LL.env !== "production" ? manualOut() : null);
     }
     // Quoted: show the price and book it (a quote lasts a few minutes)
     const fresh = row?.quotation_id && row.quote_expires && Date.parse(row.quote_expires) > Date.now() + 15000;
@@ -131,19 +139,23 @@ function lalamoveSection(o) {
             if (!(await askConfirm(t("llBookAsk", { fee: fee(row.quote_total, row.quote_currency) }), t("llBook"), { detail: LL.env === "production" ? t("llBookLive") : t("llBookSandbox") }))) return;
             row = (await llCall({ action: "book", order_id: o.id })).row; draw(); toast(t("llBooked"));
           }, true),
-          btn(t("llChangePlace"), () => pickPlace(quote))));
+          btn(t("llChangePlace"), () => pickPlace(quote))),
+        manualOut());
     }
     // Nothing yet (or the quote expired): start, reusing the last confirmed point if there is one.
     // The rider picks up at the assigned florist's shop, so there has to be one first.
     if (!llShopOf(o)) {
       const m = S.members.find((x) => x.email === o.vendor_email);
-      return fill(box, err, el("p", { class: "note" }, icon("flower"), " " + (m ? t("llShopMissing", { name: m.name }) : t("llNoFlorist"))));
+      // The florist can't fix this herself: tell her to ask, and let her take it out by hand meanwhile
+      const msg = !m ? t("llNoFlorist") : isAdmin() ? t("llShopMissing", { name: m.name }) : t("llShopMissingMine");
+      return fill(box, err, el("p", { class: "note" }, icon("flower"), " " + msg), manualOut());
     }
     return fill(box, err, shopLine(),
       row?.lat ? el("p", { class: "note" }, t("llDeliverTo") + " " + (row.place || `${row.lat}, ${row.lng}`)) : el("p", { class: "note" }, t("llIntro")),
       el("div", { class: "btn-row" },
         row?.lat ? btn(t("llGetPrice"), () => quote({ lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` }), true) : null,
-        btn(row?.lat ? t("llChangePlace") : t("llStart"), () => pickPlace(quote), !row?.lat)));
+        btn(row?.lat ? t("llChangePlace") : t("llStart"), () => pickPlace(quote), !row?.lat)),
+      manualOut());
   }
 
   (async () => {

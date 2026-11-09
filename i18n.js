@@ -3,6 +3,8 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    llManualOut: "Lo lleva otra persona: marcar «En camino» sin Lalamove", llShopMissingMine: "Tu tienda aún no tiene dirección de recogida. Pídesela al admin.",
+    llSandboxNoMove: "Modo pruebas: este envío no es real y el pedido no avanzará solo.",
     notifPushServiceErr: "Este navegador no consigue activar las notificaciones (su servicio de avisos no responde). En Brave: Ajustes → Privacidad → activa «Usar servicios de Google para mensajes push». Si no, prueba con Chrome o con la app instalada en el móvil.",
     llFrom: "Recoge en {name}: {address}", llNoFlorist: "Asigna primero una florista y guarda el pedido: el rider recoge en su tienda.",
     llShopMissing: "{name} aún no tiene dirección de recogida. Añádela en Equipo → editar.",
@@ -242,6 +244,8 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    llManualOut: "Someone else is taking it: mark \"On the way\" without Lalamove", llShopMissingMine: "Your shop has no pickup address yet. Ask the admin to add it.",
+    llSandboxNoMove: "Test mode: this booking isn't real and the order won't move on its own.",
     notifPushServiceErr: "This browser can't turn on notifications (its push service isn't answering). In Brave: Settings → Privacy → turn on \"Use Google services for push messaging\". Otherwise try Chrome, or the app installed on your phone.",
     llFrom: "Pickup at {name}: {address}", llNoFlorist: "Assign a florist and save the order first: the rider picks up at her shop.",
     llShopMissing: "{name} has no pickup address yet. Add it in Team → edit.",

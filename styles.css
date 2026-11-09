@@ -2144,3 +2144,5 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .ll-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ll-price { font-size: 1.25rem; }
 .ll-driver { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+
+.ll-manual { justify-self: start; font-size: 0.875rem; }

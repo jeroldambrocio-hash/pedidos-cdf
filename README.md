@@ -143,8 +143,10 @@ Secretos de la función (Edge Functions → Secrets):
 - `LALAMOVE_PICKUP`: `{"lat":14.65,"lng":121.04,"address":"…","name":"Casa de Flores","phone":"+63…"}` (la tienda).
 - `LALAMOVE_WEBHOOK_TOKEN`: texto largo aleatorio. Webhook en el Partner Portal:
   `https://<proyecto>.supabase.co/functions/v1/cdf-lalamove?token=<ese texto>`.
-- `LALAMOVE_SYNC_ORDERS=on`: solo en producción. Mueve el pedido a «En camino» al recogerlo y a «Entregado» al completarlo.
-  En sandbox nunca toca los pedidos, porque los riders de prueba no son reales.
+- `LALAMOVE_SYNC_ORDERS`: en producción el pedido sigue al rider (recogido → «En camino», completado → «Entregado»);
+  ponerlo a `off` lo desactiva. En sandbox nunca toca los pedidos, porque los riders de prueba no son reales.
+- El webhook se registra solo: `POST …/functions/v1/cdf-lalamove?token=<LALAMOVE_WEBHOOK_TOKEN>&register=1`
+  (hay que repetirlo al cambiar de claves sandbox → producción).
 
 Pruebas (sin red ni producción):
 

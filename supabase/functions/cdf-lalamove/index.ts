@@ -10,9 +10,9 @@
 //   LALAMOVE_WEBHOOK_TOKEN                  any long random string, also put in the webhook URL
 //   LALAMOVE_PICKUP                         optional fallback shop, JSON: {"lat":14.65,"lng":121.04,"address":"…","name":"Casa de Flores","phone":"+63…"}.
 //                                           Normally the rider picks up at the assigned florist's shop (cdf_members.pickup_*, migration 031).
-//   LALAMOVE_SYNC_ORDERS                    "on" moves orders to In transit / Delivered with the rider.
-//                                           Off unless set, and always off in sandbox: test riders must
-//                                           never change real orders.
+//   LALAMOVE_SYNC_ORDERS                    In production the order follows the rider (picked up → In transit,
+//                                           completed → Delivered) unless this is "off". Never in sandbox:
+//                                           test riders must not change real orders.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { call, e164, FINAL, inPhilippines, LalamoveError, orderUpdateFor, parseCoords, pickupAt, validPhone, type Env } from "./lalamove.ts";
 
@@ -25,7 +25,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 const ENV: Env = Deno.env.get("LALAMOVE_ENV") === "production" ? "production" : "sandbox";
 const KEY = Deno.env.get("LALAMOVE_API_KEY") || "", SECRET = Deno.env.get("LALAMOVE_API_SECRET") || "";
-const SYNC = ENV === "production" && Deno.env.get("LALAMOVE_SYNC_ORDERS") === "on";
+const SYNC = ENV === "production" && Deno.env.get("LALAMOVE_SYNC_ORDERS") !== "off";
 const ll = (method: string, path: string, data?: unknown) => call(ENV, KEY, SECRET, method, path, data);
 
 type Pickup = { lat: number; lng: number; address: string; name: string; phone: string };
@@ -169,6 +169,13 @@ async function webhook(req: Request) {
     } catch (e) {
       return json({ ok: false, env: ENV, keyKind: KEY.slice(0, 7), error: e instanceof LalamoveError ? `${e.status} ${e.code}: ${e.message}` : String(e) });
     }
+  }
+  // ?register=1: tell Lalamove to send status changes here (the same URL, with the token)
+  if (new URL(req.url).searchParams.get("register") === "1") {
+    if (!KEY || !SECRET) return json({ ok: false, error: "missing keys" });
+    const base = `${Deno.env.get("SUPABASE_URL")}/functions/v1/cdf-lalamove?token=${encodeURIComponent(token)}`;
+    try { await ll("PATCH", "/v3/webhook", { url: base }); return json({ ok: true, env: ENV }); }
+    catch (e) { return json({ ok: false, env: ENV, error: e instanceof LalamoveError ? `${e.status} ${e.code}: ${e.message}` : String(e) }); }
   }
   let body: any = {};
   try { body = await req.json(); } catch { /* Lalamove's test ping can be empty */ }

@@ -149,19 +149,30 @@ const server = http.createServer((req, res) => {
       await p.locator("#dialogRoot .btn.danger-solid").click();
       await sec.getByRole("button", { name: "Pedir otro rider" }).waitFor();
       console.log("ok cancel");
+    // Manual fallback: moves the order to On the way through the usual confirm
+    const sec2 = p.locator("#lalamoveSection");
+    await p.evaluate(() => closeSheet(true));
+    await p.evaluate((f) => { const o = (0, eval)("(" + f + ")")(); Object.assign(o, { status: "Ready", delivery: "-" }); openOrder(o); }, ord.toString());
+    await sec2.waitFor({ state: "visible" });
+    await sec2.getByRole("button", { name: /sin Lalamove/ }).click();
+    await p.locator("#dialogRoot .btn.primary").click();
+    await p.locator(".sheet").waitFor({ state: "detached" });
+    assert(await p.evaluate(() => window.__calls.some((c) => c.action === "update" && c.row?.delivery === "In transit")), "manual On the way didn't move the order");
+    await p.evaluate(() => { const o = S.orders.find((x) => x.delivery === "In transit" && x.status === "Ready"); if (o) o.delivery = "-"; render(); });
+    console.log("ok manual On the way without Lalamove");
     // Office card: Head out opens the Lalamove booking too
     await p.evaluate(() => closeSheet(true));
     const n0 = await p.evaluate(() => window.__calls.length);
     await p.locator("#list .order.k-ready").first().getByRole("button", { name: "Salir a repartir" }).click();
     await p.locator("#lalamoveSection").waitFor({ state: "visible" });
-    assert(!(await p.evaluate((n) => window.__calls.slice(n).some((c) => c.rpc === "cdf_progress" || c.update), n0)), "office Head out moved the order by hand");
+    assert(!(await p.evaluate((n) => window.__calls.slice(n).some((c) => c.rpc === "cdf_progress" || (c.action === "update" && c.table === "cdf_orders")), n0)), "office Head out moved the order by hand");
     console.log("ok office: Head out opens the rider booking");
     } else {
       assert.match(await sec.innerText(), /teléfono válido/);
       console.log("ok order without phone cannot be booked");
     }
     // The order form was never saved by any of this
-    assert(!(await p.evaluate(() => (window.__calls || []).some((c) => c.update || c.insert))), "the order was saved");
+    assert(!(await p.evaluate(() => (window.__calls || []).some((c) => (c.action === "update" || c.action === "insert") && c.table === "cdf_orders" && c.row?.delivery !== "In transit"))), "the order was saved");
     await p.context().close();
 
     // Florist: books a rider for her own Ready order, from the card's button; not for orders that aren't Ready
@@ -183,8 +194,9 @@ const server = http.createServer((req, res) => {
       await vs.locator(".ll-hit").first().click();
       await vs.getByRole("button", { name: "Ver precio" }).click();
       await vs.locator(".ll-price").waitFor();
+      assert(await vs.getByRole("button", { name: /marcar «En camino» sin Lalamove/ }).count(), "no manual On-the-way option");
       await v.screenshot({ path: path.join(out, "lalamove-5-florist.png") });
-      assert(!(await v.evaluate((n) => window.__calls.slice(n).some((c) => c.rpc === "cdf_progress" || c.update), before)), "Head out moved the order by hand");
+      assert(!(await v.evaluate((n) => window.__calls.slice(n).some((c) => c.rpc === "cdf_progress" || c.action === "update"), before)), "Head out moved the order by hand");
       await noOverflow(v);
       // An order of someone else's: never offered
       assert.equal(await v.evaluate(() => llCanBook({ id: "x", vendor_email: "someone@else" })), false);
