@@ -13,7 +13,8 @@ async function photoUrl(path, bkt = bucket) {
 function photoPreview(src, alt, expand) {
   const image = el("img", { src, alt, loading: "lazy" });
   if (!expand) return image;
-  return el("button", { class: "photo-preview", type: "button", "aria-label": t("expandPhoto"), onclick: () => {
+  const label = alt === t("photoAlt") ? t("expandPhoto") : t("expandOtherPhoto", { photo: alt });
+  return el("button", { class: "photo-preview", type: "button", "aria-label": label, onclick: () => {
     const close = el("button", { class: "btn", type: "button", autofocus: true, onclick: () => viewer.close() }, t("close"));
     const viewer = el("dialog", { class: "photo-viewer", "aria-label": alt,
       onkeydown: (event) => { if (event.key === "Escape" || event.key === "Tab") event.stopPropagation(); },
@@ -103,8 +104,10 @@ function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = f
   box.addEventListener("dragover", (e) => { e.preventDefault(); box.classList.add("over"); });
   box.addEventListener("dragleave", () => box.classList.remove("over"));
   box.addEventListener("drop", (e) => { e.preventDefault(); box.classList.remove("over"); take(e.dataTransfer.files[0]); });
-  const onPaste = (e) => { const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); take(it.getAsFile()); } };
-  if (paste) document.addEventListener("paste", onPaste);
+  const onPaste = (e) => { if (e.defaultPrevented) return; const it = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/")); if (it) { e.preventDefault(); take(it.getAsFile()); } };
+  const pasteTarget = paste ? document : box;
+  if (!paste) box.tabIndex = 0;
+  pasteTarget.addEventListener("paste", onPaste);
   draw();
   const picker = {
     node: el("div", { style: "display:contents" }, box, input),
@@ -125,7 +128,7 @@ function photoPicker({ current, bkt = ENTREGAS, hint, alt = "", onErr, paste = f
       return undefined;
     },
     async cleanup() { if (oldPath) { await sb.storage.from(bkt).remove([oldPath]); oldPath = null; } },
-    dispose() { if (preview) URL.revokeObjectURL(preview); if (paste) document.removeEventListener("paste", onPaste); },
+    dispose() { if (preview) URL.revokeObjectURL(preview); pasteTarget.removeEventListener("paste", onPaste); },
   };
   return picker;
 }
@@ -138,9 +141,9 @@ function photoList({ current = [], bkt = ENTREGAS, alt = "", onErr }) {
   let kept = [...(current || [])], added = [], gone = [];
   const urls = new Map();
   const input = el("input", { type: "file", accept: "image/*,.heic,.heif", multiple: true, hidden: true });
-  const grid = el("div", { class: "photo-grid" });
+  const grid = el("div", { class: "photo-grid", tabindex: 0, role: "group", "aria-label": alt });
   const tile = (src, onRemove, label) => el("div", { class: "photo-tile" },
-    el("img", { src, alt: label, loading: "lazy", onclick: () => window.open(src, "_blank", "noopener") }),
+    photoPreview(src, label, true),
     el("button", { class: "btn icon ghost photo-x", type: "button", "aria-label": t("remove") + " · " + label, title: t("remove"), onclick: onRemove }, icon("close")));
   const draw = async () => {
     const paths = await Promise.all(kept.map(async (p) => [p, await photoUrl(p, bkt)]));
@@ -159,6 +162,10 @@ function photoList({ current = [], bkt = ENTREGAS, alt = "", onErr }) {
     draw();
   };
   input.addEventListener("change", () => { take(input.files); input.value = ""; });
+  grid.addEventListener("paste", (e) => {
+    const files = [...(e.clipboardData?.files || [])].filter(isImage);
+    if (files.length) { e.preventDefault(); take(files); }
+  });
   grid.addEventListener("dragover", (e) => { e.preventDefault(); grid.classList.add("over"); });
   grid.addEventListener("dragleave", () => grid.classList.remove("over"));
   grid.addEventListener("drop", (e) => { e.preventDefault(); grid.classList.remove("over"); take(e.dataTransfer.files); });

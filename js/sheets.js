@@ -285,7 +285,7 @@ const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
   if (typeof v === "boolean") return v ? t("evPhotoYes") : t("evPhotoNo");
   if (k === "vendor_email" || k === "carrier_email") return memberName(v);
-  if (k === "amount" || k === "paid") return peso(v);
+  if (k === "amount" || k === "paid") return paymentPesos(v);
   if (k === "date") return shortDate(v);
   if (k === "status" || k === "delivery") return t("db_" + String(v).replace(/\W/g, "")) || v;
   return String(v);
@@ -445,7 +445,7 @@ function phoneBox(input) {
 }
 
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",
-  "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount", "paid"];
+  "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
 function openEditor(o, { copyFrom, draft } = {}) {
   let isNew = !o;
   // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
@@ -453,7 +453,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const nextNum = String(Math.max(0, S.numTop || 0, ...S.orders.map((x) => (/^\d+$/.test(x.num) ? +x.num : 0))) + 1).padStart(4, "0");
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
-    customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "", paid: "" };
+    customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "" };
   const src = o || (copyFrom ? { ...blank, ...Object.fromEntries(["slot", "channel", "vendor_email", "customer_name", "address", "customer_phone", "customer_email", "buyer_name", "buyer_phone", "card_message"].map((k) => [k, copyFrom[k] ?? ""])) } : draft ? { ...blank, ...draft } : blank);
   const f = Object.fromEntries(ORDER_FIELDS.map((k) => [k, src[k] ?? ""]));
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
@@ -467,8 +467,9 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iAddr = el("input", { id: "f-addr", value: f.address, placeholder: t("addrPh"), autocomplete: "off" });
   // The exact point for Lalamove (033): a Google Maps link or "lat, lng", read once here so booking a rider
   // later goes straight to the price. Short links (maps.app.goo.gl) are opened by the server.
+  const storedPoint = o || copyFrom || draft;
   const iDrop = S.cap.drop ? el("input", { id: "f-drop", inputmode: "url", autocomplete: "off", placeholder: t("dropPh"),
-    value: o?.drop_lat != null ? `${+o.drop_lat}, ${+o.drop_lng}` : (copyFrom?.drop_lat != null ? `${+copyFrom.drop_lat}, ${+copyFrom.drop_lng}` : "") }) : null;
+    value: storedPoint?.drop_lat != null ? `${+storedPoint.drop_lat}, ${+storedPoint.drop_lng}` : "" }) : null;
   const dropNote = el("small", { class: "note" });
   // Lalamove vehicle (036): motorcycle unless the arrangement needs a car
   const vehNow = (o ? o.vehicle : copyFrom ? copyFrom.vehicle : draft?.vehicle) || "";
@@ -543,7 +544,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), rows: 2 }, f.card_message);
   const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: 2 }, f.delivery_note);
   const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh"), rows: 3 }, f.notes);
-  const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "2500", value: f.amount ?? "", "aria-label": t("amount") });
+  const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 99999999.99, placeholder: "2500", value: f.amount ?? "", "aria-label": t("payOrderTotal") });
   // Florists: available on the order's date first, absences marked; redone when the date changes
   const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
   iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
@@ -552,25 +553,165 @@ function openEditor(o, { copyFrom, draft } = {}) {
   // Extra photos (030); a stand-in that never changes anything while the column isn't there
   const extras = S.cap.extra ? photoList({ current: o?.extra_photos, alt: t("extraPhotos"), onErr: setErr })
     : { node: null, dirty: false, upload: async () => undefined, cleanup: async () => {}, dispose() {} };
-  const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr });
-  // Payment (037, admins): what was paid so far (a down payment) and photos of the transfers, in their own
-  // private bucket. What's left is worked out, never typed. A stand-in while the columns aren't there.
-  const noList = { node: null, dirty: false, upload: async () => undefined, cleanup: async () => {}, dispose() {} };
+  const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr, expand: true });
   const payOn = priceEditable() && S.cap.paid;
-  const iPaid = el("input", { id: "f-paid", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "0", value: f.paid ?? "", "aria-label": t("payPaidAmount") });
-  let payProofs = payOn ? photoList({ current: o?.pay_proofs, bkt: "cdf-pagos", alt: t("payProofs"), onErr: setErr }) : noList;
-  const payProofsBox = el("div", { style: "display:contents" }, payProofs.node);
+  const iPayment = el("input", { id: "f-payment", type: "number", inputmode: "decimal", min: 0.01, step: 0.01, max: 99999999.99 });
+  const payMessage = el("p", { class: "note", role: "status" });
   const payLeft = el("output", { class: "pay-left", id: "f-payleft" });
-  function paintPay() {
-    if (!payOn) return;
-    const total = iAmount.value === "" ? null : +iAmount.value, paid = +iPaid.value || 0;
-    payLeft.className = "pay-left";
-    if (total == null) { payLeft.textContent = paid ? t("payNoTotal") : ""; return; }
-    const left = Math.max(0, total - paid);
-    payLeft.classList.add(left > 0 ? "due" : "ok");
-    payLeft.textContent = left > 0 ? t("payLeft", { sum: peso(left) }) : t("payPaid");
+  const payTotal = el("output", { class: "note" });
+  const payHistory = el("div", { class: "payment-history" });
+  const payProofsBox = el("div", { class: "compact-photos" });
+  const savedProofs = el("div", { class: "payment-proof-list" });
+  const proofEditor = field(t("payProofs"), savedProofs, payProofsBox);
+  proofEditor.hidden = true;
+  const apply = el("button", { class: "btn", type: "button", onclick: () => recordPayment() }, t("payApply"));
+  const paymentEditor = el("div", { class: "payment-editor", hidden: true },
+    field(t("payAdd"), el("div", { class: "payment-entry" }, iPayment, apply)));
+  let payProofs, paymentRow, paymentBusy = false, pendingPayment;
+  function resetProofs() {
+    payProofs?.dispose();
+    payProofs = photoList({ bkt: "cdf-pagos", alt: t("payProofs"), onErr: (msg) => { payMessage.textContent = msg; } });
+    payProofsBox.replaceChildren(payProofs.node);
   }
-  iPaid.addEventListener("input", paintPay); iAmount.addEventListener("input", paintPay);
+  function paintPay() {
+    const total = iAmount.value === "" ? null : +iAmount.value;
+    const paid = +(paymentRow?.paid ?? o?.paid ?? 0);
+    const left = total == null ? null : (Math.round(total * 100) - Math.round(paid * 100)) / 100;
+    payTotal.textContent = t("payAccumulated", { sum: paymentPesos(paid) });
+    payLeft.className = "pay-left " + (left === 0 ? "ok" : "due");
+    payLeft.textContent = left == null ? t("payNoTotal") : left < 0 ? t("payPriceBelowPaid") : t("payLeft", { sum: paymentPesos(left) });
+  }
+  const paymentDate = (entry) => new Intl.DateTimeFormat(LANG, { dateStyle: "medium", timeStyle: "short", timeZone: TZ }).format(new Date(entry.created_at));
+  function paintPaymentHistory(entries) {
+    const reversed = new Set(entries.map((entry) => entry.reverses));
+    fill(savedProofs, [...entries].reverse().filter((entry) => entry.proofs?.length).map((entry) =>
+      el("div", { class: "payment-proof-group" },
+        el("small", { class: "note" }, t(entry.kind === "opening" ? "payOpening" : "payEntry"), " · ", paymentPesos(entry.amount),
+          entry.created_at ? " · " + paymentDate(entry) : ""),
+        el("div", { class: "payment-thumbnails" }, entry.proofs.map((path, index) =>
+          imgOf(path, "cdf-pagos", t("payProofs") + " " + (index + 1), true))))));
+    fill(payHistory, entries.length ? el("h4", {}, t("payHistory")) : null, [...entries].reverse().map((entry) => {
+      const kind = entry.kind === "opening" ? "payOpening" : entry.kind === "reversal" ? "payReversal" : "payEntry";
+      const reason = el("input", { maxlength: 500, "aria-label": t("payReason"), placeholder: t("payReason"),
+        onkeydown: (event) => {
+          if (event.key === "Enter") { event.preventDefault(); recordPayment(entry.id, reason.value.trim()); }
+        } });
+      return el("div", { class: "payment-movement" },
+        el("div", { class: "payment-summary" }, el("span", {}, t(kind)), el("strong", {}, paymentPesos(entry.amount))),
+        entry.created_at ? el("small", { class: "note" }, paymentDate(entry), " · ", entry.by_email) : null,
+        entry.reason ? el("p", { class: "note" }, entry.reason) : null,
+        entry.id && entry.amount > 0 && !reversed.has(entry.id) ? el("details", { class: "payment-correction" },
+          el("summary", {}, t("payCorrect")),
+          el("div", { class: "payment-entry" }, reason, el("button", { class: "btn", type: "button",
+            onclick: () => recordPayment(entry.id, reason.value.trim()) }, t("payReverse")))) : null);
+    }));
+  }
+  async function recordPayment(reverses = null, reason = "") {
+    if (!paymentRow || paymentBusy || (saveBtn.disabled && !pendingPayment)) return;
+    const amount = iPayment.valueAsNumber;
+    const total = iAmount.valueAsNumber;
+    if (!pendingPayment) {
+      if (reverses && (!reason || reason.length > 500)) { payMessage.textContent = t("payReason"); return; }
+      if (!reverses && (!iPayment.validity.valid || !(amount > 0) || !iAmount.validity.valid || !Number.isFinite(total))) {
+        payMessage.textContent = t("payInvalid"); return;
+      }
+      if (!reverses && Math.round(amount * 100) + Math.round((paymentRow.paid || 0) * 100) > Math.round(total * 100)) {
+        payMessage.textContent = t("payAboveDue"); return;
+      }
+    }
+    paymentBusy = true;
+    saveBtn.disabled = true;
+    payHistory.inert = true;
+    payProofsBox.inert = true;
+    iAmount.readOnly = iPayment.readOnly = true;
+    apply.disabled = true;
+    payMessage.textContent = "";
+    try {
+      if (!pendingPayment) {
+        pendingPayment = {
+          p_order: o.id, p_request: crypto.randomUUID(), p_amount: reverses ? null : amount,
+          p_proofs: reverses ? [] : (await payProofs.upload(o.id)) || [],
+          p_price: reverses ? null : total, p_seen_price: paymentRow.amount,
+          p_reverses: reverses, p_reason: reason
+        };
+      }
+      const request = pendingPayment;
+      const { data, error } = await sb.rpc("cdf_record_payment", request);
+      if (error) {
+        const message = { cdf_payment_above_due: "payAboveDue", cdf_invalid_payment: "payInvalid",
+          cdf_price_changed: "payChangedMeanwhile", cdf_invalid_correction: "payCorrectionInvalid",
+          cdf_invalid_payment_proofs: "photoUploadFail" }[error.message];
+        if (message || error.code === "42501") {
+          pendingPayment = null;
+          if (request.p_proofs.length) await sb.storage.from("cdf-pagos").remove(request.p_proofs);
+          if (["cdf_price_changed", "cdf_payment_above_due", "cdf_invalid_correction"].includes(error.message)) await loadPayments();
+        }
+        throw new Error(t(message || "payRetry"));
+      }
+      if (!data) throw new Error(t("payRetry"));
+      pendingPayment = null;
+      if (!request.p_reverses) {
+        iPayment.value = "";
+        resetProofs();
+        iAmount.value = data.amount ?? "";
+        initial.amount = data.amount == null ? null : +data.amount;
+      }
+      showPayments(data);
+      invalidateStats();
+      upsertLocal(o);
+      render();
+      payMessage.textContent = t(request.p_reverses ? "payCorrectionSaved" : "payApplied");
+      if (!request.p_reverses) iPayment.focus();
+    } catch (error) {
+      payMessage.textContent = pendingPayment ? t("payRetry") : error.message;
+    } finally {
+      paymentBusy = false;
+      saveBtn.disabled = !!pendingPayment;
+      payHistory.inert = !!pendingPayment;
+      payProofsBox.inert = !!pendingPayment;
+      iAmount.readOnly = iPayment.readOnly = !!pendingPayment;
+      apply.textContent = t(pendingPayment ? "payRetryButton" : "payApply");
+      apply.disabled = false;
+    }
+  }
+  function showPayments(data) {
+    paymentRow = data || { amount: null, paid: null, payment_history: [] };
+    Object.assign(o, { amount: paymentRow.amount, paid: paymentRow.paid, pay_proofs: paymentRow.pay_proofs || [] });
+    paintPay();
+    paintPaymentHistory(paymentRow.payment_history || []);
+    if (paymentRow.payment_history?.some((entry) => entry.proofs?.length)) {
+      proofEditor.hidden = false;
+      moreDetails.open = true;
+    }
+  }
+  async function loadPayments() {
+    const { data, error } = await sb.from("cdf_order_prices").select("amount,paid,pay_proofs,payment_history").eq("order_id", o.id).maybeSingle();
+    if (!node.isConnected) return;
+    if (error) {
+      // Older databases keep the saved amount and payment summary visible.
+      const old = await sb.from("cdf_order_prices").select("amount,paid,pay_proofs").eq("order_id", o.id).maybeSingle();
+      if (old.error || !node.isConnected) return;
+      const row = old.data;
+      if (iAmount.value === (initial.amount ?? "").toString()) {
+        iAmount.value = row?.amount ?? "";
+        initial.amount = row?.amount == null ? null : +row.amount;
+      }
+      showPayments(row ? { ...row, payment_history: row.paid || row.pay_proofs?.length ?
+        [{ kind: "opening", amount: row.paid || 0, proofs: row.pay_proofs }] : [] } : null);
+      payMessage.textContent = t("payUpgrade");
+      return;
+    }
+    if (iAmount.value === (initial.amount ?? "").toString()) {
+      iAmount.value = data?.amount ?? "";
+      initial.amount = data?.amount == null ? null : +data.amount;
+    }
+    showPayments(data);
+    paymentEditor.hidden = proofEditor.hidden = false;
+  }
+  iPayment.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") { e.preventDefault(); recordPayment(); }
+  });
+  iAmount.addEventListener("input", paintPay);
   const hist = isNew ? null : historyBlock(o);
 
   // Channel: logos in the header, grey until chosen; tapping the chosen one clears it
@@ -616,11 +757,10 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (iDrop) { const p = dropPoint(); row.drop_lat = p ? p.lat : null; row.drop_lng = p ? p.lng : null; }
     if (iVeh) row.vehicle = iVeh.value || null;
     if (priceEditable()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
-    if (payOn) row.paid = iPaid.value === "" ? null : Math.max(0, +iPaid.value);
     return row;
   };
   let initial = null;
-  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty || payProofs.dirty;
+  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty || !!payProofs?.dirty || !!iPayment.value || paymentBusy || !!pendingPayment;
 
   const linkBlock = isNew ? el("p", { class: "note", style: "margin:0" }, t("linkAfterSave")) : (() => {
     const li = el("input", { id: "f-link", class: "input", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select(), "aria-label": t("customerLink") });
@@ -650,14 +790,16 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (!iSame.checked) need.push([iName, row.customer_name], [iPhone, row.customer_phone]);
     const miss = need.filter(([, v]) => !v).map(([x]) => x.closest(".field"));
     const badPhones = [[iBPhone, row.buyer_phone], [iPhone, iSame.checked ? "" : row.customer_phone]].filter(([, v]) => !phoneOk(v)).map(([x]) => x.closest(".field"));
+    if (miss.some((field) => moreDetails.contains(field))) moreDetails.open = true;
     if (miss.length || badPhones.length) {
       void node.offsetWidth;
       [...miss, ...badPhones].forEach((x) => x.classList.add("invalid"));
       [...miss, ...badPhones][0].scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
       return miss.length ? (iSlot.closest(".field").classList.contains("invalid") && iSlot.first.value ? t("slotInvalid") : t("fillRequired")) : t("phoneInvalid");
     }
-    if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
-    if (iDrop && iDrop.value.trim() && !dropPoint()) { paintDrop(); iDrop.focus(); return t("dropBad"); }
+    if (priceEditable() && !iAmount.validity.valid) { iAmount.focus(); return t("payInvalidPrice"); }
+    if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { moreDetails.open = true; iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
+    if (iDrop && iDrop.value.trim() && !dropPoint()) { moreDetails.open = true; paintDrop(); iDrop.focus(); return t("dropBad"); }
     // Things a rider booking will need: a heads-up, never a block. Only for orders still to come.
     if (!o?.cancelled_at && o?.delivery !== "Delivered" && row.date >= manilaToday()) {
       const gaps = [
@@ -671,7 +813,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
-    delete dbRow.amount; delete dbRow.paid;
+    delete dbRow.amount;
     // Giving it to someone away on that date (or moving it into their absence) asks first
     if (dbRow.vendor_email && (isNew || dbRow.vendor_email !== (initial.vendor_email || null) || dbRow.date !== initial.date)
       && !(await okToAssign(dbRow.vendor_email, [dbRow.date]))) return;
@@ -681,7 +823,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     else {
       // Only what this person changed, so a status set meanwhile by the florist or driver is never undone.
       const changed = Object.fromEntries(Object.entries(dbRow).filter(([k, v]) => JSON.stringify(v ?? "") !== JSON.stringify(initial[k] ?? "")));
-      if (!Object.keys(changed).length && !shot.dirty && !extras.dirty && !proof.dirty && !payProofs.dirty && (!priceEditable() || row.amount === initial.amount) && (!payOn || row.paid === initial.paid)) { await closeSheet(true); return; }
+      if (!Object.keys(changed).length && !shot.dirty && !extras.dirty && !proof.dirty && (!priceEditable() || row.amount === initial.amount)) { await closeSheet(true); return; }
       // The write only lands on the version this person was shown (updated_at), so two admins saving
       // at the same moment can't silently overwrite each other: if the row moved in between, it is
       // read again and anything that now clashes with these edits is asked about once more.
@@ -705,26 +847,14 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
     // Only a price that was typed or changed is written: an order whose price never loaded keeps it
-    if (priceEditable() && (isNew || row.amount !== initial.amount || (payOn && (row.paid !== initial.paid || payProofs.dirty)))) {
+    if (priceEditable() && (isNew || row.amount !== initial.amount)) {
       try {
-        // Only what this person changed; the order itself is already saved at this point
-        const patch = {};
-        if (isNew || row.amount !== initial.amount) patch.amount = row.amount;
-        if (payOn && row.paid !== initial.paid) patch.paid = row.paid;
-        if (payOn && payProofs.dirty) {
-          const before = o?.pay_proofs || [], up = await payProofs.upload(saved.id);
-          if (up !== undefined) patch.proofs = { before, after: up };
-        }
-        const done = await savePrice(saved.id, patch, isNew ? null : { amount: initial.amount, paid: initial.paid });
-        if ("amount" in patch) saved.amount = row.amount;
-        if ("paid" in patch) saved.paid = row.paid;
-        if (done?.pay_proofs) saved.pay_proofs = done.pay_proofs;
-        if (patch.proofs) await payProofs.cleanup();
-      }
-      catch(e) {
-        // The order is saved; say plainly that the money part isn't
-        upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined,paid:undefined};}
-        const msg = t("payNotSaved", { msg: e.message }); setErr(msg); return msg;
+        await savePrice(saved.id, { amount: row.amount }, isNew ? null : { amount: initial.amount });
+        saved.amount = row.amount;
+      } catch (e) {
+        upsertLocal(saved);
+        if (isNew) { o = saved; isNew = false; initial = { ...row, amount: undefined }; }
+        return t("payNotSaved", { msg: e.message });
       }
     }
     // Photos after the row exists; the old files go only once the row points at the new ones.
@@ -735,7 +865,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     if (Object.keys(pics).length) {
       const r = await sb.from("cdf_orders").update(pics).eq("id", saved.id).select().single();
-      if (r.error) photoTrouble = true; else { saved = r.data; await Promise.all([shot, extras, proof].map((p) => p.cleanup())); }
+      if (r.error) photoTrouble = true; else { saved = { ...saved, ...r.data }; await Promise.all([shot, extras, proof].map((p) => p.cleanup())); }
     }
     if (isNew) writeDraft(null);
     upsertLocal(saved);
@@ -767,9 +897,21 @@ function openEditor(o, { copyFrom, draft } = {}) {
       invalidateStats(); toast(t("deleted")); flip($("list"),render);
     } }, icon("trash"), el("span", { class: "lbl" }, t("delete"))) : null);
 
+  const moreDetails = el("details", {
+    class: "hist order-more",
+    open: !!(iEmail.value.trim() || iVeh?.value || iDrop?.value.trim() || o?.extra_photos?.length || o?.pay_proofs?.length)
+  }, el("summary", {}, t("moreDetails")),
+  el("div", { class: "order-more-fields" },
+    field(t("buyerEmailOptional"), iEmail, el("small", { class: "note" }, t("autoMailHint"))),
+    iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
+    iDrop ? field(t("dropPasteLabel"), iDrop, dropNote) : null,
+    extras.node ? el("div", { class: "compact-photos" }, field(t("morePhotos"), extras.node)) : null,
+    payOn ? proofEditor : null));
   const cur = o ? stepOf(o) : 0;
   const node = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
     e.preventDefault();
+    if (paymentBusy || pendingPayment) return;
+    if (iPayment.value || payProofs?.dirty) { payMessage.textContent = t("payApplyFirst"); return; }
     saveBtn.disabled = true; saveBtn.classList.add("busy");
     let msg;
     try { msg = await save(); } catch (x) { msg = t("saveFail", { msg: x.message || String(x) }); }
@@ -789,30 +931,22 @@ function openEditor(o, { copyFrom, draft } = {}) {
         iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null),
       el("section", {}, el("h3", {}, t("buyerH")), el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
         el("div", { class: "row2" }, reqField(t("name"), iBName), reqField(t("phone"), phoneBox(iBPhone))),
-        repeatTag,
-        field(t("email"), iEmail, el("small", { class: "note" }, t("autoMailHint")))),
+        repeatTag),
       el("section", {}, el("h3", {}, t("recipientH")),
         checkRow(iSame, t("sameAsBuyer")),
         recip,
         el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr),
           el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind), dropFind ? dropHits : null),
         field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
-        iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
         field(t("cardMsg"), iCard),
-        field(t("note"), iNotes),
-        // The exact point: filled from the address by itself; open it only to paste a Maps link
-        iDrop ? el("details", { class: "hist drop-more", open: !!iDrop.value || null }, el("summary", {}, t("dropPoint")), field(t("dropPasteLabel"), iDrop, dropNote)) : null),
-      // Every photo of the order in one place: the reference first, then more, then the delivery proof
-      el("section", {}, el("h3", {}, t("photosH")), field(t("photo"), shot.node),
-        extras.node ? field(t("morePhotos"), extras.node, el("small", { class: "note" }, t("extraPhotosHint"))) : null,
+        field(t("note"), iNotes)),
+      el("section", { class: "compact-photos" }, el("h3", {}, t("photosH")),
+        field(t("photo"), shot.node),
         isNew ? null : field(t("proofPhoto"), proof.node)),
-      // Price and payment: admins only
       priceEditable() ? el("section", { class: "pay" }, el("h3", {}, t("payH")),
-        el("div", { class: "row2" },
-          field(t("bouquetPrice"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP"))),
-          payOn ? field(t("payPaidAmount"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iPaid, el("span", { class: "cur" }, "PHP"))) : null),
-        payOn ? payLeft : null,
-        payOn ? field(t("payProofs"), payProofsBox, el("small", { class: "note" }, t("payProofsHint"))) : el("small", { class: "note" }, t("bouquetPriceHint"))) : null,
+        field(t("payOrderTotal"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP"))),
+        payOn ? el("div", { class: "payment-summary" }, payTotal, payLeft) : null,
+        payOn ? paymentEditor : null, payOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails),
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
@@ -826,24 +960,23 @@ function openEditor(o, { copyFrom, draft } = {}) {
   function keepDraft() { if (!isNew || !initial) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); }
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
-  openLayer(node, { dirty, dispose: () => { [shot, extras, proof, payProofs].forEach((p) => p.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
+  openLayer(node, { dirty, dispose: () => { [shot, extras, proof, payProofs].forEach((p) => p?.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
   syncSame(false); syncChan(); syncRepeat();
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
   paintDrop(); paintPay();
   sheet.order = o;
-  // An order that arrived live may not have its price yet: fetch it so the field never shows empty by mistake
-  if (priceEditable() && o?.id && o.amount === undefined) sb.from("cdf_order_prices").select(payOn ? "amount,paid,pay_proofs" : "amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {
-    o.amount = data?.amount ?? null;
-    if (data?.amount != null && iAmount.value === "" && iAmount.isConnected) { iAmount.value = data.amount; initial = { ...initial, amount: Math.max(0, +data.amount) }; }
-    if (payOn) {
-      o.paid = data?.paid ?? null; o.pay_proofs = data?.pay_proofs || [];
-      if (data?.paid != null && iPaid.value === "" && iPaid.isConnected) { iPaid.value = data.paid; initial = { ...initial, paid: Math.max(0, +data.paid) }; }
-      if (o.pay_proofs.length && !payProofs.dirty) { payProofs.dispose(); payProofs = photoList({ current: o.pay_proofs, bkt: "cdf-pagos", alt: t("payProofs"), onErr: setErr }); payProofsBox.replaceChildren(payProofs.node); }
-    }
-    paintPay();
-  });
+  if (payOn && isNew) payMessage.textContent = t("payAfterSave");
+  if (payOn && !isNew) { resetProofs(); loadPayments(); }
+  if (!payOn && priceEditable() && o?.id && o.amount === undefined) {
+    sb.from("cdf_order_prices").select("amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {
+      if (data?.amount != null && iAmount.value === "" && iAmount.isConnected) {
+        iAmount.value = data.amount;
+        initial.amount = +data.amount;
+      }
+    });
+  }
 }
 function mapHint(input) {
   const a = el("a", { target: "_blank", rel: "noopener", class: "note link-out" }, t("openMaps"));

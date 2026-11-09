@@ -21,7 +21,13 @@ window.__orders = [
   { ...base, id: "44444444-4444-4444-4444-444444444444", num: "0127", slot: "23:00 - 23:59", status: "Ready", customer_name: "Ready Rita", customer_email: "" },
   { ...base, id: "55555555-5555-5555-5555-555555555555", num: "0128", date: past, status: "Ready", delivery: "Delivered", customer_name: "Old Delivered" },
 ];
-window.__prices = window.__orders.map(o=>({order_id:o.id,amount:2500}));
+window.__prices = window.__orders.map(o=>({order_id:o.id,amount:2500,paid:null,payment_history:[]}));
+if (window.__paymentDemo) {
+  window.__orders[0].photo_path = "sample/reference.jpg";
+  window.__orders[0].extra_photos = ["sample/more.jpg"];
+  window.__prices[0].paid = 2000;
+  window.__prices[0].payment_history.push({ id: "opening", kind: "opening", amount: 2000, proofs: ["sample/transfer.jpg"] });
+}
 // A14: open a page with some orders already cancelled by the office
 for (const o of window.__orders) if ((window.__cancelNums || []).includes(o.num)) Object.assign(o, { cancelled_at: "2026-11-07T10:00:00Z", cancelled_by: "admin@example.com", cancel_reason: "Customer cancelled" });
 window.__calls = []; window.__events = [];
@@ -135,6 +141,28 @@ window.supabase = { createClient: () => ({
     } };
     return (async () => {
     window.__calls.push({ rpc: name, args });
+    if (name === "cdf_record_payment") {
+      if (window.__role && window.__role !== "admin") return { error: { code: "42501" } };
+      const price = window.__prices.find(p => p.order_id === args.p_order) ||
+        { order_id: args.p_order, amount: null, paid: null, payment_history: [] };
+      price.payment_history ||= [];
+      if (price.payment_history.some(p => p.id === args.p_request)) return { data: price };
+      const original = price.payment_history.find(p => p.id === args.p_reverses);
+      if (args.p_reverses && (!original || !args.p_reason || price.payment_history.some(p => p.reverses === original.id)))
+        return { error: { message: "cdf_invalid_correction" } };
+      if (!args.p_reverses && price.amount !== args.p_seen_price) return { error: { message: "cdf_price_changed" } };
+      const delta = original ? -original.amount : args.p_amount;
+      const paid = Math.round(((price.paid || 0) + delta) * 100) / 100;
+      if (!original && paid > args.p_price) return { error: { message: "cdf_payment_above_due" } };
+      if (!original) price.amount = args.p_price;
+      price.paid = paid;
+      price.payment_history.push({ id: args.p_request, kind: original ? "reversal" : "payment", amount: delta,
+        created_at: new Date().toISOString(), by_email: "admin@example.com", proofs: args.p_proofs,
+        reverses: args.p_reverses, reason: args.p_reason });
+      if (!window.__prices.includes(price)) window.__prices.push(price);
+      if (window.__paymentResponseLost) { window.__paymentResponseLost = false; return { error: { message: "network" } }; }
+      return { data: price };
+    }
     if(name === "cdf_search_orders") {
       const norm=s=>String(s||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase();const q=norm(args.p_query),digits=q.replace(/\D/g,"").slice(-9);
       return {data:window.__orders.filter(o=>[o.num,o.customer_name,o.buyer_name,o.address,o.customer_email].some(v=>norm(v).includes(q)) || (digits.length>=3 && [o.customer_phone,o.buyer_phone].some(v=>String(v||"").replace(/\D/g,"").includes(digits)))),error:null};
@@ -229,6 +257,81 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
 
   try {
     let p = await open("admin");
+    await step("Incremental payments and compact order photos", async () => {
+      const q = await open("admin", { before: { __paymentDemo: true } });
+      await q.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
+      const panel = q.locator(".sheet");
+      const pay = panel.locator(".pay");
+      const input = q.getByRole("spinbutton", { name: "Add payment" });
+      const apply = q.getByRole("button", { name: "Apply payment" });
+      await input.waitFor();
+      assert.match(await pay.locator(".pay-left").innerText(), /500/);
+      const details = panel.locator(".order-more");
+      assert(await details.evaluate((node) => node.open));
+      const extras = details.getByRole("group", { name: "Photos", exact: true });
+      await extras.locator(".photo-tile img").waitFor();
+      for (const event of ["drop", "paste"]) {
+        await extras.evaluate(async (grid, event) => {
+          const file = new File([await (await fetch("/img/emblem.png")).blob()], "sample.png", { type: "image/png" });
+          const transfer = new DataTransfer();
+          transfer.items.add(file);
+          grid.dispatchEvent(event === "drop"
+            ? new DragEvent("drop", { bubbles: true, cancelable: true, dataTransfer: transfer })
+            : new ClipboardEvent("paste", { bubbles: true, cancelable: true, clipboardData: transfer }));
+        }, event);
+        await extras.locator(".photo-tile").nth(1).waitFor();
+        await extras.locator(".photo-tile").nth(1).getByRole("button", { name: /Remove/ }).click();
+        await extras.locator(".photo-tile").nth(1).waitFor({ state: "detached" });
+      }
+      const reference = panel.getByRole("button", { name: "Enlarge reference photo" }).locator("img");
+      assert(await reference.isVisible());
+      assert((await reference.boundingBox()).height <= 56);
+      const deliveryProof = panel.getByRole("button", { name: "Enlarge Proof photo" }).locator("img");
+      assert((await deliveryProof.boundingBox()).height <= 56);
+      assert(await details.locator("#f-email").isVisible());
+      await input.fill("501");
+      await input.press("Enter");
+      assert.match(await pay.locator("p[role=status]").innerText(), /exceeds/);
+      await input.fill("200.25");
+      const image = require("fs").readFileSync(path.join(root, "img/emblem.png"));
+      await pay.locator(".payment-proof-list + .compact-photos input[type=file]").setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: image });
+      await pay.locator(".payment-proof-list + .compact-photos .photo-tile img").waitFor();
+      await q.evaluate(() => { window.__paymentResponseLost = true; });
+      await apply.click();
+      await q.getByRole("button", { name: "Retry payment" }).click();
+      await apply.waitFor();
+      assert.equal(await pay.locator("p[role=status]").innerText(), "Payment applied.");
+      assert.match(await pay.locator(".pay-left").innerText(), /299\.75/);
+      assert.equal(await input.inputValue(), "");
+      assert.equal(await pay.locator(".payment-movement").count(), 2);
+      await pay.locator(".payment-thumbnails img").nth(1).waitFor();
+      await input.fill("299.75");
+      await input.press("Enter");
+      await pay.locator(".payment-movement").nth(2).waitFor();
+      assert.match(await pay.locator(".pay-left").innerText(), /₱0$/);
+      await pay.getByText("Correct payment", { exact: true }).first().click();
+      await pay.getByRole("textbox", { name: "Reason for correction" }).fill("Duplicate transfer");
+      await pay.getByRole("button", { name: "Reverse payment" }).click();
+      await pay.getByText("Correction recorded.").waitFor();
+      assert.match(await pay.locator(".pay-left").innerText(), /299\.75/);
+      assert(await pay.getByText("Duplicate transfer").isVisible());
+      await panel.locator(".compact-photos").first().scrollIntoViewIfNeeded();
+      await capture(q, "order-photos-desktop");
+      await pay.scrollIntoViewIfNeeded();
+      await capture(q, "order-payments-desktop");
+      await q.setViewportSize({ width: 375, height: 780 });
+      await panel.locator(".compact-photos").first().scrollIntoViewIfNeeded();
+      await capture(q, "order-photos-mobile");
+      await pay.locator("h3").scrollIntoViewIfNeeded();
+      await capture(q, "order-payments-mobile");
+      assert(await panel.evaluate((node) => node.scrollWidth <= node.clientWidth + 1));
+      await panel.locator(".sheet-head").getByRole("button", { name: "Close" }).click();
+      await q.locator(".order", { hasText: "#0127" }).locator(".o-name").click();
+      assert(!(await q.locator(".order-more").evaluate((node) => node.open)));
+      assert(await q.getByRole("spinbutton", { name: "Total price" }).isVisible());
+      assert(await q.locator("#f-notes").isVisible());
+      await q.close();
+    });
     await step("Neutral palette, one stylesheet, timeline (no board), channel logos", async () => {
       await p.waitForTimeout(500); assert.equal(await p.evaluate(() => getComputedStyle(document.body).backgroundColor), "rgb(23, 23, 23)");
       assert.equal(await p.locator("link[rel=stylesheet][href^='/']").count(), 1);
@@ -483,8 +586,9 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("B5 · Replacing a photo deletes the old file only after the order points at the new one", async () => {
       await p.evaluate(() => (window.__calls = []));
       await p.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
-      await p.locator(".sheet input[type=file]").nth(2).setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: png });
-      await p.waitForTimeout(400);
+      const proofField = p.locator(".sheet .field").filter({ has: p.getByText("Proof photo", { exact: true }) });
+      await proofField.locator("input[type=file]").setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: png });
+      await proofField.locator("img[src^=blob]").waitFor();
       await p.locator(".sheet button[type=submit]").click();
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       const c = await calls(p), up = c.findIndex((x) => x.action === "update" && "proof_path" in x.row), rm = c.findIndex((x) => x.remove);

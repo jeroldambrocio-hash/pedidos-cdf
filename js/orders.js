@@ -236,7 +236,7 @@ function orderCard(o) {
     // Lalamove: where the rider is, or that Lalamove dropped it
     ride?.ll_order_id && isOpen(o) ? el("span", { class: "tag " + (llDropped(o) ? "fail" : LL_ACTIVE.has(ride.status) ? "risk" : "") }, icon("truck"), "Lalamove · " + (t("ll_" + ride.status) || ride.status)) : null,
     // Payment: paid, or what is still owed (the amount only when prices are shown on screen)
-    due == null ? null : due <= 0 ? el("span", { class: "tag ok" }, icon("check"), t("payPaid")) : el("span", { class: "tag due" }, icon("clock"), pricesOn() ? t("payDue", { sum: peso(due) }) : t("payPending")), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
+    due == null ? null : due <= 0 ? el("span", { class: "tag ok" }, icon("check"), t("payPaid")) : el("span", { class: "tag due" }, icon("clock"), pricesOn() ? t("payDue", { sum: paymentPesos(due) }) : t("payPending")), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
   const card = el("article", { class: "order k-" + k + (risk ? " at-risk" : "") + (S.selected.has(o.id) ? " picked" : "") + (busy ? " saving" : ""), "data-order": o.id },
     el("div", { class: "o-top" + (pick ? " picking" : "") }, pick,
       el("button", { class: "thumb-btn", type: "button", "aria-label": t("order", { num: o.num }) + " · " + (o.customer_name || t("noName")), onclick: open }, thumb(o)),

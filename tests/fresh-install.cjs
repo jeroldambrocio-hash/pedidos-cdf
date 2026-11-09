@@ -23,7 +23,7 @@ const dir = path.resolve(__dirname, '..', 'supabase', 'migrations');
     create function auth.uid() returns uuid language sql stable as $$select nullif(auth.jwt()->>'sub','')::uuid$$;
     create function auth.role() returns text language sql stable as $$select coalesce(auth.jwt()->>'role','anon')$$;
     create table storage.buckets(id text primary key, name text, public boolean default false, file_size_limit bigint, allowed_mime_types text[]);
-    create table storage.objects(id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, created_at timestamptz default now());
+    create table storage.objects(id uuid primary key default gen_random_uuid(), bucket_id text, name text, owner uuid, owner_id text, created_at timestamptz default now());
     alter table storage.objects enable row level security;
     create function storage.foldername(name text) returns text[] language sql immutable as $$select (string_to_array(name,'/'))[1:array_length(string_to_array(name,'/'),1)-1]$$;
     create table vault.secrets(id uuid primary key default gen_random_uuid(), name text unique, secret text);
@@ -38,13 +38,31 @@ const dir = path.resolve(__dirname, '..', 'supabase', 'migrations');
     create publication supabase_realtime;
   `);
 
-  // Supabase CLI: files sorted by name; the version is the part before the first "_".
+  // Rebuild using the deployed order, including the legacy price dependency.
   const files = fs.readdirSync(dir).filter((f) => f.endsWith('.sql')).sort();
+  // Deployed before 037 was added. Keep both production migration IDs intact.
+  const securePrices = files.splice(files.findIndex((f) => f.startsWith('20261028012537')), 1)[0];
+  files.splice(files.findIndex((f) => f.startsWith('037_')), 0, securePrices);
   for (const f of files) {
     // pg_net is provided by the stand-in above; PGlite has no such extension to install.
     const sql = fs.readFileSync(path.join(dir, f), 'utf8').replace(/create extension if not exists pg_net[^;]*;/gi, '');
+    if (f.includes('incremental_payments')) {
+      await db.exec(`insert into public.cdf_orders(id,num,date,slot,channel,customer_name)
+        values ('b0000000-0000-0000-0000-000000000001','LEGACY',current_date,'10:00 - 12:00','Web','Legacy');
+        insert into public.cdf_order_prices(order_id,amount,paid,pay_proofs)
+        values ('b0000000-0000-0000-0000-000000000001',2500,2000,array['legacy.jpg']);`);
+    }
     try { await db.exec(sql); }
     catch (e) { console.error(`FAIL ${f}: ${e.code || ''} ${e.message}`); process.exit(1); }
+    if (f.includes('incremental_payments')) {
+      const { rows: [legacy] } = await db.query("select paid, pay_proofs, payment_history from public.cdf_order_prices");
+      assert.equal(legacy.paid, '2000.00');
+      assert.deepEqual(legacy.payment_history[0].proofs, legacy.pay_proofs);
+      assert.equal(legacy.payment_history[0].amount, 2000);
+      assert.equal(legacy.payment_history[0].kind, 'opening');
+      await db.exec("delete from public.cdf_orders where num = 'LEGACY'");
+      console.log('ok Legacy paid totals and proof paths survive migration');
+    }
     console.log('ok ' + f);
   }
 
@@ -95,4 +113,48 @@ const dir = path.resolve(__dirname, '..', 'supabase', 'migrations');
     const c = (await db.query("select body from net.calls order by id desc limit 1")).rows[0].body;
     assert.equal(c.kind, 'direct'); assert.equal(c.id, m); }
   ok('A private message asks for a push');
+  const order = O1.slice(1, -1);
+  const actor = 'a0000000-0000-0000-0000-000000000003';
+  const paymentId = 'a0000000-0000-0000-0000-000000000004';
+  const proof = order + '/transfer.jpg';
+  await db.query("insert into storage.objects(bucket_id,name) values ('cdf-pagos',$1)", [proof]);
+  const login = async (email) => {
+    await db.exec('reset role');
+    await db.query("select set_config('request.jwt.claims',$1,false)", [JSON.stringify({ email, sub: actor })]);
+    await db.exec('set role authenticated');
+  };
+  const record = async ({ id = require('crypto').randomUUID(), amount = 1, total = 2500, seen = 2500,
+      proofs = [], reverses = null, reason = null } = {}) =>
+    (await db.query('select public.cdf_record_payment($1,$2,$3,$4,$5,$6,$7,$8) as result',
+      [order, id, amount, proofs, total, seen, reverses, reason])).rows[0].result;
+  await login('flo@t');
+  await assert.rejects(record({ seen: null }), { code: '42501' });
+  assert.equal((await db.query("select payment_history from public.cdf_order_prices")).rows.length, 0);
+  await login('admin@t');
+  await db.query(`insert into public.cdf_order_prices(order_id,amount) values (${O2},20)
+    on conflict (order_id) do update set order_id=excluded.order_id,amount=excluded.amount`);
+  const payment = { id: paymentId, amount: 2000, seen: null, proofs: [proof] };
+  const first = await record(payment);
+  assert.equal(first.paid, 2000);
+  assert.equal(first.payment_history[0].by_email, 'admin@t');
+  assert(first.payment_history[0].created_at);
+  assert.deepEqual(first.payment_history[0].proofs, [proof]);
+  assert.deepEqual(await record(payment), first);
+  await assert.rejects(record({ seen: 0 }), /cdf_price_changed/);
+  await assert.rejects(record({ amount: 500.01 }), /cdf_payment_above_due/);
+  await assert.rejects(record({ amount: 0.001 }), /cdf_invalid_payment/);
+  await assert.rejects(record({ proofs: [order + '/missing.jpg'] }), /cdf_invalid_payment_proofs/);
+  await assert.rejects(db.query(`update public.cdf_order_prices set amount=1999 where order_id=${O1}`), /cdf_price_below_paid/);
+  await assert.rejects(db.query(`update public.cdf_order_prices set order_id=gen_random_uuid() where order_id=${O1}`), { code: '42501' });
+  await assert.rejects(db.query(`update public.cdf_order_prices set paid=0 where order_id=${O1}`), { code: '42501' });
+  assert.equal((await record({ amount: 500 })).paid, 2500);
+  await assert.rejects(record({ reverses: paymentId, reason: ' ' }), /cdf_invalid_correction/);
+  const corrected = await record({ reverses: paymentId, reason: 'Duplicate transfer' });
+  assert.equal(corrected.paid, 500);
+  assert.deepEqual(corrected.payment_history.map((entry) => entry.amount), [2000, 500, -2000]);
+  assert.equal(corrected.payment_history[2].reason, 'Duplicate transfer');
+  await assert.rejects(record({ reverses: paymentId, reason: 'Again' }), /cdf_invalid_correction/);
+  ok('Payment permissions, exact amounts, proof ownership, retry, balance limits and auditable corrections');
+  await db.close();
+
 })().catch((e) => { console.error(e); process.exit(1); });

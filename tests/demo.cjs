@@ -41,7 +41,7 @@ http.createServer((req, res) => {
     res.setHeader("Content-Type", types[path.extname(f)] || "text/plain");
     // The real supabase-js is swapped for the fake one; the role comes from ?role=
     if (f.endsWith(".html")) buf = String(buf).replace(/<script src="https:\/\/cdn\.jsdelivr[^>]*supabase[^>]*><\/script>/,
-      `<script>window.__role=new URLSearchParams(location.search).get("role")||"admin"</script><script src="/__mock.js"></script>`);
+      `<script>window.__role=new URLSearchParams(location.search).get("role")||"admin";window.__paymentDemo=true</script><script src="/__mock.js"></script>`);
     // The tracking page asks the cdf-track function directly: answer with a made-up order.
     // ?state=prep | ready | transit (default) | done | fail shows each step.
     if (f.endsWith("seguimiento.html")) buf = String(buf).replace('<script src="/config.js"></script>', `<script>

@@ -155,3 +155,11 @@ node --experimental-strip-types tests/lalamove.test.mjs
 NODE_PATH=.test-tools/node_modules node tests/lalamove-db.cjs
 NODE_PATH=.test-tools/node_modules node tests/lalamove-ui.cjs
 ```
+
+### Pagos incrementales
+
+Antes de publicar el cliente, aplica `20261109120000_cdf_incremental_payments.sql` después de `037_cdf_payments_rider_alerts.sql`. En una instalación desde cero, aplica `20261028012537_secure_prices_and_search.sql` antes de la 037, ya que esta depende de la tabla privada de precios. Conserva los identificadores de migración en los entornos existentes.
+
+La migración conserva el total pagado y los comprobantes previos como saldo de apertura. Los pagos nuevos guardan importe, usuario, fecha y comprobantes privados. Para corregir un pago, anúlalo con un motivo y registra el importe correcto. La anulación queda en el historial.
+
+Vista previa con datos ficticios: `node tests/demo.cjs` y abre http://localhost:4324/?role=admin. Abre el pedido 0124, con ₱2.000 ya pagados y ₱500 pendientes.

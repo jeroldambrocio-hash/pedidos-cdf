@@ -120,6 +120,7 @@ const norm = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 const pricesOn = () => S.cap.amount && isAdmin() && pref("cdf-prices") === "on";
 // The bouquet price field in the editor: always there for the admin, whatever "Show prices" says
 const priceEditable = () => S.cap.amount && isAdmin();
+const paymentPesos = (n) => "₱" + Number(n).toLocaleString("en-PH", { maximumFractionDigits: 2 });
 const peso = (n) => "₱" + Math.round(n || 0).toLocaleString("en-PH");
 
 // ---------- state ----------
@@ -328,7 +329,7 @@ function orderGaps() {
       const why = [
         !o.vendor_email ? t("gapNoFlorist") : S.cap.pickup && m && m.role === "vendor" && (m.pickup_lat == null || !m.pickup_address) ? t("gapNoShop", { name: m.name }) : null,
         typeof llDropped === "function" && llDropped(o) ? t("gapLalamove", { why: t("ll_" + llRowOf(o).status) || llRowOf(o).status }) : null,
-        due > 0 ? (pricesOn() ? t("gapUnpaid", { sum: peso(due) }) : t("gapUnpaidNoSum")) : null,
+        due > 0 ? (pricesOn() ? t("gapUnpaid", { sum: paymentPesos(due) }) : t("gapUnpaidNoSum")) : null,
       ].filter(Boolean).join(" · ");
       return why ? { o, why } : null;
     }).filter(Boolean).sort((a, b) => (a.o.date + a.o.slot).localeCompare(b.o.date + b.o.slot)));
@@ -375,7 +376,7 @@ function closeOnBackdrop(scrim, close) {
   scrim.addEventListener("click", (e) => { if (e.target === scrim && downOnScrim) close(); downOnScrim = false; });
 }
 // What is still owed on an order (price − paid). null without a price, or for anyone who can't see money.
-const dueOf = (o) => S.cap.paid && o.amount != null && o.amount !== "" ? Math.max(0, +o.amount - (+o.paid || 0)) : null;
+const dueOf = (o) => S.cap.paid && o.amount != null && o.amount !== "" ? Math.max(0, Math.round(+o.amount * 100) - Math.round((+o.paid || 0) * 100)) / 100 : null;
 // Prices live behind their own administrator-only row policies, never in the shared order row.
 async function attachPrices(rows) {
  if (!isAdmin() || !S.cap.amount || !rows?.length) return rows;
@@ -394,23 +395,13 @@ async function savePrice(id,patch,seen) {
  if(!priceEditable()) return;
  const row={order_id:id};
  if("amount" in patch) row.amount=patch.amount;
- if(S.cap.paid&&("paid" in patch||patch.proofs)){
-  const {data:now,error:e1}=await sb.from("cdf_order_prices").select("amount,paid,pay_proofs").eq("order_id",id).maybeSingle();
-  if(e1) throw new Error(t("priceSaveFail"));
-  const num=(v)=>v==null||v===""?null:+v;
-  if(seen&&now&&(("amount" in patch&&num(now.amount)!==num(seen.amount))||("paid" in patch&&num(now.paid)!==num(seen.paid)))) throw new Error(t("payChangedMeanwhile"));
-  if("paid" in patch) row.paid=patch.paid;
-  if(patch.proofs){
-   const cur=now?.pay_proofs||[],gone=patch.proofs.before.filter(p=>!patch.proofs.after.includes(p)),added=patch.proofs.after.filter(p=>!patch.proofs.before.includes(p));
-   row.pay_proofs=cur.filter(p=>!gone.includes(p)).concat(added.filter(p=>!cur.includes(p)));
-  }
- }else if(seen&&"amount" in patch){
+ if(seen&&"amount" in patch){
   const {data:now}=await sb.from("cdf_order_prices").select("amount").eq("order_id",id).maybeSingle();
   if(now&&(now.amount==null?null:+now.amount)!==(seen.amount==null||seen.amount===""?null:+seen.amount)) throw new Error(t("payChangedMeanwhile"));
  }
  if(Object.keys(row).length===1) return row;
  const {error}=await sb.from("cdf_order_prices").upsert(row,{onConflict:"order_id"});
- if(error) throw new Error(t("priceSaveFail"));
+ if(error) throw new Error(t(error.message === "cdf_price_below_paid" ? "payPriceBelowPaid" : "priceSaveFail"));
  invalidateStats();
  return row;
 }

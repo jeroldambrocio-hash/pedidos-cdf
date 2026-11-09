@@ -157,7 +157,7 @@ const server = http.createServer((req, res) => {
     // The customer's point saved with the order: booking goes straight to "Get price"
     await p.evaluate(() => closeSheet(true));
     await p.evaluate((f) => { S.cap.drop = true; const o = (0, eval)("(" + f + ")")(); Object.assign(o, { status: "Ready", delivery: "-" }); openOrder(o); }, ord.toString());
-    await p.locator(".drop-more summary").click(); // the pasted-link field is folded away
+    if (!(await p.locator(".order-more").evaluate(node => node.open))) await p.locator(".order-more > summary").click(); // the pasted-link field is in More details
     await p.locator("#f-drop").waitFor();
     await p.locator("#f-drop").fill("https://www.google.com/maps/place/x/@41.38,2.17,17z");
     await p.locator(".sheet-foot .btn.primary").click();
@@ -264,6 +264,7 @@ const server = http.createServer((req, res) => {
       assert.equal(await q.locator("#f-drop").inputValue(), "14.6337, 121.0338");
       await q.locator("#f-dropfind").click();
       await sh.locator(".ll-results .ll-hit").first().waitFor();
+      await sh.locator(".order-more:not([open]) > summary").click();
       await q.locator("#f-vehicle").getByRole("button", { name: "Coche" }).click();
       assert.equal(await q.evaluate(() => document.getElementById("f-vehicle").value), "SEDAN");
       await q.screenshot({ path: path.join(out, "lalamove-6-new-order.png") });
@@ -299,22 +300,15 @@ const server = http.createServer((req, res) => {
 
       // Payment: price, paid so far, what's left; saved in the admin-only table; tag on the card
       await q.evaluate((id) => openOrder(S.orders.find((x) => x.id === id)), id);
-      await sh.locator("#f-paid").waitFor();
+      await sh.locator("#f-payment").waitFor();
       await q.locator("#f-amount").fill("2500");
-      await q.locator("#f-paid").fill("1000");
+      await q.locator("#f-payment").fill("1000");
+      await q.getByRole("button", { name: "Aplicar pago" }).click();
+      await sh.getByText("Pago aplicado.").waitFor();
       assert.match(await q.locator("#f-payleft").innerText(), /Pendiente: .*1,?500/);
-      await q.locator("#f-paid").fill("2500");
-      assert.match(await q.locator("#f-payleft").innerText(), /Pagado/);
-      await q.locator("#f-paid").fill("1000");
-      await q.evaluate(() => document.querySelector(".sheet").requestSubmit());
-      // This order has no florist (taken off above): it asks once, as it should
-      await q.locator(".dialog").last().getByRole("button", { name: "Guardar igualmente" }).waitFor();
-      await q.locator(".dialog").last().getByRole("button", { name: "Guardar igualmente" }).click({ force: true });
-      await q.locator(".sheet").waitFor({ state: "detached" });
-      assert(await q.evaluate(() => window.__calls.some((c) => c.table === "cdf_order_prices" && c.row?.paid === 1000)), "payment not saved");
-      // only what changed is written (the price was already 2500): nobody else's change is overwritten
-      assert(await q.evaluate(() => !window.__calls.some((c) => c.table === "cdf_order_prices" && c.action === "upsert" && "pay_proofs" in (c.row || {}))), "untouched proofs rewritten");
-      await q.evaluate((id) => { const o = S.orders.find((x) => x.id === id); o.amount = 2500; o.paid = 1000; render(); }, id);
+      assert(await q.evaluate(() => window.__calls.some((c) => c.rpc === "cdf_record_payment" && c.args.p_amount === 1000)), "payment not saved");
+      await sh.locator(".sheet-head").getByRole("button", { name: "Cerrar" }).click();
+      await sh.waitFor({ state: "detached" });
       await q.locator(`[data-order="${id}"] .tag.due`).waitFor();
       assert.match(await q.locator("#gapBanner").innerText(), /pago pendiente|debe/);
       await q.evaluate((id) => { S.orders.find((x) => x.id === id).paid = 2500; render(); }, id);
