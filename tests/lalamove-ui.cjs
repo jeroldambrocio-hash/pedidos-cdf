@@ -31,7 +31,7 @@ const fake = () => {
   // The table: reads return the fake row
   const from = sb.from.bind(sb);
   sb.from = (t) => t !== "cdf_lalamove" ? from(t) : (() => {
-    const q = { select: () => q, limit: () => q, eq: () => q,
+    const q = { select: () => q, limit: () => q, eq: () => q, in: () => q,
       maybeSingle: async () => ({ data: __ll.row && JSON.parse(JSON.stringify(__ll.row)), error: null }),
       then: (res, rej) => Promise.resolve({ data: __ll.row ? [__ll.row] : [], error: null }).then(res, rej) };
     return q;
@@ -152,6 +152,7 @@ const server = http.createServer((req, res) => {
     // The customer's point saved with the order: booking goes straight to "Get price"
     await p.evaluate(() => closeSheet(true));
     await p.evaluate((f) => { S.cap.drop = true; const o = (0, eval)("(" + f + ")")(); Object.assign(o, { status: "Ready", delivery: "-" }); openOrder(o); }, ord.toString());
+    await p.locator(".drop-more summary").click(); // the pasted-link field is folded away
     await p.locator("#f-drop").waitFor();
     await p.locator("#f-drop").fill("https://www.google.com/maps/place/x/@41.38,2.17,17z");
     await p.locator(".sheet-foot .btn.primary").click();
@@ -226,6 +227,16 @@ const server = http.createServer((req, res) => {
       await noOverflow(v);
       // An order of someone else's: never offered
       assert.equal(await v.evaluate(() => llCanBook({ id: "x", vendor_email: "someone@else" })), false);
+      // A rider booked live (production): her card follows the rider, the manual buttons go
+      await v.evaluate(() => closeSheet(true));
+      const rid = await v.evaluate(() => { const o = S.orders.find((x) => x.status === "Ready" && x.delivery === "-" && x.vendor_email === S.me.email);
+        S.ll.set(o.id, { order_id: o.id, ll_order_id: "LL1", status: "ON_GOING", env: "production", share_link: "https://share.lalamove.com/x", driver_name: "Juan Dela Cruz" }); render(); return o.id; });
+      const rc = v.locator(`article.work[data-id="${rid}"]`);
+      await rc.locator(".w-ride").getByText(/Juan Dela Cruz/).waitFor();
+      assert.equal(await rc.getByRole("button", { name: "Salir a repartir" }).count(), 0, "manual Head out still there with a live rider");
+      // Sandbox: nothing moves by itself, so the manual step stays
+      await v.evaluate((id) => { S.ll.get(id).env = "sandbox"; render(); }, rid);
+      assert.equal(await v.locator(`article.work[data-id="${rid}"]`).getByRole("button", { name: "Salir a repartir" }).count(), 1);
       await v.context().close();
     }
     console.log("ok florist: Head out books a rider for her own order (nothing moved by hand; never for others)");
@@ -235,20 +246,23 @@ const server = http.createServer((req, res) => {
       // New order: delivery instructions next to the address, vehicle, the point found from the address, no proof photo
       await q.evaluate(() => openEditor(null));
       const sh = q.locator(".sheet");
-      await sh.locator("#f-drop").waitFor();
-      const pos = await q.evaluate(() => ["f-addr", "f-dnote", "f-drop", "f-vehicle"].map((id) => [...document.querySelectorAll(".sheet .field")].indexOf(document.getElementById(id)?.closest(".field"))));
+      await sh.locator("#f-drop").waitFor({ state: "attached" });
+      const pos = await q.evaluate(() => ["f-addr", "f-dnote", "f-vehicle", "f-drop"].map((id) => [...document.querySelectorAll(".sheet .field")].indexOf(document.getElementById(id)?.closest(".field"))));
       assert(pos.every((n, i) => n >= 0 && (!i || n > pos[i - 1])), "field order " + pos);
       assert(!(await q.evaluate(() => document.getElementById("f-dnote").closest("details"))), "instructions still hidden in More details");
       assert.equal(await sh.getByText("Foto de prueba", { exact: true }).count(), 0, "proof photo on a new order");
+      // Typing the address and leaving the field finds the point by itself (first result), others one tap away
       await q.locator("#f-addr").fill("Tomas Morato Ave, Quezon City");
-      await q.locator("#f-dropfind").click();
-      await sh.locator(".drop-find .ll-hit").first().click();
+      await q.locator("#f-addr").blur();
+      await sh.locator(".drop-found").waitFor();
       assert.equal(await q.locator("#f-drop").inputValue(), "14.6337, 121.0338");
-      await q.locator("#f-vehicle").selectOption("SEDAN");
+      await q.locator("#f-dropfind").click();
+      await sh.locator(".ll-results .ll-hit").first().waitFor();
+      await q.locator("#f-vehicle").getByRole("button", { name: "Coche" }).click();
       assert.equal(await q.evaluate(() => document.getElementById("f-vehicle").value), "SEDAN");
       await q.screenshot({ path: path.join(out, "lalamove-6-new-order.png") });
       await q.evaluate(() => closeSheet(true));
-      console.log("ok new order: instructions under the address, point found from the typed address, vehicle, no proof photo");
+      console.log("ok new order: instructions under the address, point found by itself from the address, vehicle buttons, no proof photo");
 
       // Taking the florist off an upcoming order asks first ("Save anyway"); cancelling keeps it unsaved
       const id = await q.evaluate(() => { const o = S.orders.find((x) => x.vendor_email && isOpen(x) && !x.cancelled_at); o.date = manilaToday(); openOrder(o); return o.id; });
@@ -269,6 +283,46 @@ const server = http.createServer((req, res) => {
       assert.match(await q.locator("#gapBanner").innerText(), /sin florista asignada/);
       await q.screenshot({ path: path.join(out, "lalamove-7-banner.png") });
       console.log("ok office banner: orders for today/tomorrow that can't get a rider");
+
+      // Lalamove dropped a booking (not us): banner and tag; one we cancelled ourselves: nothing
+      await q.evaluate((id) => { S.ll.set(id, { order_id: id, ll_order_id: "LL9", status: "EXPIRED", cancelled_by_us: false }); render(); }, id);
+      assert.match(await q.locator("#gapBanner").innerText(), /Lalamove: Caducado/);
+      await q.evaluate((id) => { S.ll.get(id).cancelled_by_us = true; S.ll.get(id).status = "CANCELED"; render(); }, id);
+      assert.doesNotMatch(await q.locator("#gapBanner").innerText(), /Lalamove/);
+      console.log("ok office: told when Lalamove drops a booking, not when we cancel it");
+
+      // Payment: price, paid so far, what's left; saved in the admin-only table; tag on the card
+      await q.evaluate((id) => openOrder(S.orders.find((x) => x.id === id)), id);
+      await sh.locator("#f-paid").waitFor();
+      await q.locator("#f-amount").fill("2500");
+      await q.locator("#f-paid").fill("1000");
+      assert.match(await q.locator("#f-payleft").innerText(), /Pendiente: .*1,?500/);
+      await q.locator("#f-paid").fill("2500");
+      assert.match(await q.locator("#f-payleft").innerText(), /Pagado/);
+      await q.locator("#f-paid").fill("1000");
+      await q.evaluate(() => document.querySelector(".sheet").requestSubmit());
+      // This order has no florist (taken off above): it asks once, as it should
+      await q.locator(".dialog").last().getByRole("button", { name: "Guardar igualmente" }).waitFor();
+      await q.evaluate(() => [...document.querySelectorAll(".dialog button")].find((b) => b.textContent.includes("Guardar igualmente")).click());
+      await q.locator(".sheet").waitFor({ state: "detached" });
+      assert(await q.evaluate(() => window.__calls.some((c) => c.table === "cdf_order_prices" && c.row?.paid === 1000 && c.row?.amount === 2500)), "payment not saved");
+      await q.evaluate((id) => { const o = S.orders.find((x) => x.id === id); o.amount = 2500; o.paid = 1000; render(); }, id);
+      await q.locator(`[data-order="${id}"] .tag.due`).waitFor();
+      assert.match(await q.locator("#gapBanner").innerText(), /pago pendiente|debe/);
+      await q.evaluate((id) => { S.orders.find((x) => x.id === id).paid = 2500; render(); }, id);
+      await q.locator(`[data-order="${id}"] .tag.ok`).getByText("Pagado").waitFor();
+      console.log("ok payment: paid and left to pay, saved apart, tags and banner");
+
+      // One History (changes + emails) instead of two drop-downs
+      await q.evaluate((id) => openOrder(S.orders.find((x) => x.id === id)), id);
+      await sh.locator("summary", { hasText: "Historial" }).first().waitFor();
+      await q.setViewportSize({ width: 390, height: 2600 });
+      await q.waitForTimeout(300);
+      await q.screenshot({ path: path.join(out, "lalamove-8-editor.png") });
+      await q.setViewportSize({ width: 390, height: 900 });
+      assert.equal(await sh.locator("details.hist > summary").filter({ hasText: /^Historial de / }).count(), 0, "still two history drop-downs");
+      await q.evaluate(() => closeSheet(true));
+      console.log("ok one History section");
 
       // Stats: what riders cost in the period (sandbox says so)
       await q.evaluate(() => setTab("stats"));

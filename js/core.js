@@ -178,7 +178,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d, b, v] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v, pay] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -189,8 +189,9 @@ async function detectSchema() {
     sb.from("cdf_orders").select("drop_lat").limit(1), // 033: the customer's exact delivery point
     sb.from("cdf_members").select("branch").limit(1), // 035: each person's branch of the shop
     sb.from("cdf_orders").select("vehicle").limit(1), // 036: Lalamove vehicle per order
+    sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, paid: isAdmin() && !m.error && !pay.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
@@ -230,6 +231,8 @@ async function loadOrders() {
     S.orders = [...a.data, ...b.data.filter((o) => !o.cancelled_at)].filter((o) => !seen.has(o.id) && seen.add(o.id))
       .filter((o) => !(isCarrier() && o.cancelled_at && o.carrier_email !== me));
     await attachPrices(S.orders);
+    // Riders booked for these orders: extra information, never a reason for the list not to load
+    if (typeof llLoadRows === "function") await llLoadRows().catch(() => {});
     S.range = [from, to]; S.loaded = true; S.loadError = false;
     setConnection(null);
     render();
@@ -308,7 +311,12 @@ function orderGaps() {
   return S.orders.filter((o) => (o.date === today || o.date === tomorrow) && isOpen(o) && !o.archived_at && o.delivery !== "In transit")
     .map((o) => {
       const m = o.vendor_email && S.members.find((x) => x.email === o.vendor_email);
-      const why = !o.vendor_email ? t("gapNoFlorist") : S.cap.pickup && m && m.role === "vendor" && (m.pickup_lat == null || !m.pickup_address) ? t("gapNoShop", { name: m.name }) : null;
+      const due = dueOf(o);
+      const why = [
+        !o.vendor_email ? t("gapNoFlorist") : S.cap.pickup && m && m.role === "vendor" && (m.pickup_lat == null || !m.pickup_address) ? t("gapNoShop", { name: m.name }) : null,
+        typeof llDropped === "function" && llDropped(o) ? t("gapLalamove", { why: t("ll_" + llRowOf(o).status) || llRowOf(o).status }) : null,
+        due > 0 ? (pricesOn() ? t("gapUnpaid", { sum: peso(due) }) : t("gapUnpaidNoSum")) : null,
+      ].filter(Boolean).join(" · ");
       return why ? { o, why } : null;
     }).filter(Boolean).sort((a, b) => (a.o.date + a.o.slot).localeCompare(b.o.date + b.o.slot));
 }
@@ -346,19 +354,22 @@ document.addEventListener("submit",e=>{
  queueMicrotask(()=>{if(!button.disabled){observer.disconnect();endRequest()}});
 },true);
 
+// What is still owed on an order (price − paid). null without a price, or for anyone who can't see money.
+const dueOf = (o) => S.cap.paid && o.amount != null && o.amount !== "" ? Math.max(0, +o.amount - (+o.paid || 0)) : null;
 // Prices live behind their own administrator-only row policies, never in the shared order row.
 async function attachPrices(rows) {
  if (!isAdmin() || !S.cap.amount || !rows?.length) return rows;
  for(let offset=0;offset<rows.length;offset+=200){
-  const part=rows.slice(offset,offset+200), {data,error}=await sb.from("cdf_order_prices").select("order_id,amount").in("order_id",part.map(o=>o.id));
+  const part=rows.slice(offset,offset+200), {data,error}=await sb.from("cdf_order_prices").select(S.cap.paid?"order_id,amount,paid,pay_proofs":"order_id,amount").in("order_id",part.map(o=>o.id));
   if(error) throw new Error(t("priceLoadFail"));
-  const amounts=new Map((data||[]).map(p=>[p.order_id,p.amount]));part.forEach(o=>o.amount=amounts.get(o.id)??null);
+  const byId=new Map((data||[]).map(p=>[p.order_id,p]));
+  part.forEach(o=>{const p=byId.get(o.id);o.amount=p?.amount??null;if(S.cap.paid){o.paid=p?.paid??null;o.pay_proofs=p?.pay_proofs||[];}});
  }
  return rows;
 }
-async function savePrice(id,amount) {
+async function savePrice(id,amount,pay) {
  if(!priceEditable()) return;
- const {error}=await sb.from("cdf_order_prices").upsert({order_id:id,amount},{onConflict:"order_id"});
+ const {error}=await sb.from("cdf_order_prices").upsert({order_id:id,amount,...(S.cap.paid&&pay?{paid:pay.paid,pay_proofs:pay.proofs}:{})},{onConflict:"order_id"});
  if(error) throw new Error(t("priceSaveFail"));
  invalidateStats();
 }

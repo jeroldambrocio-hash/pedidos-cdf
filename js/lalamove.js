@@ -56,6 +56,33 @@ async function llDetect() {
   return LL.cap;
 }
 
+// The Lalamove row of every loaded order (admins: all; a florist: hers), kept live. Used by the cards
+// (rider booked → follow it instead of marking by hand) and by the office banner (Lalamove dropped it).
+S.ll = new Map();
+let llAllChan = null;
+const LL_FAILED = new Set(["CANCELED", "REJECTED", "EXPIRED"]);
+async function llLoadRows() {
+  if (S.me?.role !== "admin" && S.me?.role !== "vendor") return;
+  const ids = S.orders.filter((o) => isOpen(o) && !o.cancelled_at).map((o) => o.id);
+  const next = new Map();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await sb.from("cdf_lalamove").select("*").in("order_id", ids.slice(i, i + 200));
+    if (error) return; // no table yet (migration 029) or no access: nothing to show
+    (data || []).forEach((r) => next.set(r.order_id, r));
+  }
+  S.ll = next;
+  if (!llAllChan && sb.channel) llAllChan = sb.channel("ll-all").on("postgres_changes", { event: "*", schema: "public", table: "cdf_lalamove" }, (p) => {
+    const r = p.new && p.new.order_id ? p.new : null;
+    if (r) S.ll.set(r.order_id, r); else if (p.old?.order_id) S.ll.delete(p.old.order_id);
+    render();
+  }).subscribe();
+}
+const llRowOf = (o) => S.ll?.get(o.id) || null;
+// A rider is booked and still on it
+const llActive = (o) => { const r = llRowOf(o); return !!(r?.ll_order_id && LL_ACTIVE.has(r.status)); };
+// Lalamove (or the rider) dropped it; not when we cancelled it ourselves
+const llDropped = (o) => { const r = llRowOf(o); return !!(r?.ll_order_id && LL_FAILED.has(r.status) && r.cancelled_by_us === false); }; // only once migration 037 can tell
+
 function lalamoveSection(o) {
   const box = el("div", { class: "ll" });
   const sec = el("section", { id: "lalamoveSection", hidden: true }, el("h3", {}, icon("truck"), " Lalamove ", el("span", { class: "tag muted ll-env" })), box);

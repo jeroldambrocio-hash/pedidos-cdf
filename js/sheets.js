@@ -279,12 +279,12 @@ function historyBlock(o) {
 const EV_FIELDS = { num: "orderNum", date: "date", slot: "slot", channel: "channel", vendor_email: "vendor", carrier_email: "carrier",
   customer_name: "customerName", customer_phone: "phone", customer_email: "email", buyer_name: "buyerName", buyer_phone: "buyerPhone",
   address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery", cancel_reason: "cancelReason",
-  vehicle: "llVehicle", photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount" };
+  vehicle: "llVehicle", paid: "payPaidAmount", photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount" };
 const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
   if (typeof v === "boolean") return v ? t("evPhotoYes") : t("evPhotoNo");
   if (k === "vendor_email" || k === "carrier_email") return memberName(v);
-  if (k === "amount") return peso(v);
+  if (k === "amount" || k === "paid") return peso(v);
   if (k === "date") return shortDate(v);
   if (k === "status" || k === "delivery") return t("db_" + String(v).replace(/\W/g, "")) || v;
   return String(v);
@@ -327,6 +327,12 @@ const cancelNote = (o) => o?.cancelled_at ? el("div", { class: "sheet-note cance
     el("small", {}, [o.cancelled_by ? memberName(o.cancelled_by) : null, when(o.cancelled_at)].filter(Boolean).join(" · ")))) : null;
 
 // ---------- an order, read-only (florists and drivers) ----------
+// (5) One "History": what changed, then the emails sent (they used to be two separate drop-downs)
+function historySection(o, hist) {
+  return el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("historyAll")),
+    S.cap.events ? el("div", { class: "hist-part" }, el("h4", {}, t("changeLog")), eventsBlock(o)) : null,
+    el("div", { class: "hist-part" }, el("h4", {}, t("history")), hist)));
+}
 function openOrderView(o) {
   const hist = historyBlock(o), cur = stepOf(o);
   const node = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" },
@@ -339,8 +345,8 @@ function openOrderView(o) {
         el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
         o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "link-out" }, o.customer_phone))] : null,
         o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, o.card_message)] : null,
-        el("dt", {}, t("note")), el("dd", {}, o.notes || t("noNotes")),
-        el("dt", {}, t("photo")), el("dd", {}, o.photo_path ? el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"), true)) : t("noPhoto")),
+        o.notes ? [el("dt", {}, t("note")), el("dd", {}, o.notes)] : null,
+        o.photo_path ? [el("dt", {}, t("photo")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.photo_path, bucket, t("photoAlt"), true)))] : null,
         o.extra_photos?.length ? [el("dt", {}, t("extraPhotos")), el("dd", {}, el("div", { class: "photo-grid ro" }, o.extra_photos.map((p, i) => el("div", { class: "pic" }, imgOf(p, ENTREGAS, t("extraPhotos") + " " + (i + 1), true)))))] : null,
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
@@ -349,8 +355,7 @@ function openOrderView(o) {
       // Tracking off: no messages to the customer from the panel at all
       !feature("tracking") ? null : el("section", {}, el("h3", {}, t("notifyBuyer")),
         notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
-      el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
-        S.cap.events ? el("details", { class: "hist" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null)),
+      historySection(o, hist)),
     el("div", { class: "sheet-foot" }, el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => closeSheet() }, t("close"))));
   openLayer(node);
 }
@@ -439,7 +444,7 @@ function phoneBox(input) {
 }
 
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",
-  "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
+  "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount", "paid"];
 function openEditor(o, { copyFrom, draft } = {}) {
   let isNew = !o;
   // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
@@ -447,7 +452,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const nextNum = String(Math.max(0, S.numTop || 0, ...S.orders.map((x) => (/^\d+$/.test(x.num) ? +x.num : 0))) + 1).padStart(4, "0");
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
-    customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "" };
+    customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "", paid: "" };
   const src = o || (copyFrom ? { ...blank, ...Object.fromEntries(["slot", "channel", "vendor_email", "customer_name", "address", "customer_phone", "customer_email", "buyer_name", "buyer_phone", "card_message"].map((k) => [k, copyFrom[k] ?? ""])) } : draft ? { ...blank, ...draft } : blank);
   const f = Object.fromEntries(ORDER_FIELDS.map((k) => [k, src[k] ?? ""]));
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
@@ -466,8 +471,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const dropNote = el("small", { class: "note" });
   // Lalamove vehicle (036): motorcycle unless the arrangement needs a car
   const vehNow = (o ? o.vehicle : copyFrom ? copyFrom.vehicle : draft?.vehicle) || "";
-  const iVeh = S.cap.vehicle ? el("select", { id: "f-vehicle" }, ...[["", t("llv_MOTORCYCLE")], ["SEDAN", t("llv_SEDAN")], ["MPV", t("llv_MPV")]]
-    .map(([v, l]) => el("option", { value: v, selected: v === (vehNow === "MOTORCYCLE" ? "" : vehNow) }, l))) : null;
+  let vehVal = vehNow === "MOTORCYCLE" ? "" : vehNow;
+  const iVeh = S.cap.vehicle ? el("div", { class: "seg veh-seg", id: "f-vehicle", role: "group", "aria-label": t("llVehicle") },
+    ...[["", "MOTORCYCLE"], ["SEDAN", "SEDAN"], ["MPV", "MPV"]].map(([v, k]) => el("button", { type: "button", "data-v": v, "aria-pressed": String(v === vehVal),
+      onclick: (e) => { vehVal = v; e.currentTarget.parentNode.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.v === v))); } }, t("llv_" + k)))) : null;
+  if (iVeh) Object.defineProperty(iVeh, "value", { get: () => vehVal });
   const dropPoint = () => (iDrop && iDrop.value.trim() ? (typeof llParseCoords === "function" ? llParseCoords(iDrop.value) : null) : null);
   const paintDrop = () => {
     if (!iDrop) return;
@@ -477,18 +485,29 @@ function openEditor(o, { copyFrom, draft } = {}) {
   };
   // "Find on the map": search the typed address and pick the right result (no Maps link needed)
   const dropHits = el("div", { class: "ll-results" });
-  const dropFind = iDrop && typeof llCall === "function" ? el("button", { class: "btn", type: "button", id: "f-dropfind", onclick: async (e) => {
-    const q = iAddr.value.trim(), b = e.currentTarget;
-    if (!q) { iAddr.closest(".field").classList.add("invalid"); iAddr.focus(); return; }
-    b.disabled = true; b.classList.add("busy");
+  const setPoint = (r) => { iDrop.value = `${r.lat}, ${r.lng}`; paintDrop(); iDrop.dispatchEvent(new Event("change", { bubbles: true })); };
+  // auto: right after the address is typed, take the first result and say which place it is (one tap to see others)
+  let lastAuto = "";
+  async function locate(auto, b) {
+    const q = iAddr.value.trim();
+    if (!q) { if (!auto) { iAddr.closest(".field").classList.add("invalid"); iAddr.focus(); } return; }
+    if (b) { b.disabled = true; b.classList.add("busy"); }
     try {
       const { results } = await llCall({ action: "geocode", query: q });
-      fill(dropHits, results.length ? results.map((r) => el("button", { class: "ll-hit", type: "button", onclick: () => {
-        iDrop.value = `${r.lat}, ${r.lng}`; dropHits.replaceChildren(); paintDrop(); iDrop.dispatchEvent(new Event("change", { bubbles: true }));
-      } }, icon("map"), el("span", {}, r.label))) : el("p", { class: "note" }, t("llNoHits")));
-    } catch (x) { fill(dropHits, el("p", { class: "err" }, x.message)); }
-    finally { b.disabled = false; b.classList.remove("busy"); }
-  } }, icon("search"), " " + t("dropFind")) : null;
+      if (!results.length) return fill(dropHits, el("p", { class: "note" }, t("llNoHits")));
+      const list = () => fill(dropHits, results.map((r) => el("button", { class: "ll-hit", type: "button", onclick: () => { setPoint(r); dropHits.replaceChildren(); } }, icon("map"), el("span", {}, r.label))));
+      if (!auto) return list();
+      setPoint(results[0]);
+      fill(dropHits, el("p", { class: "note drop-found" }, icon("map"), " " + t("dropFound", { place: results[0].label }) + " ",
+        results.length > 1 ? el("button", { class: "linkish", type: "button", onclick: list }, t("dropOthers")) : null));
+    } catch (x) { if (!auto) fill(dropHits, el("p", { class: "err" }, x.message)); }
+    finally { if (b) { b.disabled = false; b.classList.remove("busy"); } }
+  }
+  const dropFind = iDrop && typeof llCall === "function" ? el("button", { class: "linkish", type: "button", id: "f-dropfind", onclick: (e) => locate(false, e.currentTarget) }, icon("search"), " " + t("dropFind")) : null;
+  if (dropFind) iAddr.addEventListener("blur", () => {
+    const q = iAddr.value.trim();
+    if (q.length >= 8 && !iDrop.value.trim() && q !== lastAuto) { lastAuto = q; locate(true); }
+  });
   if (iDrop) {
     iDrop.addEventListener("input", paintDrop);
     // A short share link: let the server open it and keep the point it leads to
@@ -521,6 +540,24 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const extras = S.cap.extra ? photoList({ current: o?.extra_photos, alt: t("extraPhotos"), onErr: setErr })
     : { node: null, dirty: false, upload: async () => undefined, cleanup: async () => {}, dispose() {} };
   const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr });
+  // Payment (037, admins): what was paid so far (a down payment) and photos of the transfers, in their own
+  // private bucket. What's left is worked out, never typed. A stand-in while the columns aren't there.
+  const noList = { node: null, dirty: false, upload: async () => undefined, cleanup: async () => {}, dispose() {} };
+  const payOn = priceEditable() && S.cap.paid;
+  const iPaid = el("input", { id: "f-paid", type: "number", inputmode: "decimal", min: 0, step: 50, placeholder: "0", value: f.paid ?? "", "aria-label": t("payPaidAmount") });
+  let payProofs = payOn ? photoList({ current: o?.pay_proofs, bkt: "cdf-pagos", alt: t("payProofs"), onErr: setErr }) : noList;
+  const payProofsBox = el("div", { style: "display:contents" }, payProofs.node);
+  const payLeft = el("output", { class: "pay-left", id: "f-payleft" });
+  function paintPay() {
+    if (!payOn) return;
+    const total = iAmount.value === "" ? null : +iAmount.value, paid = +iPaid.value || 0;
+    payLeft.className = "pay-left";
+    if (total == null) { payLeft.textContent = paid ? t("payNoTotal") : ""; return; }
+    const left = Math.max(0, total - paid);
+    payLeft.classList.add(left > 0 ? "due" : "ok");
+    payLeft.textContent = left > 0 ? t("payLeft", { sum: peso(left) }) : t("payPaid");
+  }
+  iPaid.addEventListener("input", paintPay); iAmount.addEventListener("input", paintPay);
   const hist = isNew ? null : historyBlock(o);
 
   // Channel: logos in the header, grey until chosen; tapping the chosen one clears it
@@ -566,10 +603,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (iDrop) { const p = dropPoint(); row.drop_lat = p ? p.lat : null; row.drop_lng = p ? p.lng : null; }
     if (iVeh) row.vehicle = iVeh.value || null;
     if (priceEditable()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
+    if (payOn) row.paid = iPaid.value === "" ? null : Math.max(0, +iPaid.value);
     return row;
   };
   let initial = null;
-  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty;
+  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty || payProofs.dirty;
 
   const linkBlock = isNew ? el("p", { class: "note", style: "margin:0" }, t("linkAfterSave")) : (() => {
     const li = el("input", { id: "f-link", class: "input", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select(), "aria-label": t("customerLink") });
@@ -620,7 +658,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
     if (!S.cap.carrier) delete dbRow.carrier_email;
-    delete dbRow.amount;
+    delete dbRow.amount; delete dbRow.paid;
     // Giving it to someone away on that date (or moving it into their absence) asks first
     if (dbRow.vendor_email && (isNew || dbRow.vendor_email !== (initial.vendor_email || null) || dbRow.date !== initial.date)
       && !(await okToAssign(dbRow.vendor_email, [dbRow.date]))) return;
@@ -630,7 +668,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     else {
       // Only what this person changed, so a status set meanwhile by the florist or driver is never undone.
       const changed = Object.fromEntries(Object.entries(dbRow).filter(([k, v]) => JSON.stringify(v ?? "") !== JSON.stringify(initial[k] ?? "")));
-      if (!Object.keys(changed).length && !shot.dirty && !extras.dirty && !proof.dirty && (!priceEditable() || row.amount === initial.amount)) { await closeSheet(true); return; }
+      if (!Object.keys(changed).length && !shot.dirty && !extras.dirty && !proof.dirty && !payProofs.dirty && (!priceEditable() || row.amount === initial.amount) && (!payOn || row.paid === initial.paid)) { await closeSheet(true); return; }
       // The write only lands on the version this person was shown (updated_at), so two admins saving
       // at the same moment can't silently overwrite each other: if the row moved in between, it is
       // read again and anything that now clashes with these edits is asked about once more.
@@ -654,9 +692,18 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
     // Only a price that was typed or changed is written: an order whose price never loaded keeps it
-    if (priceEditable() && (isNew || row.amount !== initial.amount)) {
-      try { await savePrice(saved.id,row.amount); saved.amount=row.amount; }
-      catch(e) { upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined};} setErr(e.message); return e.message; }
+    if (priceEditable() && (isNew || row.amount !== initial.amount || (payOn && (row.paid !== initial.paid || payProofs.dirty)))) {
+      try {
+        let pay = null;
+        if (payOn) {
+          const up = await payProofs.upload(saved.id);
+          pay = { paid: row.paid, proofs: up !== undefined ? up : (o?.pay_proofs || []) };
+        }
+        await savePrice(saved.id, row.amount, pay);
+        saved.amount = row.amount;
+        if (pay) { saved.paid = pay.paid; saved.pay_proofs = pay.proofs; await payProofs.cleanup(); }
+      }
+      catch(e) { upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined,paid:undefined};} setErr(e.message); return e.message; }
     }
     // Photos after the row exists; the old files go only once the row points at the new ones.
     const pics = {};
@@ -725,26 +772,30 @@ function openEditor(o, { copyFrom, draft } = {}) {
       el("section", {}, el("h3", {}, t("recipientH")),
         checkRow(iSame, t("sameAsBuyer")),
         recip,
-        el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr), mapHint(iAddr)),
+        el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr),
+          el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind), dropFind ? dropHits : null),
         field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
-        iDrop ? field(t("dropPoint"), iDrop, dropNote) : null,
-        dropFind ? el("div", { class: "drop-find" }, dropFind, dropHits) : null,
         iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
         field(t("cardMsg"), iCard),
-        field(t("note"), iNotes)),
-      el("section", {}, field(t("photo"), shot.node)),
+        field(t("note"), iNotes),
+        // The exact point: filled from the address by itself; open it only to paste a Maps link
+        iDrop ? el("details", { class: "hist drop-more", open: !!iDrop.value || null }, el("summary", {}, t("dropPoint")), field(t("dropPasteLabel"), iDrop, dropNote)) : null),
+      // Every photo of the order in one place: the reference first, then more, then the delivery proof
+      el("section", {}, el("h3", {}, t("photosH")), field(t("photo"), shot.node),
+        extras.node ? field(t("morePhotos"), extras.node, el("small", { class: "note" }, t("extraPhotosHint"))) : null,
+        isNew ? null : field(t("proofPhoto"), proof.node)),
+      // Price and payment: admins only
+      priceEditable() ? el("section", { class: "pay" }, el("h3", {}, t("payH")),
+        el("div", { class: "row2" },
+          field(t("bouquetPrice"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP"))),
+          payOn ? field(t("payPaidAmount"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iPaid, el("span", { class: "cur" }, "PHP"))) : null),
+        payOn ? payLeft : null,
+        payOn ? field(t("payProofs"), payProofsBox, el("small", { class: "note" }, t("payProofsHint"))) : el("small", { class: "note" }, t("bouquetPriceHint"))) : null,
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
       isNew || typeof lalamoveSection !== "function" ? null : lalamoveSection(o),
-      el("section", {}, el("details", { class: "hist", open: !!(o?.proof_path || o?.extra_photos?.length || (priceEditable() && f.amount != null && f.amount !== "")) || null },
-        el("summary", {}, t("moreDetails")),
-        el("div", { class: "details-body" },
-          priceEditable() ? field(t("bouquetPrice"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP")), el("small", { class: "note" }, t("bouquetPriceHint"))) : null,
-          extras.node ? field(t("extraPhotos"), extras.node, el("small", { class: "note" }, t("extraPhotosHint"))) : null,
-          isNew ? null : field(t("proofPhoto"), proof.node)))),
-      isNew ? null : el("section", {}, el("details", { class: "hist" }, el("summary", {}, t("history")), hist),
-        S.cap.events ? el("details", { class: "hist" }, el("summary", {}, t("changeLog")), eventsBlock(o)) : null),
+      isNew ? null : historySection(o, hist),
       err),
     el("div", { class: "sheet-foot" }, footLeft, el("span", { class: "spacer" }), saveBtn));
 
@@ -753,17 +804,23 @@ function openEditor(o, { copyFrom, draft } = {}) {
   function keepDraft() { if (!isNew || !initial) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); }
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
-  openLayer(node, { dirty, dispose: () => { [shot, extras, proof].forEach((p) => p.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
+  openLayer(node, { dirty, dispose: () => { [shot, extras, proof, payProofs].forEach((p) => p.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
   syncSame(false); syncChan(); syncRepeat();
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
-  paintDrop();
+  paintDrop(); paintPay();
   sheet.order = o;
   // An order that arrived live may not have its price yet: fetch it so the field never shows empty by mistake
-  if (priceEditable() && o?.id && o.amount === undefined) sb.from("cdf_order_prices").select("amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {
+  if (priceEditable() && o?.id && o.amount === undefined) sb.from("cdf_order_prices").select(payOn ? "amount,paid,pay_proofs" : "amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {
     o.amount = data?.amount ?? null;
     if (data?.amount != null && iAmount.value === "" && iAmount.isConnected) { iAmount.value = data.amount; initial = { ...initial, amount: Math.max(0, +data.amount) }; }
+    if (payOn) {
+      o.paid = data?.paid ?? null; o.pay_proofs = data?.pay_proofs || [];
+      if (data?.paid != null && iPaid.value === "" && iPaid.isConnected) { iPaid.value = data.paid; initial = { ...initial, paid: Math.max(0, +data.paid) }; }
+      if (o.pay_proofs.length && !payProofs.dirty) { payProofs.dispose(); payProofs = photoList({ current: o.pay_proofs, bkt: "cdf-pagos", alt: t("payProofs"), onErr: setErr }); payProofsBox.replaceChildren(payProofs.node); }
+    }
+    paintPay();
   });
 }
 function mapHint(input) {

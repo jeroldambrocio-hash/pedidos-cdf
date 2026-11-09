@@ -83,6 +83,26 @@ Deno.serve(async (req) => {
     payloadFor = (lang) => ({ kind: "order", title: lang === "es" ? "Pedido #" + o.num + " cancelado" : "Order #" + o.num + " cancelled",
       body: (lang === "es" ? "No lo prepares ni lo repartas · " : "Don't prepare or deliver it · ") + [day(o.date, lang), o.slot].filter(Boolean).join(" · "),
       url: APP_URL + "/?order=" + o.id, tag: "order-" + o.id });
+  } else if (body.kind === "rider" && body.to) {
+    // Lalamove assigned a rider who is heading to the florist's shop (cdf_push_rider, migration 037)
+    const { data: o } = await service.from("cdf_orders").select("id,num,slot").eq("id", body.id).maybeSingle();
+    const { data: r } = await service.from("cdf_lalamove").select("driver_name,driver_plate").eq("order_id", body.id).maybeSingle();
+    if (!o) return json({ sent: 0 });
+    to = [String(body.to).toLowerCase()];
+    const who = [r?.driver_name, r?.driver_plate].filter(Boolean).join(" · ");
+    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Rider en camino a tu tienda · #" : "Rider on the way to your shop · #") + o.num,
+      body: (lang === "es" ? "Ten el ramo listo en la puerta" : "Have the bouquet ready at the door") + (who ? " · " + who : ""),
+      url: APP_URL + "/?order=" + o.id, tag: "rider-" + o.id });
+  } else if (body.kind === "rider_failed") {
+    // The delivery fell through on Lalamove's side: every admin hears it, to book again or take it by hand
+    const { data: o } = await service.from("cdf_orders").select("id,num,slot,cancelled_at").eq("id", body.id).maybeSingle();
+    if (!o || o.cancelled_at) return json({ sent: 0 });
+    to = team.filter((p) => p.role === "admin").map((p) => p.email);
+    const why = (lang: string) => ({ CANCELED: lang === "es" ? "cancelado por Lalamove o el rider" : "cancelled by Lalamove or the rider",
+      REJECTED: lang === "es" ? "rechazado" : "rejected", EXPIRED: lang === "es" ? "ningún rider lo aceptó" : "no rider took it" } as Record<string, string>)[String(body.status)] || String(body.status);
+    payloadFor = (lang) => ({ kind: "order", title: "Lalamove · #" + o.num + " · " + why(lang),
+      body: lang === "es" ? "Vuelve a pedir rider o márcalo para llevarlo a mano" : "Book a rider again or take it by hand",
+      url: APP_URL + "/?order=" + o.id, tag: "rider-" + o.id });
   } else return json({ error: "kind" }, 400);
 
   if (!to.length) return json({ sent: 0 });

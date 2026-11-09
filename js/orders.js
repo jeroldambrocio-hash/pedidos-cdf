@@ -220,7 +220,12 @@ function orderCard(o) {
       STEP_IDS.map((i) => el("option", { value: String(i), selected: i === cur }, stepName(i)))));
   const pick = S.selecting ? el("label", { class: "pick" }, el("input", { type: "checkbox", checked: S.selected.has(o.id), "aria-label": t("selectOrder", { num: o.num }),
     onchange: (e) => { e.target.checked ? S.selected.add(o.id) : S.selected.delete(o.id); card.classList.toggle("picked", e.target.checked); renderBulk(); } })) : null;
-  const tags = [cancelled ? el("span", { class: "tag cancel" }, icon("close"), t("cancelledTag")) : null, retryTag(o), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
+  const ride = typeof llRowOf === "function" && !cancelled ? llRowOf(o) : null, due = cancelled ? null : dueOf(o);
+  const tags = [cancelled ? el("span", { class: "tag cancel" }, icon("close"), t("cancelledTag")) : null, retryTag(o),
+    // Lalamove: where the rider is, or that Lalamove dropped it
+    ride?.ll_order_id && isOpen(o) ? el("span", { class: "tag " + (llDropped(o) ? "fail" : LL_ACTIVE.has(ride.status) ? "risk" : "") }, icon("truck"), "Lalamove · " + (t("ll_" + ride.status) || ride.status)) : null,
+    // Payment: paid, or what is still owed (the amount only when prices are shown on screen)
+    due == null ? null : due <= 0 ? el("span", { class: "tag ok" }, icon("check"), t("payPaid")) : el("span", { class: "tag due" }, icon("clock"), pricesOn() ? t("payDue", { sum: peso(due) }) : t("payPending")), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
   const card = el("article", { class: "order k-" + k + (risk ? " at-risk" : "") + (S.selected.has(o.id) ? " picked" : "") + (busy ? " saving" : ""), "data-order": o.id },
     el("div", { class: "o-top" + (pick ? " picking" : "") }, pick,
       el("button", { class: "thumb-btn", type: "button", "aria-label": t("order", { num: o.num }) + " · " + (o.customer_name || t("noName")), onclick: open }, thumb(o)),

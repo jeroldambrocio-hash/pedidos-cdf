@@ -47,15 +47,21 @@ function workCard(o, withDate, late) {
   const cur = stepOf(o), k = STEPS[cur].k, busy = S.pending.has(o.id);
   const big = (label, glyph, fn, cls = "primary") => el("button", { class: "btn block " + cls, type: "button", onclick: fn, disabled: busy }, icon(glyph), label);
   const acts = [];
+  // A Lalamove rider is on it: follow the rider. Live (production) the order moves by itself, so the
+  // manual buttons go; in sandbox nothing moves, so they stay to finish the test by hand.
+  const ride = typeof llActive === "function" && (cur === 1 || cur === 2) && llActive(o) ? llRowOf(o) : null;
+  const rideLine = ride ? el("div", { class: "w-ride" }, icon("truck"), el("span", {}, t("ll_" + ride.status) || ride.status, ride.driver_name ? " · " + ride.driver_name : ""),
+    ride.share_link ? el("a", { class: "link-out", href: ride.share_link, target: "_blank", rel: "noopener" }, t("llTrack")) : null) : null;
+  const handsOff = ride && ride.env === "production";
   // to-<step>: on hover the button takes the colour of the state it leads to (styles.css)
   if (cur === 0 && !isCarrier()) acts.push(big(t("actReady"), "check", () => readyDialog(o), "primary to-ready"));
-  if (cur === 1 || cur === 4) acts.push(big(t(cur === 4 ? "actOutAgain" : "actOut"), "truck", async () => {
+  if ((cur === 1 && !handsOff) || cur === 4) acts.push(big(t(cur === 4 ? "actOutAgain" : "actOut"), "truck", async () => {
     // With Lalamove: book the rider (the order moves when the rider picks it up)
     if (typeof llHeadOut === "function" && await llHeadOut(o)) return;
     const to = (o.customer_email || "").trim();
     if (await askConfirm(t("confirmTransit", { num: o.num }), t("markTransit"), { detail: to ? t("transitMailTo", { to }) : t("transitNoMail") })) advance(o, 2);
   }, "primary to-transit"));
-  if (cur === 2) acts.push(big(t("actDelivered"), "check", () => deliverDialog(o), "primary to-done"), big(t("actMissed"), "alert", () => missedDialog(o), "to-fail"));
+  if (cur === 2 && !handsOff) acts.push(big(t("actDelivered"), "check", () => deliverDialog(o), "primary to-done"), big(t("actMissed"), "alert", () => missedDialog(o), "to-fail"));
   // Call / WhatsApp were for the driver at the door; florists hand over to the Lalamove rider, who calls the customer
   const phone = o.customer_phone && isOpen(o) && isCarrier() ? intlPhone(o.customer_phone) : "";
   const small = [
@@ -76,6 +82,7 @@ function workCard(o, withDate, late) {
         o.address ? el("div", { class: "note" }, o.address) : null)),
     o.card_message ? el("div", { class: "msg" }, icon("note"), el("span", {}, o.card_message)) : null,
     o.notes ? el("div", { class: "note" }, el("b", {}, t("note") + ": "), o.notes) : null,
+    rideLine,
     acts.length ? el("div", { class: "w-actions" }, ...acts) : null,
     small.length ? el("div", { class: "w-contact" }, ...small) : null);
 }

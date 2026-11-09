@@ -2162,3 +2162,22 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .drop-find .ll-results { justify-self: stretch; }
 .riders { display: grid; gap: 4px; color: var(--muted); font-size: .875rem; }
 .riders-sum { font-size: 1.75rem; color: var(--ink, inherit); font-variant-numeric: tabular-nums; }
+
+/* A booked Lalamove rider on a florist's card */
+.w-ride { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; padding: 8px 10px; border-radius: 10px; background: color-mix(in srgb, var(--accent, #2f7d5b) 10%, transparent); font-size: .875rem; }
+.w-ride svg { width: 16px; height: 16px; flex: none; }
+.w-ride .link-out { margin-left: auto; }
+/* Payment tags on office cards */
+.tag.ok { background: color-mix(in srgb, var(--step-done) 14%, transparent); color: var(--step-done); }
+.tag.due { background: var(--prep-bg); color: var(--prep); }
+
+/* Order editor: address tools, vehicle buttons, payment */
+.addr-tools { display: flex; flex-wrap: wrap; gap: 4px 16px; align-items: center; }
+.drop-found { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; margin: 0; }
+.drop-found svg { width: 14px; height: 14px; }
+.pay-left { display: block; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pay-left.due { color: var(--prep); }
+.pay-left.ok { color: var(--step-done); }
+.hist-part + .hist-part { margin-top: 12px; }
+.hist-part h4 { margin: 8px 0 6px; font-size: .8125rem; color: var(--muted); font-weight: 600; }
+.veh-seg { justify-self: start; max-width: 100%; }

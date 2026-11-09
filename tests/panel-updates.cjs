@@ -68,14 +68,13 @@ const server = http.createServer((req, res) => {
 
     await step("More details: bouquet price in ₱/PHP and several photos, saved", async () => {
       const sheet = a.locator(".sheet");
-      const more = sheet.locator("details.hist").filter({ hasText: "Más detalles" });
-      if (!(await more.evaluate((d) => d.open))) await more.locator("summary").click();
+      const more = sheet; // price and photos are in the open now (no "More details")
       const price = more.locator("#f-amount");
       await price.waitFor();
-      assert.match(await more.locator(".peso-input").innerText(), /₱[\s\S]*PHP/);
+      assert.match(await more.locator(".peso-input").first().innerText(), /₱[\s\S]*PHP/);
       await price.fill("2500");
       assert(await more.locator(".photo-add").count(), "no add-photos button");
-      await more.locator('.photo-grid + input[type=file]').setInputFiles([{ name: "a.png", mimeType: "image/png", buffer: png }, { name: "b.png", mimeType: "image/png", buffer: png }]);
+      await more.locator('.photo-grid + input[type=file]').first().setInputFiles([{ name: "a.png", mimeType: "image/png", buffer: png }, { name: "b.png", mimeType: "image/png", buffer: png }]);
       await more.locator(".photo-tile").nth(1).waitFor();
       await a.screenshot({ path: path.join(out, "panel-more-details.png") });
       await sheet.locator(".sheet-foot .btn.primary").click();
@@ -90,8 +89,7 @@ const server = http.createServer((req, res) => {
 
     await step("photos come back and one can be removed", async () => {
       await a.evaluate(() => openOrder(S.orders.find((o) => o.extra_photos?.length)));
-      const more = a.locator(".sheet details.hist").filter({ hasText: "Más detalles" });
-      assert(await more.evaluate((d) => d.open), "More details should open when there are photos");
+      const more = a.locator(".sheet");
       await more.locator(".photo-tile").nth(1).waitFor();
       await more.locator(".photo-x").first().click();
       assert.equal(await more.locator(".photo-tile").count(), 1);
@@ -104,8 +102,6 @@ const server = http.createServer((req, res) => {
     await step("a price that hadn't loaded is fetched and never wiped by saving", async () => {
       const id = await a.evaluate(() => { const o = S.orders.find((x) => !x.extra_photos?.length); delete o.amount; window.__prices.find((p) => p.order_id === o.id).amount = 1800; return o.id; });
       await a.evaluate((id) => openOrder(S.orders.find((o) => o.id === id)), id);
-      const more = a.locator(".sheet details.hist").filter({ hasText: "Más detalles" });
-      if (!(await more.evaluate((d) => d.open))) await more.locator("summary").click();
       await a.waitForFunction(() => document.getElementById("f-amount")?.value === "1800");
       await a.locator("#f-notes").fill("Edited note");
       await a.locator(".sheet .sheet-foot .btn.primary").click();

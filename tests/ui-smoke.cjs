@@ -483,7 +483,6 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("B5 · Replacing a photo deletes the old file only after the order points at the new one", async () => {
       await p.evaluate(() => (window.__calls = []));
       await p.locator(".order", { hasText: "#0124" }).locator(".o-name").click();
-      await p.locator(".hist summary", { hasText: "More details" }).click();
       await p.locator(".sheet input[type=file]").nth(2).setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: png });
       await p.waitForTimeout(400);
       await p.locator(".sheet button[type=submit]").click();
@@ -535,9 +534,10 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     });
     await step("Change history and notices in the order sheet", async () => {
       await p.locator(".order", { hasText: "#0126" }).locator(".o-name").click();
-      assert(await p.locator(".hist summary", { hasText: "Change history" }).isVisible());
-      await p.locator(".hist summary", { hasText: "Notification history" }).click();
-      assert(await p.locator(".hist", { hasText: "Notification history" }).innerText().then((s) => s.includes("Customer")));
+      // One "History" drop-down holds both: what changed, then the emails sent
+      await p.locator(".hist summary", { hasText: /^History$/ }).click();
+      assert(await p.locator(".hist-part h4", { hasText: "Change history" }).isVisible());
+      assert(await p.locator(".hist-part", { hasText: "Notification history" }).innerText().then((s) => s.includes("Customer")));
       await capture(p, "editor-desktop");
       await p.keyboard.press("Escape"); await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
     });

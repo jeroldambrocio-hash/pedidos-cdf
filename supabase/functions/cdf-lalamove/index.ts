@@ -174,7 +174,7 @@ async function book(orderId: string) {
   });
   const saved = await save(orderId, {
     ll_order_id: o.orderId, status: o.status || "ASSIGNING_DRIVER", share_link: o.shareLink || null,
-    price_total: +o.priceBreakdown?.total || row.quote_total, booked_at: new Date().toISOString(), error: null,
+    price_total: +o.priceBreakdown?.total || row.quote_total, booked_at: new Date().toISOString(), error: null, cancelled_by_us: false,
   });
   return json({ row: saved });
 }
@@ -183,7 +183,8 @@ async function cancel(orderId: string) {
   const row = await getRow(orderId);
   if (!row?.ll_order_id) return json({ error: "No hay ningún envío reservado" }, 400);
   await ll("DELETE", `/v3/orders/${row.ll_order_id}`);
-  return json({ row: await save(orderId, { status: "CANCELED", error: null }) });
+  // Marked as ours so the office isn't alerted as if the rider or Lalamove had dropped it (migration 037)
+  return json({ row: await save(orderId, { status: "CANCELED", error: null, cancelled_by_us: true }) });
 }
 
 async function webhook(req: Request) {
