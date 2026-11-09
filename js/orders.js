@@ -86,6 +86,15 @@ function riskOf(o) {
   if (!o.vendor_email && st === 0 && start - now <= 180) return "noFlorist";
   return null;
 }
+function attentionOf(o) {
+  if (!isOpen(o) || o.archived_at) return null;
+  const risk = riskOf(o), step = stepOf(o);
+  if (risk) return risk;
+  if (step === 0 && !o.vendor_email) return "attentionFlorist";
+  if (step === 1 && feature("drivers") && S.cap.carrier && !o.carrier_email) return "attentionCarrier";
+  if (step <= 1 && o.date === S.today && slotStart(o.slot) - manilaMinutes() <= 60) return "attentionSoon";
+  return null;
+}
 function renderRisk() {
   if (!isStaff() || S.tab !== "orders" || S.hits || sheet) return;
   if (S.sel === S.today) renderDay();
@@ -99,6 +108,7 @@ function filterMatch(o) {
   if (f === "pending") return isOpen(o);
   if (f === "unassigned") return !o.vendor_email;
   if (f === "risk") return !!riskOf(o);
+  if (f === "attention") return !!attentionOf(o);
   return stepOf(o) === f;
 }
 function setFilter(k) { S.filter = k; flipDay(); }
@@ -130,6 +140,7 @@ function renderFilters(day) {
   const risky = n((o) => !!riskOf(o)), unassigned = n((o) => !o.vendor_email);
   fill(box, 
     el("h3", {}, t("statusH")),
+    isAdmin() ? row("attention", t("attention"), "alert", n((o) => !!attentionOf(o)), "prep") : null,
     row(null, t("allOrders"), "orders", n(() => true), "all"),
     // "Cancelled" only shows up once there is one (or while it is the active filter)
     ...STEPS.map((s, i) => i === CANCELLED && !n((o) => stepOf(o) === i) && S.filter !== i ? null : row(i, stepName(i), STEP_ICON[i], n((o) => stepOf(o) === i), s.k)),
@@ -144,7 +155,7 @@ function renderFilters(day) {
   // Phones: the same filters as a select next to the search box
   const sel = $("statusMobile");
   sel.replaceChildren(el("option", { value: "" }, t("allStatuses")), ...STEPS.map((s, i) => el("option", { value: String(i) }, stepName(i))),
-    el("option", { value: "risk" }, t("summaryRisk")), el("option", { value: "unassigned" }, t("summaryUnassigned")));
+    ...(isAdmin() ? [el("option", { value: "attention" }, t("attention"))] : []), el("option", { value: "risk" }, t("summaryRisk")), el("option", { value: "unassigned" }, t("summaryUnassigned")));
   sel.value = S.filter == null ? "" : String(S.filter);
 }
 
@@ -209,7 +220,7 @@ const badge = (i) => el("span", { class: "badge s-" + STEPS[i].k }, icon(STEP_IC
 const retryTag = (o) => o.attempts > 0 && isOpen(o)
   ? el("span", { class: "tag fail" }, icon("alert"), o.missed_on ? t("retryTag", { n: o.attempts + 1, date: shortDate(o.missed_on) }) : t("retryTagNoDate", { n: o.attempts + 1 })) : null;
 function orderCard(o) {
-  const cur = stepOf(o), k = STEPS[cur].k, next = NEXT[cur], busy = S.pending.has(o.id), risk = riskOf(o);
+  const cur = stepOf(o), k = STEPS[cur].k, next = NEXT[cur], busy = S.pending.has(o.id), risk = S.filter === "attention" ? attentionOf(o) : riskOf(o);
   const phone = intlPhone(o.customer_phone);
   const archived = S.cap.archive && o.archived_at;
   const open = () => openOrder(o);
@@ -235,6 +246,7 @@ function orderCard(o) {
         floristPicker(o),
         tags.length ? el("div", { class: "o-tags" }, tags) : null,
         el("div", { class: "o-sub" },
+          isAdmin() && feature("drivers") && S.cap.carrier && isOpen(o) ? el("span", { class: "o-driver" }, icon("truck"), o.carrier_email ? t(cur === 2 ? "driverOnRoute" : "driverAssigned", { name: memberName(o.carrier_email) }) : t("driverUnassigned")) : null,
           /^\d{7,15}$/.test(phone) ? el("a", { href: "tel:+" + phone }, icon("phone"), phoneNice(phone)) : null,
           o.address ? el("a", { class: "o-addr", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), o.address) : el("span", { class: "note" }, t("noAddress"))),
         cancelled && o.cancel_reason ? el("div", { class: "o-cancel" }, el("b", {}, t("cancelReasonShort")), " " + o.cancel_reason) : null,

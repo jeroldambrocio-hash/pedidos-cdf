@@ -634,6 +634,24 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await q.locator("#q").fill("zzzz"); assert.equal(await q.locator(".work").count(), 0);
       await q.close();
     });
+    await step("Admin sees the driver assignment and departure live", async () => {
+      const q = await open("admin");
+      try {
+        const card = q.locator(".order", { hasText: "#0127" });
+        const driver = card.locator(".o-driver");
+        await driver.filter({ hasText: "No driver assigned" }).waitFor();
+        await q.evaluate(() => {
+          const row = window.__orders.find(o => o.num === "0127");
+          window.__realtime({ eventType: "UPDATE", new: { ...row, carrier_email: "driver@example.com" } });
+        });
+        await driver.filter({ hasText: "Assigned to" }).waitFor();
+        await q.evaluate(() => {
+          const row = window.__orders.find(o => o.num === "0127");
+          window.__realtime({ eventType: "UPDATE", new: { ...row, carrier_email: "driver@example.com", delivery: "In transit" } });
+        });
+        await driver.filter({ hasText: "On the way" }).waitFor();
+      } finally { await q.close(); }
+    });
     await step("Driver: nobody home reschedules, delivered confirms (RPCs)", async () => {
       const q = await open("carrier", { width: 390 });
       await q.locator(".work").first().waitFor(); await capture(q, "driver-mobile");
