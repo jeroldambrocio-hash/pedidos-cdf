@@ -161,7 +161,7 @@ async function watchMail(o) {
   for (let i = 0; i < 6; i++) {
     await wait(3000);
     const { data } = await sb.from("cdf_notifications").select("ok,detail,created_at").eq("order_id", o.id).eq("channel", "email")
-      .gte("created_at", since).order("created_at", { ascending: false }).limit(1);
+      .eq("audience", "customer").eq("recipient", to).gte("created_at", since).order("created_at", { ascending: false }).limit(1);
     const n = data?.[0];
     if (n) { toast(n.ok ? t("mailSent", { to }) : t("mailFail", { msg: n.detail.replace(/^\w+:\s*/, "") }), { ms: 6000 }); return; }
   }
@@ -208,6 +208,7 @@ function missedDialog(o) {
     const when = fromIso(iDate.value).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" });
     // With tracking on, the customer reads this on their link; off, it is only the rider's instructions (kept if empty)
     const text = note.value.trim() || (track ? `We came at ${at} but nobody was home. We'll come back on ${when}, ${slot}.` : null);
+    if (typeof llReleaseRider === "function" && !(await llReleaseRider(o))) return t("llReleaseStopped");
     const pp = await proof.upload(o.id);
     const { data, error } = await sb.rpc("cdf_reschedule", { p_id: o.id, p_date: iDate.value, p_slot: slot, p_note: text,
       p_proof: pp ?? null, p_set_proof: pp !== undefined });
@@ -485,15 +486,27 @@ function openEditor(o, { copyFrom, draft } = {}) {
   };
   // "Find on the map": search the typed address and pick the right result (no Maps link needed)
   const dropHits = el("div", { class: "ll-results" });
-  const setPoint = (r) => { iDrop.value = `${r.lat}, ${r.lng}`; paintDrop(); iDrop.dispatchEvent(new Event("change", { bubbles: true })); };
-  // auto: right after the address is typed, take the first result and say which place it is (one tap to see others)
-  let lastAuto = "";
+  const setPoint = (r) => { iDrop.value = fromAddr = `${r.lat}, ${r.lng}`; paintDrop(); iDrop.dispatchEvent(new Event("change", { bubbles: true })); };
+  // auto: right after the address is typed, take the first result and say which place it is (one tap to see others).
+  // A point that came from the address (auto or picked from the list) belongs to that address: change the
+  // address and it's cleared and looked up again. A pasted Maps link stays. Late answers for an older text are dropped.
+  let lastAuto = "", fromAddr = "", seq = 0;
+  const addrAtOpen = iAddr.value.trim(), dropAtOpen = iDrop ? iDrop.value.trim() : "";
+  if (iDrop) iAddr.addEventListener("input", () => {
+    if (fromAddr && iDrop.value.trim() === fromAddr) { iDrop.value = ""; fromAddr = ""; lastAuto = ""; dropHits.replaceChildren(); paintDrop(); }
+    // A saved order whose address changes but keeps its old point: don't guess, ask to check it
+    else if (dropAtOpen && iDrop.value.trim() === dropAtOpen && iAddr.value.trim() !== addrAtOpen && !dropHits.querySelector(".drop-check"))
+      fill(dropHits, el("p", { class: "note warn drop-check" }, icon("alert"), " " + t("dropCheckAgain") + " ",
+        el("button", { class: "linkish", type: "button", onclick: (e) => { iDrop.value = ""; dropHits.replaceChildren(); paintDrop(); locate(true, e.currentTarget); } }, t("dropFindAgain"))));
+    seq++;
+  });
   async function locate(auto, b) {
-    const q = iAddr.value.trim();
+    const q = iAddr.value.trim(), my = ++seq;
     if (!q) { if (!auto) { iAddr.closest(".field").classList.add("invalid"); iAddr.focus(); } return; }
     if (b) { b.disabled = true; b.classList.add("busy"); }
     try {
       const { results } = await llCall({ action: "geocode", query: q });
+      if (my !== seq || iAddr.value.trim() !== q) return; // the address changed while searching
       if (!results.length) return fill(dropHits, el("p", { class: "note" }, t("llNoHits")));
       const list = () => fill(dropHits, results.map((r) => el("button", { class: "ll-hit", type: "button", onclick: () => { setPoint(r); dropHits.replaceChildren(); } }, icon("map"), el("span", {}, r.label))));
       if (!auto) return list();
@@ -694,16 +707,25 @@ function openEditor(o, { copyFrom, draft } = {}) {
     // Only a price that was typed or changed is written: an order whose price never loaded keeps it
     if (priceEditable() && (isNew || row.amount !== initial.amount || (payOn && (row.paid !== initial.paid || payProofs.dirty)))) {
       try {
-        let pay = null;
-        if (payOn) {
-          const up = await payProofs.upload(saved.id);
-          pay = { paid: row.paid, proofs: up !== undefined ? up : (o?.pay_proofs || []) };
+        // Only what this person changed; the order itself is already saved at this point
+        const patch = {};
+        if (isNew || row.amount !== initial.amount) patch.amount = row.amount;
+        if (payOn && row.paid !== initial.paid) patch.paid = row.paid;
+        if (payOn && payProofs.dirty) {
+          const before = o?.pay_proofs || [], up = await payProofs.upload(saved.id);
+          if (up !== undefined) patch.proofs = { before, after: up };
         }
-        await savePrice(saved.id, row.amount, pay);
-        saved.amount = row.amount;
-        if (pay) { saved.paid = pay.paid; saved.pay_proofs = pay.proofs; await payProofs.cleanup(); }
+        const done = await savePrice(saved.id, patch, isNew ? null : { amount: initial.amount, paid: initial.paid });
+        if ("amount" in patch) saved.amount = row.amount;
+        if ("paid" in patch) saved.paid = row.paid;
+        if (done?.pay_proofs) saved.pay_proofs = done.pay_proofs;
+        if (patch.proofs) await payProofs.cleanup();
       }
-      catch(e) { upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined,paid:undefined};} setErr(e.message); return e.message; }
+      catch(e) {
+        // The order is saved; say plainly that the money part isn't
+        upsertLocal(saved); if(isNew){o=saved;isNew=false;initial={...row,amount:undefined,paid:undefined};}
+        const msg = t("payNotSaved", { msg: e.message }); setErr(msg); return msg;
+      }
     }
     // Photos after the row exists; the old files go only once the row points at the new ones.
     const pics = {};
@@ -859,9 +881,13 @@ function cancelDialog(o) {
   const iReason = el("textarea", { id: "f-cancel", rows: 3, maxlength: 500, "aria-required": "true", placeholder: t("cancelReasonPh") });
   const chips = el("div", { class: "chips" }, ["cancelR1", "cancelR2", "cancelR3"].map((k) =>
     el("button", { class: "chip", type: "button", onclick: () => { iReason.value = t(k); iReason.focus(); } }, t(k))));
-  miniSheet(t("cancelTitle", { num: o.num }), [field(t("cancelReason"), iReason), chips, el("div", { class: "hint" }, t("cancelHint"))], t("cancelOrder"), async () => {
+  // A rider booked on it: say so before confirming (it gets cancelled too)
+  const riderNote = el("div", { class: "sheet-note warn", hidden: true }, icon("truck"), el("span", {}, t("cancelWithRider")));
+  if (typeof llActiveBooking === "function") llActiveBooking(o).then((b) => { riderNote.hidden = !b; });
+  miniSheet(t("cancelTitle", { num: o.num }), [riderNote, field(t("cancelReason"), iReason), chips, el("div", { class: "hint" }, t("cancelHint"))], t("cancelOrder"), async () => {
     const reason = iReason.value.trim();
     if (!reason) { iReason.closest(".field")?.classList.add("invalid"); iReason.focus(); return t("cancelNeedReason"); }
+    if (typeof llReleaseRider === "function" && !(await llReleaseRider(o))) return t("llReleaseStopped");
     const { data, error } = await sb.rpc("cdf_cancel_order", { p_id: o.id, p_reason: reason });
     if (error) return t("saveFail", { msg: error.message });
     Object.assign(o, data); upsertLocal(o);

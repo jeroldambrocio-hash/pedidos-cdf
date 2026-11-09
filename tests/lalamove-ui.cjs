@@ -21,7 +21,12 @@ const fake = () => {
     switch (body.action) {
       case "status": return reply({ env: "sandbox", ready: true, sync: false });
       case "geocode": return reply({ results: body.query.includes("nowhere") ? [] : [{ label: "Tomas Morato Ave, Quezon City, Metro Manila", lat: 14.6337, lng: 121.0338 }] });
-      case "quote": __ll.row = { order_id: body.order_id, lat: body.lat, lng: body.lng, place: body.place, service: body.service, quotation_id: "q1", quote_total: 112, quote_currency: "PHP", quote_expires: exp() }; return reply({ row: __ll.row });
+      case "quote": {
+        const o = S.orders.find((x) => x.id === body.order_id) || {}, at = body.schedule === "slot" ? "2030-01-01T01:15:00.000Z" : null;
+        __ll.row = { order_id: body.order_id, lat: body.lat, lng: body.lng, place: body.place, service: body.service, quotation_id: "q1", quote_total: 112, quote_currency: "PHP", quote_expires: exp(),
+          quote_for: { vendor: o.vendor_email || null, pickup: [14.6337, 121.0338], date: o.date, slot: o.slot, wanted: body.schedule, schedule: at } };
+        return reply({ row: __ll.row, scheduleAt: at });
+      }
       case "book": Object.assign(r, { ll_order_id: "LL1", status: "ASSIGNING_DRIVER", share_link: "https://share.sandbox.lalamove.com/x", price_total: 112 }); return reply({ row: r });
       case "refresh": return reply({ row: r });
       case "cancel": r.status = "CANCELED"; return reply({ row: r });
@@ -304,9 +309,11 @@ const server = http.createServer((req, res) => {
       await q.evaluate(() => document.querySelector(".sheet").requestSubmit());
       // This order has no florist (taken off above): it asks once, as it should
       await q.locator(".dialog").last().getByRole("button", { name: "Guardar igualmente" }).waitFor();
-      await q.evaluate(() => [...document.querySelectorAll(".dialog button")].find((b) => b.textContent.includes("Guardar igualmente")).click());
+      await q.locator(".dialog").last().getByRole("button", { name: "Guardar igualmente" }).click({ force: true });
       await q.locator(".sheet").waitFor({ state: "detached" });
-      assert(await q.evaluate(() => window.__calls.some((c) => c.table === "cdf_order_prices" && c.row?.paid === 1000 && c.row?.amount === 2500)), "payment not saved");
+      assert(await q.evaluate(() => window.__calls.some((c) => c.table === "cdf_order_prices" && c.row?.paid === 1000)), "payment not saved");
+      // only what changed is written (the price was already 2500): nobody else's change is overwritten
+      assert(await q.evaluate(() => !window.__calls.some((c) => c.table === "cdf_order_prices" && c.action === "upsert" && "pay_proofs" in (c.row || {}))), "untouched proofs rewritten");
       await q.evaluate((id) => { const o = S.orders.find((x) => x.id === id); o.amount = 2500; o.paid = 1000; render(); }, id);
       await q.locator(`[data-order="${id}"] .tag.due`).waitFor();
       assert.match(await q.locator("#gapBanner").innerText(), /pago pendiente|debe/);
@@ -324,6 +331,50 @@ const server = http.createServer((req, res) => {
       assert.equal(await sh.locator("details.hist > summary").filter({ hasText: /^Historial de / }).count(), 0, "still two history drop-downs");
       await q.evaluate(() => closeSheet(true));
       console.log("ok one History section");
+
+      // Audit 3: a price made for another florist / day can't be booked; it asks for a new one
+      const o3 = await q.evaluate(() => { const o = S.orders.find((x) => x.status === "Ready" && !x.cancelled_at && x.vendor_email);
+        __ll.row = { order_id: o.id, lat: 14.6337, lng: 121.0338, place: "x", service: "MOTORCYCLE", quotation_id: "q9", quote_total: 99, quote_currency: "PHP", quote_expires: new Date(Date.now() + 600000).toISOString(),
+          quote_for: { vendor: "someone@else", pickup: [14.6, 121], date: o.date, slot: o.slot, wanted: "now", schedule: null } };
+        o.drop_lat = null; openOrder(o); return o.id; });
+      const sec3 = q.locator("#lalamoveSection");
+      await sec3.getByText(/Has cambiado la florista/).waitFor();
+      assert.equal(await sec3.getByRole("button", { name: /Reservar/ }).count(), 0, "a stale price can still be booked");
+      // same price, matching florist: bookable, and it says when the rider comes
+      await q.evaluate((id) => { closeSheet(true); const o = S.orders.find((x) => x.id === id); __ll.row.quote_for.vendor = o.vendor_email; openOrder(o); }, o3);
+      await sec3.getByText(/Recogida: ahora/).waitFor();
+      await q.evaluate(() => closeSheet(true));
+      console.log("ok audit 3/9: stale price refused; pickup time shown");
+
+      // Audit 1: cancelling an order with a rider booked says so and cancels the rider first
+      await q.evaluate((id) => { Object.assign(__ll.row, { ll_order_id: "LL7", status: "ON_GOING" }); __ll.calls.length = 0; cancelDialog(S.orders.find((x) => x.id === id)); }, o3);
+      await q.getByText(/al cancelar el pedido se cancelará también el rider/).waitFor();
+      await q.locator("#f-cancel").fill("Cliente cancela");
+      await q.evaluate(() => document.querySelector(".sheet").requestSubmit());
+      await q.locator(".sheet").waitFor({ state: "detached" });
+      assert(await q.evaluate(() => __ll.calls.some((c) => c.action === "cancel")), "rider not cancelled with the order");
+      assert(await q.evaluate(() => window.__calls.some((c) => c.rpc === "cdf_cancel_order" || c.fn === "cdf_cancel_order" || JSON.stringify(c).includes("cdf_cancel_order"))), "order not cancelled");
+      console.log("ok audit 1: cancelling the order cancels its rider first");
+
+      // Audit 4: change the address after the point was found: the old point goes and is looked up again
+      await q.evaluate(() => openEditor(null));
+      await q.locator("#f-addr").fill("Tomas Morato Ave, Quezon City");
+      await q.locator("#f-addr").blur();
+      await q.locator(".drop-found").waitFor();
+      assert.equal(await q.locator("#f-drop").inputValue(), "14.6337, 121.0338");
+      await q.locator("#f-addr").fill("Another street 5, Makati");
+      assert.equal(await q.locator("#f-drop").inputValue(), "", "old point kept after the address changed");
+      await q.evaluate(() => closeSheet(true));
+      console.log("ok audit 4: a new address drops the point found for the old one");
+
+      // Audit 2: "Nobody home" with a rider still booked releases that rider before the new day
+      const o2 = await q.evaluate(() => { const o = S.orders.find((x) => !x.cancelled_at && x.vendor_email && x.slot);
+        __ll.row = { order_id: o.id, ll_order_id: "LL8", status: "PICKED_UP", lat: 14.6, lng: 121 }; __ll.calls.length = 0; missedDialog(o); return o.id; });
+      await q.evaluate(() => document.querySelector(".sheet").requestSubmit());
+      await q.locator(".sheet").waitFor({ state: "detached" });
+      assert(await q.evaluate(() => __ll.calls.some((c) => c.action === "cancel")), "old rider kept after a new date");
+      assert(await q.evaluate(() => window.__calls.some((c) => c.rpc === "cdf_reschedule")), "not rescheduled");
+      console.log("ok audit 2: a new date releases the rider of the failed attempt");
 
       // Stats: what riders cost in the period (sandbox says so)
       await q.evaluate(() => setTab("stats"));

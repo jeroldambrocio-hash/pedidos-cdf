@@ -68,7 +68,7 @@ let llAllChan = null;
 const LL_FAILED = new Set(["CANCELED", "REJECTED", "EXPIRED"]);
 async function llLoadRows() {
   if (S.me?.role !== "admin" && S.me?.role !== "vendor") return;
-  const ids = S.orders.filter((o) => isOpen(o) && !o.cancelled_at).map((o) => o.id);
+  const ids = S.orders.filter((o) => !o.archived_at && (isOpen(o) || o.cancelled_at)).map((o) => o.id);
   const next = new Map();
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await sb.from("cdf_lalamove").select("*").in("order_id", ids.slice(i, i + 200));
@@ -87,6 +87,37 @@ const llRowOf = (o) => S.ll?.get(o.id) || null;
 const llActive = (o) => { const r = llRowOf(o); return !!(r?.ll_order_id && LL_ACTIVE.has(r.status)); };
 // Lalamove (or the rider) dropped it; not when we cancelled it ourselves
 const llDropped = (o) => { const r = llRowOf(o); return !!(r?.ll_order_id && LL_FAILED.has(r.status) && r.cancelled_by_us === false); }; // only once migration 037 can tell
+
+// The order's rider booking if one is still on, read fresh (the list may be minutes old). null if none or unknown.
+async function llActiveBooking(o) {
+  try {
+    const { data } = await sb.from("cdf_lalamove").select("ll_order_id,status,driver_name").eq("order_id", o.id).maybeSingle();
+    return data?.ll_order_id && LL_ACTIVE.has(data.status) ? data : null;
+  } catch { return null; }
+}
+// Cancelling the order or moving it to another day first cancels its rider. When Lalamove refuses
+// (a rider assigned for a while can't be cancelled), the caller asks whether to go on anyway.
+async function llReleaseRider(o) {
+  const b = await llActiveBooking(o);
+  if (!b) return true;
+  try {
+    const d = await llCall({ action: "cancel", order_id: o.id });
+    if (d?.row) S.ll.set(o.id, d.row);
+    toast(t("llCancelled"));
+    return true;
+  } catch (e) {
+    return askConfirm(t("llReleaseFailAsk"), t("llGoOnAnyway"), { detail: e.message + " · " + t("llStillBooked"), danger: true });
+  }
+}
+// What a quote was made for (migration 038 keeps it with the quote). Anything that changed since makes it stale.
+function llQuoteStale(o, row) {
+  const f = row?.quote_for;
+  if (!f) return null;
+  if ((f.vendor || null) !== (o.vendor_email || null)) return t("llStaleFlorist");
+  if (o.drop_lat != null && (Math.abs(+o.drop_lat - +row.lat) > 0.0002 || Math.abs(+o.drop_lng - +row.lng) > 0.0002)) return t("llStalePlace");
+  if (f.date !== o.date || f.slot !== o.slot) return t("llStaleSlot");
+  return null;
+}
 
 function lalamoveSection(o) {
   const box = el("div", { class: "ll" });
@@ -120,7 +151,11 @@ function lalamoveSection(o) {
   async function quote(place) {
     const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || o.vehicle || "MOTORCYCLE") }, t("llv_" + v))));
     const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: o.slot })));
-    const go = async () => { row = (await llCall({ action: "quote", order_id: o.id, lat: place.lat, lng: place.lng, place: place.label, service: vehicle.value, schedule: when.value })).row; draw(); };
+    const go = async () => {
+      const r = await llCall({ action: "quote", order_id: o.id, lat: place.lat, lng: place.lng, place: place.label, service: vehicle.value, schedule: when.value });
+      row = r.row; draw();
+      if (when.value === "slot" && !r.scheduleAt) toast(t("llSlotTooClose"), { ms: 6000 });
+    };
     fill(box, shopLine(), el("p", {}, el("b", {}, t("llDeliverTo")), " ", place.label), coordsLink(place.lat, place.lng),
       el("div", { class: "row2" }, field(t("llVehicle"), vehicle), field(t("llPickup"), when)),
       el("div", { class: "btn-row" }, btn(t("llGetPrice"), go, true), btn(t("llChangePlace"), () => pickPlace(quote))));
@@ -136,12 +171,14 @@ function lalamoveSection(o) {
     const ready = LL.cap === "ready";
     sec.querySelector(".ll-env").textContent = LL.env === "production" ? t("llLive") : t("llSandbox");
     if (!ready) return fill(box, el("p", { class: "note" }, t("llNotSetUp")));
-    if (o.cancelled_at) return fill(box, el("p", { class: "note" }, t("llOrderCancelled")));
+    const riderOn = row?.ll_order_id && LL_ACTIVE.has(row.status);
+    if (o.cancelled_at && !riderOn) return fill(box, el("p", { class: "note" }, t("llOrderCancelled")));
     const err = row?.error ? el("p", { class: "err", role: "alert" }, row.error) : null;
     // Booked: status, rider, tracking link, refresh and cancel
     if (row?.ll_order_id) {
       const live = LL_ACTIVE.has(row.status);
       return fill(box,
+        o.cancelled_at && live ? el("p", { class: "err", role: "alert" }, icon("alert"), " " + t("llCancelledOrderRider")) : null,
         el("div", { class: "ll-line" }, status(row.status), row.price_total ? el("b", {}, fee(row.price_total, row.quote_currency)) : null),
         row.driver_name ? el("p", { class: "ll-driver" }, icon("user"), " ", row.driver_name,
           row.driver_plate ? " · " + row.driver_plate : "", row.driver_phone ? el("a", { class: "link-out", href: "tel:" + row.driver_phone }, " " + row.driver_phone) : null)
@@ -156,14 +193,25 @@ function lalamoveSection(o) {
             if (!(await askConfirm(t("llCancelAsk"), t("llCancel"), { danger: true }))) return;
             row = (await llCall({ action: "cancel", order_id: o.id })).row; draw(); toast(t("llCancelled"));
           }) : btn(t("llAgain"), () => pickPlace(quote))),
-        LL.env !== "production" ? manualOut() : null);
+        LL.env !== "production" && !o.cancelled_at ? manualOut() : null);
     }
     // Quoted: show the price and book it (a quote lasts a few minutes)
-    const fresh = row?.quotation_id && row.quote_expires && Date.parse(row.quote_expires) > Date.now() + 15000;
+    const stale = row?.quotation_id ? llQuoteStale(o, row) : null;
+    const fresh = row?.quotation_id && row.quote_expires && Date.parse(row.quote_expires) > Date.now() + 15000 && !stale;
+    if (stale && row.quote_expires && Date.parse(row.quote_expires) > Date.now()) {
+      // Something changed since the price (florist, place, day or slot): ask for a new one
+      const k = o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng, label: o.address || `${o.drop_lat}, ${o.drop_lng}` } : null;
+      return fill(box, el("p", { class: "err", role: "alert" }, icon("alert"), " " + stale + " " + t("llStaleAgain")),
+        el("div", { class: "btn-row" }, k ? btn(t("llGetPrice"), () => quote(k), true) : null, btn(t("llChangePlace"), () => pickPlace(quote), !k)));
+    }
     if (fresh) {
+      const pick = row.quote_for?.schedule;
       const phoneMissing = !phoneOk(o.customer_phone || o.buyer_phone) || !(o.customer_phone || o.buyer_phone);
       return fill(box,
         el("div", { class: "ll-line" }, el("b", { class: "ll-price" }, fee(row.quote_total, row.quote_currency)), el("span", { class: "note" }, t("llv_" + row.service) + " · " + t("llValidUntil", { time: when(row.quote_expires) }))),
+        // When the rider is really asked to come: a time, or now (also when "in the slot" was too close to keep)
+        el("p", { class: "note ll-pickup" }, icon("clock"), " " + (pick ? t("llPickupAt", { time: when(pick) }) : t("llPickupNow")),
+          row.quote_for?.wanted === "slot" && !pick ? el("b", {}, " " + t("llSlotTooClose")) : null),
         shopLine(), el("p", { class: "note" }, t("llDeliverTo") + " " + (row.place || "")), coordsLink(row.lat, row.lng),
         o.status !== "Ready" ? el("p", { class: "note" }, icon("alert"), " " + t("llNotReady")) : null,
         phoneMissing ? el("p", { class: "err" }, t("llNeedPhone")) : null, err,
@@ -176,8 +224,8 @@ function lalamoveSection(o) {
         manualOut());
     }
     // Nothing yet (or the quote expired): start from the last confirmed point, else the one saved with the order (033).
-    const known = row?.lat != null ? { lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` }
-      : o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng, label: o.address || `${o.drop_lat}, ${o.drop_lng}` } : null;
+    const known = o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng, label: o.address || `${o.drop_lat}, ${o.drop_lng}` }
+      : row?.lat != null ? { lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` } : null;
     // The rider picks up at the assigned florist's shop, so there has to be one first.
     if (!llShopOf(o)) {
       const m = S.members.find((x) => x.email === o.vendor_email);

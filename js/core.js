@@ -320,7 +320,8 @@ function render() {
 function orderGaps() {
   if (!isStaff()) return [];
   const today = manilaToday(), tomorrow = addDays(today, 1);
-  return S.orders.filter((o) => (o.date === today || o.date === tomorrow) && isOpen(o) && !o.archived_at && o.delivery !== "In transit")
+  const riderLeft = typeof llActive === "function" ? S.orders.filter((o) => o.cancelled_at && !o.archived_at && llActive(o)).map((o) => ({ o, why: t("gapCancelledRider") })) : [];
+  return riderLeft.concat(S.orders.filter((o) => (o.date === today || o.date === tomorrow) && isOpen(o) && !o.archived_at && o.delivery !== "In transit")
     .map((o) => {
       const m = o.vendor_email && S.members.find((x) => x.email === o.vendor_email);
       const due = dueOf(o);
@@ -330,7 +331,7 @@ function orderGaps() {
         due > 0 ? (pricesOn() ? t("gapUnpaid", { sum: peso(due) }) : t("gapUnpaidNoSum")) : null,
       ].filter(Boolean).join(" · ");
       return why ? { o, why } : null;
-    }).filter(Boolean).sort((a, b) => (a.o.date + a.o.slot).localeCompare(b.o.date + b.o.slot));
+    }).filter(Boolean).sort((a, b) => (a.o.date + a.o.slot).localeCompare(b.o.date + b.o.slot)));
 }
 function paintGapBanner() {
   const box = $("gapBanner"); if (!box) return;
@@ -386,11 +387,32 @@ async function attachPrices(rows) {
  }
  return rows;
 }
-async function savePrice(id,amount,pay) {
+// patch: {amount?, paid?, proofs?: {before, after}} with only what this person changed. Proofs are merged with the
+// row as it is now (someone else may have added one); a price or payment someone else changed since this
+// sheet opened is not overwritten: the save stops and says so.
+async function savePrice(id,patch,seen) {
  if(!priceEditable()) return;
- const {error}=await sb.from("cdf_order_prices").upsert({order_id:id,amount,...(S.cap.paid&&pay?{paid:pay.paid,pay_proofs:pay.proofs}:{})},{onConflict:"order_id"});
+ const row={order_id:id};
+ if("amount" in patch) row.amount=patch.amount;
+ if(S.cap.paid&&("paid" in patch||patch.proofs)){
+  const {data:now,error:e1}=await sb.from("cdf_order_prices").select("amount,paid,pay_proofs").eq("order_id",id).maybeSingle();
+  if(e1) throw new Error(t("priceSaveFail"));
+  const num=(v)=>v==null||v===""?null:+v;
+  if(seen&&now&&(("amount" in patch&&num(now.amount)!==num(seen.amount))||("paid" in patch&&num(now.paid)!==num(seen.paid)))) throw new Error(t("payChangedMeanwhile"));
+  if("paid" in patch) row.paid=patch.paid;
+  if(patch.proofs){
+   const cur=now?.pay_proofs||[],gone=patch.proofs.before.filter(p=>!patch.proofs.after.includes(p)),added=patch.proofs.after.filter(p=>!patch.proofs.before.includes(p));
+   row.pay_proofs=cur.filter(p=>!gone.includes(p)).concat(added.filter(p=>!cur.includes(p)));
+  }
+ }else if(seen&&"amount" in patch){
+  const {data:now}=await sb.from("cdf_order_prices").select("amount").eq("order_id",id).maybeSingle();
+  if(now&&(now.amount==null?null:+now.amount)!==(seen.amount==null||seen.amount===""?null:+seen.amount)) throw new Error(t("payChangedMeanwhile"));
+ }
+ if(Object.keys(row).length===1) return row;
+ const {error}=await sb.from("cdf_order_prices").upsert(row,{onConflict:"order_id"});
  if(error) throw new Error(t("priceSaveFail"));
  invalidateStats();
+ return row;
 }
 // Exhaust the paginated, RLS-protected history. Never silently accept the API's default row cap.
 async function historyRows() {

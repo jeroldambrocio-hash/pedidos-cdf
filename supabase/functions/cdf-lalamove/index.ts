@@ -124,9 +124,17 @@ async function geocode(query: string) {
     .slice(0, 5);
 }
 
+// A rider is only priced or booked for an order that is still to be delivered (not cancelled, archived or done).
+// Refresh and cancel stay open for any order, so a rider left on a cancelled order can still be cancelled.
+const notBookable = (order: any) =>
+  order.cancelled_at ? "El pedido está cancelado" : order.archived_at ? "El pedido está archivado" : order.delivery === "Delivered" ? "El pedido ya está entregado" : null;
+const near = (a: number, b: number) => Math.abs(+a - +b) <= 0.0002;
+
 async function quote(orderId: string, b: Record<string, any>) {
   const order = await getOrder(orderId);
   if (!order) return json({ error: "Pedido no encontrado" }, 404);
+  const no = notBookable(order);
+  if (no) return json({ error: no }, 409);
   const p = await pickupFor(order);
   if (typeof p === "string") return json({ error: p }, 400);
   const lat = +b.lat, lng = +b.lng;
@@ -151,6 +159,9 @@ async function quote(orderId: string, b: Record<string, any>) {
     // a fresh quote replaces a cancelled or finished delivery
     ll_order_id: null, status: null, share_link: null, price_total: null,
     driver_id: null, driver_name: null, driver_phone: null, driver_plate: null, driver_photo: null, booked_at: null, error: null,
+    // What this price was for (migration 038): booking checks the order still matches it
+    quote_for: { vendor: order.vendor_email || null, pickup: [p.lat, p.lng], date: order.date, slot: order.slot,
+      wanted: b.schedule === "slot" ? "slot" : "now", schedule: scheduleAt || null },
   });
   return json({ row, scheduleAt: scheduleAt || null });
 }
@@ -158,8 +169,19 @@ async function quote(orderId: string, b: Record<string, any>) {
 async function book(orderId: string) {
   const [order, row] = await Promise.all([getOrder(orderId), getRow(orderId)]);
   if (!order || !row?.quotation_id) return json({ error: "Pide primero un precio" }, 400);
+  const no = notBookable(order);
+  if (no) return json({ error: no }, 409);
   const p = await pickupFor(order);
   if (typeof p === "string") return json({ error: p }, 400);
+  // The price must still match the order: same florist and shop, same day and slot, same delivery point
+  const f = row.quote_for;
+  if (f) {
+    if ((f.vendor || null) !== (order.vendor_email || null) || !near(f.pickup?.[0], p.lat) || !near(f.pickup?.[1], p.lng))
+      return json({ error: "La florista o su tienda han cambiado desde el precio. Pide un precio nuevo." }, 409);
+    if (f.date !== order.date || f.slot !== order.slot) return json({ error: "El día o la franja han cambiado desde el precio. Pide un precio nuevo." }, 409);
+  }
+  if (order.drop_lat != null && (!near(order.drop_lat, row.lat) || !near(order.drop_lng, row.lng)))
+    return json({ error: "La ubicación de entrega del pedido ha cambiado desde el precio. Pide un precio nuevo." }, 409);
   if (row.ll_order_id && !FINAL.has(row.status)) return json({ error: "Este pedido ya tiene un rider reservado" }, 409);
   if (row.quote_expires && Date.parse(row.quote_expires) < Date.now() + 15_000) return json({ error: "El precio ha caducado. Pídelo otra vez." }, 409);
   const phone = e164(order.customer_phone) || e164(order.buyer_phone);
