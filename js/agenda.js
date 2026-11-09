@@ -50,6 +50,8 @@ function workCard(o, withDate, late) {
   // to-<step>: on hover the button takes the colour of the state it leads to (styles.css)
   if (cur === 0 && !isCarrier()) acts.push(big(t("actReady"), "check", () => readyDialog(o), "primary to-ready"));
   if (cur === 1 || cur === 4) acts.push(big(t(cur === 4 ? "actOutAgain" : "actOut"), "truck", async () => {
+    // With Lalamove: book the rider (the order moves when the rider picks it up)
+    if (typeof llHeadOut === "function" && await llHeadOut(o)) return;
     const to = (o.customer_email || "").trim();
     if (await askConfirm(t("confirmTransit", { num: o.num }), t("markTransit"), { detail: to ? t("transitMailTo", { to }) : t("transitNoMail") })) advance(o, 2);
   }, "primary to-transit"));

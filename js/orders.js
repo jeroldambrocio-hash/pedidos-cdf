@@ -241,7 +241,11 @@ function orderCard(o) {
         cancelled && isAdmin() && !archived ? el("button", { class: "btn", type: "button", disabled: busy, onclick: () => reinstateOrder(o) }, t("reinstate")) : null,
         cur === 2 && !archived ? el("button", { class: "btn to-fail", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("actMissed")) : null,
         cur === 4 && !archived ? el("button", { class: "btn danger", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("reschedule")) : null,
-        next != null && !archived ? el("button", { class: "btn primary to-" + STEPS[next].k, type: "button", disabled: busy, onclick: () => requestStep(o, next) }, t(NEXT_LABEL[cur])) : null,
+        next != null && !archived ? el("button", { class: "btn primary to-" + STEPS[next].k, type: "button", disabled: busy, onclick: async () => {
+          // Head out (again) with Lalamove set up: book the rider instead of moving the order by hand
+          if (next === 2 && typeof llHeadOut === "function" && await llHeadOut(o)) return;
+          requestStep(o, next);
+        } }, t(NEXT_LABEL[cur])) : null,
         el("button", { class: "btn", type: "button", onclick: open }, t("details")))));
   return card;
 }

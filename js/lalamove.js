@@ -28,6 +28,23 @@ function llParseCoords(input) {
 // The shop the rider picks up from: the assigned florist's (Team → edit). null when there isn't one yet.
 const llShopOf = (o) => { const m = S.members.find((x) => x.email === o.vendor_email); return m?.pickup_lat != null && m.pickup_address ? m : null; };
 
+// Who books riders: admins for any order, a florist for the orders assigned to her (the server checks it too)
+const llCanBook = (o) => !!o?.id && (isAdmin() || (S.me?.role === "vendor" && o.vendor_email === S.me.email));
+
+// "Head out" with Lalamove set up: open the order on its Lalamove block to book the rider, instead of moving
+// the order by hand. The order then follows the rider (in production). Returns false when Lalamove isn't
+// available here, so the caller falls back to the manual "On the way".
+async function llHeadOut(o) {
+  if (!llCanBook(o) || (await llDetect().catch(() => false)) !== "ready") return false;
+  await openOrder(o);
+  for (let i = 0; i < 40; i++) {
+    const s = document.getElementById("lalamoveSection");
+    if (s && !s.hidden) { s.scrollIntoView({ block: "start", behavior: prefersReducedMotion() ? "auto" : "smooth" }); return true; }
+    await wait(100);
+  }
+  return true;
+}
+
 // Once per session: is the table there, and is the function set up?
 async function llDetect() {
   if (LL.cap !== null) return LL.cap;
@@ -130,7 +147,7 @@ function lalamoveSection(o) {
   }
 
   (async () => {
-    if (!isAdmin() || !(await llDetect().catch(() => false))) return;
+    if (!llCanBook(o) || !(await llDetect().catch(() => false))) return;
     sec.hidden = false;
     row = (await sb.from("cdf_lalamove").select("*").eq("order_id", o.id).maybeSingle()).data;
     draw();

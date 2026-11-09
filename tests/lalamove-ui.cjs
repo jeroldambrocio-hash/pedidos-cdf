@@ -149,6 +149,13 @@ const server = http.createServer((req, res) => {
       await p.locator("#dialogRoot .btn.danger-solid").click();
       await sec.getByRole("button", { name: "Pedir otro rider" }).waitFor();
       console.log("ok cancel");
+    // Office card: Head out opens the Lalamove booking too
+    await p.evaluate(() => closeSheet(true));
+    const n0 = await p.evaluate(() => window.__calls.length);
+    await p.locator("#list .order.k-ready").first().getByRole("button", { name: "Salir a repartir" }).click();
+    await p.locator("#lalamoveSection").waitFor({ state: "visible" });
+    assert(!(await p.evaluate((n) => window.__calls.slice(n).some((c) => c.rpc === "cdf_progress" || c.update), n0)), "office Head out moved the order by hand");
+    console.log("ok office: Head out opens the rider booking");
     } else {
       assert.match(await sec.innerText(), /teléfono válido/);
       console.log("ok order without phone cannot be booked");
@@ -157,15 +164,33 @@ const server = http.createServer((req, res) => {
     assert(!(await p.evaluate(() => (window.__calls || []).some((c) => c.update || c.insert))), "the order was saved");
     await p.context().close();
 
-    // Florist and driver: no block
-    for (const role of ["vendor"]) { // driver accounts are switched off (config.js), so they never reach an order
-      const q2 = await open(role, 390);
-      await q2.evaluate(() => S.orders[0] && openOrderView(S.orders[0]));
-      await q2.waitForTimeout(800);
-      assert.equal(await q2.locator("#lalamoveSection:not([hidden])").count(), 0, role + " sees Lalamove");
-      await q2.context().close();
+    // Florist: books a rider for her own Ready order, from the card's button; not for orders that aren't Ready
+    {
+      const v = await open("vendor", 390);
+      await v.evaluate(() => { const m = S.members.find((x) => x.email === S.me.email); Object.assign(m, { pickup_address: "Ana's shop, Quezon City", pickup_lat: 14.65, pickup_lng: 121.03 }); S.cap.pickup = true; renderAgenda?.(); render(); });
+      await v.waitForTimeout(400);
+      const readyCard = v.locator("article.work.k-ready").first();
+      await readyCard.waitFor();
+      // "Head out" on her Ready order opens the rider booking instead of moving the order by hand
+      const before = await v.evaluate(() => window.__calls.length);
+      await readyCard.getByRole("button", { name: "Salir a repartir" }).click();
+      const vs = v.locator("#lalamoveSection");
+      await vs.waitFor({ state: "visible" });
+      assert.match(await vs.innerText(), /Recoge en .*Ana's shop/);
+      await vs.getByRole("button", { name: "Enviar con Lalamove" }).click();
+      await vs.locator(".ll-search input").fill("14.6337, 121.0338");
+      await vs.locator(".ll-search input").press("Enter");
+      await vs.locator(".ll-hit").first().click();
+      await vs.getByRole("button", { name: "Ver precio" }).click();
+      await vs.locator(".ll-price").waitFor();
+      await v.screenshot({ path: path.join(out, "lalamove-5-florist.png") });
+      assert(!(await v.evaluate((n) => window.__calls.slice(n).some((c) => c.rpc === "cdf_progress" || c.update), before)), "Head out moved the order by hand");
+      await noOverflow(v);
+      // An order of someone else's: never offered
+      assert.equal(await v.evaluate(() => llCanBook({ id: "x", vendor_email: "someone@else" })), false);
+      await v.context().close();
     }
-    console.log("ok florist never sees it");
+    console.log("ok florist: Head out books a rider for her own order (nothing moved by hand; never for others)");
     assert.deepEqual(errors, []);
     console.log("ok no page errors");
   } catch (e) { console.error("FAIL", e.message, errors); process.exitCode = 1; }

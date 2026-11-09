@@ -188,8 +188,10 @@ Deno.serve(async (req) => {
   const tokenJwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: caller } = await service.auth.getUser(tokenJwt);
   if (!caller?.user?.email) return json({ error: "Inicia sesión de nuevo" }, 401);
-  const { data: me } = await service.from("cdf_members").select("role").eq("email", caller.user.email.toLowerCase()).maybeSingle();
-  if (me?.role !== "admin") return json({ error: "Solo un admin puede usar Lalamove" }, 403);
+  const email = caller.user.email.toLowerCase();
+  const { data: me } = await service.from("cdf_members").select("role").eq("email", email).maybeSingle();
+  // Admins for any order; a florist only for the orders assigned to her (checked below, per order)
+  if (me?.role !== "admin" && me?.role !== "vendor") return json({ error: "No tienes acceso a Lalamove" }, 403);
 
   let b: Record<string, any>;
   try { b = await req.json(); } catch { return json({ error: "Petición no válida" }, 400); }
@@ -200,6 +202,10 @@ Deno.serve(async (req) => {
   try {
     if (b.action === "geocode") return json({ results: await geocode(String(b.query || "").slice(0, 300)) });
     if (!/^[0-9a-f-]{36}$/i.test(orderId)) return json({ error: "Pedido no válido" }, 400);
+    if (me.role === "vendor") {
+      const { data: mine } = await service.from("cdf_orders").select("vendor_email").eq("id", orderId).maybeSingle();
+      if (mine?.vendor_email?.toLowerCase() !== email) return json({ error: "Este pedido no es tuyo" }, 403);
+    }
     if (b.action === "quote") return await quote(orderId, b);
     if (b.action === "book") return await book(orderId);
     if (b.action === "refresh") return json({ row: await refresh(orderId) });

@@ -342,6 +342,7 @@ function openOrderView(o) {
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
       chatSection(o),
+      typeof lalamoveSection === "function" && o.status === "Ready" && o.delivery !== "Delivered" && !o.cancelled_at ? lalamoveSection(o) : null,
       // Tracking off: no messages to the customer from the panel at all
       !feature("tracking") ? null : el("section", {}, el("h3", {}, t("notifyBuyer")),
         notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),
@@ -371,7 +372,7 @@ async function openFresh(o, opts) {
   if (isStaff()) await loadMembers();
   if (isStaff()) openEditor(o, opts); else openOrderView(o);
 }
-function openOrder(o) { openFresh(o); }
+function openOrder(o) { return openFresh(o); }
 
 // Phone with a country picker in front (+63 by default): flag + code when closed; a searchable list with
 // flag, country and code when open. Typing + or 00 in the number also works for any country.
