@@ -134,7 +134,7 @@ function openProfile() {
   }
   const nodes = [
     el("div", { class: "identity" }, av,
-      el("div", {}, el("b", {}, me.name), el("small", {}, t("role_" + me.role))),
+      el("div", {}, el("b", {}, me.name), el("small", {}, t("role_" + me.role) + (me.branch ? " · " + t("branchOf", { b: me.branch }) : ""))),
       el("label", { class: "btn pic-btn", for: "pPhoto" }, icon("camera"), t("changePhoto")), file),
     el("div", { class: "completed" }, icon("check"), el("span", {}, done, el("small", {}, t("doneSince")))),
     el("h3", { class: "grp" }, t("personalData")),
@@ -220,7 +220,7 @@ function renderMyCard() {
   box.replaceChildren(...[
     el("div", { class: "my-id" },
       el("span", { class: "my-pic" }, profilePic(me), el("i", { class: "online", title: t("online") })),
-      el("div", { class: "my-names" }, el("b", {}, me.name, kind ? nameIc : null), el("small", {}, t("myShop"))),
+      el("div", { class: "my-names" }, el("b", {}, me.name, kind ? nameIc : null), el("small", {}, me.branch ? t("branchOf", { b: me.branch }) : t("myShop"))),
       S.cap.profiles ? el("button", { class: "my-gear", id: "editProfileBtn", type: "button", "aria-label": t("editProfile"), title: t("editProfile"), onclick: () => openProfile() }, icon("gear")) : null),
     S.cap.profiles && me.role === "vendor" ? el("div", { class: "my-avail" }, awayBadge(me)) : null,
     S.cap.profiles ? el("div", { class: "my-done" }, icon("bouquet"), done) : null, bloomBtn].filter(Boolean)); // DOM replaceChildren would print "null"
@@ -297,7 +297,8 @@ async function showEmployeeProfile(member, trigger) {
       el("div", {},
         el("h2", { id: "employeeProfileTitle" }, member.name),
         el("span", { class: "role-tag role-" + member.role }, t("role_" + member.role)),
-        member.username ? el("span", { class: "employee-handle" }, "@" + member.username) : null),
+        member.username ? el("span", { class: "employee-handle" }, "@" + member.username) : null,
+        branchLine(member, "branch employee-branch")),
       close),
     el("div", { class: "employee-contact" },
       el("span", {}, member.email),

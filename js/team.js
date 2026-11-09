@@ -30,6 +30,8 @@ function editMember(m) {
   const iRole = el("select", { id: "eRole", disabled: self }, ...["vendor", ...(feature("drivers") || m.role === "carrier" ? ["carrier"] : []), "admin", ...(["vendor", "carrier", "admin"].includes(m.role) ? [] : [m.role])].map((r) => el("option", { value: r, selected: r === m.role }, t("role_" + r))));
   // Availability: florists only; the admin can set anyone's (the server checks it too)
   const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
+  // Branch of the shop this person works for (any role; shown on the profile and in Team)
+  const iBranch = S.cap.branch ? el("input", { id: "eBranch", value: m.branch || "", maxlength: 60, autocomplete: "off", placeholder: t("branchPh") }) : null;
   // Lalamove: where riders pick up this florist's orders (her shop)
   const pick = S.cap.pickup && m.role === "vendor" ? {
     addr: el("input", { id: "ePickAddr", value: m.pickup_address || "", maxlength: 300, autocomplete: "off", placeholder: t("pickupAddrPh") }),
@@ -59,11 +61,12 @@ function editMember(m) {
       if (addr !== (m.pickup_address || null) || (pt?.lat ?? null) !== (m.pickup_lat == null ? null : +m.pickup_lat) || (pt?.lng ?? null) !== (m.pickup_lng == null ? null : +m.pickup_lng))
         pickup = { pickup_address: addr, pickup_lat: pt?.lat ?? null, pickup_lng: pt?.lng ?? null };
     }
-    const basics = name !== m.name || role !== m.role || username !== (m.username || null) || !!pickup, away = !!avail?.changed();
+    const branch = iBranch ? iBranch.value.trim() || null : m.branch ?? null, branchChanged = !!iBranch && branch !== (m.branch || null);
+    const basics = name !== m.name || role !== m.role || username !== (m.username || null) || !!pickup || branchChanged, away = !!avail?.changed();
     if (!basics && !away) { close(); return; }
     save.disabled = true;
     try {
-      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : "editFail")); }
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : "editFail")); }
       if (away) await saveAvailability(m.email, avail.value());
     } catch (x) { save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;
@@ -76,6 +79,7 @@ function editMember(m) {
       el("label", { class: "field" }, el("span", {}, t("name")), iName),
       field(t("username"), iUsername), el("p", { class: "hint" }, t("usernameHint")),
       el("label", { class: "field" }, el("span", {}, t("role")), iRole),
+      iBranch ? field(t("branch"), iBranch) : null,
       el("div", { class: "hint" }, self ? t("ownRoleHint") : m.email),
       avail ? el("h3", { class: "grp" }, t("availability")) : null, avail?.node,
       pick ? el("h3", { class: "grp" }, t("pickupTitle")) : null,
@@ -91,6 +95,10 @@ function editMember(m) {
   queueMicrotask(() => { iName.focus(); iName.select(); });
 }
 
+// "Casa de Flores · Parañaque" under the name, when the person has a branch
+function branchLine(m, cls = "branch") {
+  return m?.branch ? el("small", { class: cls }, icon("flower"), t("branchOf", { b: m.branch })) : null;
+}
 // The member's Bloom Journey stage next to their name (office view; florists and drivers only)
 function bloomTag(m) {
   const kind = bloomKind(m.role); if (!kind || !memberStats) return null;
@@ -108,7 +116,7 @@ function renderTeam() {
     const florist = m.role === "vendor";
     box.append(el("div", { class: "member" + (florist && S.cap.profiles && awayState(m) === "away" ? " is-away" : "") },
       employeeProfileButton(m, avatarNode(m), "profile-avatar"),
-      el("div", {}, el("b", {}, employeeProfileButton(m, m.name, "profile-name"), bloomTag(m)), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
+      el("div", {}, el("b", {}, employeeProfileButton(m, m.name, "profile-name"), bloomTag(m)), branchLine(m), el("small", {}, m.email), m.username ? el("small", {}, "@" + m.username) : null,
         phone ? el("a", { class: "m-phone", href: "tel:+" + phone }, icon("phone"), "+" + phone) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,

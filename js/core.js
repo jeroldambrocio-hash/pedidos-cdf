@@ -178,7 +178,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -187,8 +187,9 @@ async function detectSchema() {
     sb.from("cdf_orders").select("extra_photos").limit(1), // 030: several photos per order
     sb.from("cdf_members").select("pickup_lat").limit(1), // 031: each florist's pickup point (Lalamove)
     sb.from("cdf_orders").select("drop_lat").limit(1), // 033: the customer's exact delivery point
+    sb.from("cdf_members").select("branch").limit(1), // 035: each person's branch of the shop
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.

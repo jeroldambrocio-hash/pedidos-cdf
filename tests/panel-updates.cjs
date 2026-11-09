@@ -165,6 +165,21 @@ const server = http.createServer((req, res) => {
       assert.equal(await a.locator(".chat-direct-picker").count(), 0, "private chats still offered");
       await a.screenshot({ path: path.join(out, "panel-chat.png") });
     });
+
+    await step("team: each person's branch, editable and shown on the profile", async () => {
+      await a.locator("#tabTeam").click();
+      await a.evaluate(() => editMember(S.members.find((m) => m.role === "vendor")));
+      await a.locator("#eBranch").fill("Parañaque");
+      await a.locator(".dialog").getByRole("button", { name: "Guardar" }).click();
+      await a.waitForTimeout(500);
+      assert(await a.evaluate(() => window.__calls.some((c) => c.action === "update" && c.table === "cdf_members" && c.row?.branch === "Parañaque")), "branch not saved");
+      await a.evaluate(() => { S.members.find((m) => m.role === "vendor").branch = "Parañaque"; renderTeam(); });
+      await a.locator("#team .branch").getByText("Casa de Flores · Parañaque").waitFor();
+      await a.locator("#team .profile-name").filter({ hasText: "Ana" }).click();
+      await a.locator(".employee-profile .employee-branch").getByText("Casa de Flores · Parañaque").waitFor();
+      await a.screenshot({ path: path.join(out, "panel-branch.png") });
+      await a.keyboard.press("Escape");
+    });
     await a.context().close();
 
     await step("florist: Ready needs no photo; no bouquet in the order view", async () => {
