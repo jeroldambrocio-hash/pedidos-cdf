@@ -3,6 +3,7 @@
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
 const I18N = {
   es: {
+    notifPushServiceErr: "Este navegador no consigue activar las notificaciones (su servicio de avisos no responde). En Brave: Ajustes → Privacidad → activa «Usar servicios de Google para mensajes push». Si no, prueba con Chrome o con la app instalada en el móvil.",
     llFrom: "Recoge en {name}: {address}", llNoFlorist: "Asigna primero una florista y guarda el pedido: el rider recoge en su tienda.",
     llShopMissing: "{name} aún no tiene dirección de recogida. Añádela en Equipo → editar.",
     pickupTitle: "Recogida Lalamove (su tienda)", pickupAddr: "Dirección de la tienda", pickupAddrPh: "Calle, número, barrio, Quezon City",
@@ -241,6 +242,7 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    notifPushServiceErr: "This browser can't turn on notifications (its push service isn't answering). In Brave: Settings → Privacy → turn on \"Use Google services for push messaging\". Otherwise try Chrome, or the app installed on your phone.",
     llFrom: "Pickup at {name}: {address}", llNoFlorist: "Assign a florist and save the order first: the rider picks up at her shop.",
     llShopMissing: "{name} has no pickup address yet. Add it in Team → edit.",
     pickupTitle: "Lalamove pickup (her shop)", pickupAddr: "Shop address", pickupAddrPh: "Street, number, barangay, Quezon City",

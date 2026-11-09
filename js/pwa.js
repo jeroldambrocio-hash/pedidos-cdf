@@ -54,7 +54,12 @@ async function enablePush() {
     toast(t("notifOnToast"));
   } catch (e) {
     if (created) await created.unsubscribe().catch(() => {});
-    toast(e.message || t("notifFail"), { type: "error" });
+    // The browser itself couldn't reach its push service (Brave with Google push off, a blocked network,
+    // some Chromium builds): nothing the app can fix. Say what to do and stop asking on this device for a while.
+    if (/push service|registration failed|AbortError/i.test(String(e?.name) + " " + String(e?.message))) {
+      try { localStorage.setItem(notifLaterKey(), String(Date.now())); } catch {}
+      toast(t("notifPushServiceErr"), { type: "error", ms: 12000 });
+    } else toast(e.message || t("notifFail"), { type: "error" });
   }
   paintPwa();
 }
