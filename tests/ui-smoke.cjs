@@ -507,6 +507,13 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Create order: no florist by default, phone normalised, draft cleared", async () => {
       await p.evaluate(() => localStorage.removeItem("cdf-draft"));
       await p.locator("#newBtn").click();
+      assert.equal(await p.locator(".new-order-sheet").count(), 1);
+      assert(!(await p.locator(".order-more").evaluate((details) => details.open)));
+      assert.equal(await p.locator(".new-order-sheet .payment-summary").count(), 0);
+      await capture(p, "new-order-compact-desktop");
+      await p.setViewportSize({ width: 375, height: 812 });
+      await capture(p, "new-order-compact-mobile");
+      await p.setViewportSize({ width: 1440, height: 1000 });
       assert.equal(await p.locator("#f-vendor").inputValue(), "");
       await p.locator("#f-num").fill("1001");
       await p.locator(".slot-pick select").nth(0).selectOption("540");

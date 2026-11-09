@@ -2223,3 +2223,22 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .compact-photos .photo-tile .photo-preview-zoom, .payment-thumbnails .photo-preview-zoom { display: none; }
 .order-more[open] .order-more-fields { animation: item-in 180ms var(--ease-out) both; }
 :root[data-motion="reduced"] .order-more[open] .order-more-fields { animation: none; }
+
+/* New-order form: keep the same controls and reduce the space between them. */
+.new-order-sheet .sheet-body { padding-block-end: 12px; }
+.new-order-sheet .sheet-body section { gap: 8px; padding-block: 12px; }
+.new-order-sheet .field { gap: 4px; }
+.new-order-sheet .row2 { gap: 8px 12px; }
+.new-order-recipient { display: flex; align-items: center; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; }
+.new-order-sheet textarea { field-sizing: content; min-height: 40px; max-height: 8rem; }
+.new-order-extras { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); align-items: start; gap: 12px; }
+.new-order-sheet > .err:not(:empty) { margin: 0 20px; padding: 8px 0; }
+.new-order-sheet > .err:empty { display: none; }
+@media (max-width: 540px) {
+  .new-order-extras { grid-template-columns: 1fr; gap: 8px; }
+  .new-order-sheet textarea { min-height: 44px; }
+}
+@media (min-width: 360px) and (max-width: 560px) {
+  .new-order-sheet .sheet-head .chan-pick { order: 0; width: auto; }
+  .new-order-sheet .new-order-assignment { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
+}

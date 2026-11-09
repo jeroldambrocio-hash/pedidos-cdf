@@ -448,6 +448,7 @@ const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier
   "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
 function openEditor(o, { copyFrom, draft } = {}) {
   let isNew = !o;
+  const newOrderForm = isNew && !copyFrom;
   // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
   // long ago aren't loaded, and another admin may have just added one). The database still refuses a repeat.
   const nextNum = String(Math.max(0, S.numTop || 0, ...S.orders.map((x) => (/^\d+$/.test(x.num) ? +x.num : 0))) + 1).padStart(4, "0");
@@ -541,9 +542,9 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const same = isNew && !copyFrom && !draft ? false : (!f.buyer_name || (f.buyer_name === f.customer_name && f.buyer_phone === f.customer_phone));
   if (same && !f.buyer_name) { iBName.value = f.customer_name; iBPhone.value = phLocal(f.customer_phone); iBPhone.dataset.cc = phSplit(f.customer_phone).cc; }
   const iSame = el("input", { type: "checkbox", id: "f-same", checked: same });
-  const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), rows: 2 }, f.card_message);
-  const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: 2 }, f.delivery_note);
-  const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh"), rows: 3 }, f.notes);
+  const iCard = el("textarea", { id: "f-card", placeholder: t("cardPh"), rows: newOrderForm ? 1 : 2 }, f.card_message);
+  const iDNote = el("textarea", { id: "f-dnote", placeholder: t("deliveryNotePh"), rows: newOrderForm ? 1 : 2 }, f.delivery_note);
+  const iNotes = el("textarea", { id: "f-notes", placeholder: t("notesPh"), rows: newOrderForm ? 1 : 3 }, f.notes);
   const iAmount = el("input", { id: "f-amount", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 99999999.99, placeholder: "2500", value: f.amount ?? "", "aria-label": t("payOrderTotal") });
   // Florists: available on the order's date first, absences marked; redone when the date changes
   const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
@@ -899,16 +900,19 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   const moreDetails = el("details", {
     class: "hist order-more",
-    open: !!(iEmail.value.trim() || iVeh?.value || iDrop?.value.trim() || o?.extra_photos?.length || o?.pay_proofs?.length)
+    open: !!(iEmail.value.trim() || (newOrderForm && iCarr?.value) || iVeh?.value || iDrop?.value.trim() || o?.extra_photos?.length || o?.pay_proofs?.length)
   }, el("summary", {}, t("moreDetails")),
   el("div", { class: "order-more-fields" },
     field(t("buyerEmailOptional"), iEmail, el("small", { class: "note" }, t("autoMailHint"))),
+    newOrderForm && iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null,
     iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
     iDrop ? field(t("dropPasteLabel"), iDrop, dropNote) : null,
     extras.node ? el("div", { class: "compact-photos" }, field(t("morePhotos"), extras.node)) : null,
     payOn ? proofEditor : null));
   const cur = o ? stepOf(o) : 0;
-  const node = el("form", { class: "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
+  const amountInput = el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount,
+    el("span", { class: "cur" }, "PHP"));
+  const node = el("form", { class: newOrderForm ? "sheet new-order-sheet" : "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
     e.preventDefault();
     if (paymentBusy || pendingPayment) return;
     if (iPayment.value || payProofs?.dirty) { payMessage.textContent = t("payApplyFirst"); return; }
@@ -922,37 +926,45 @@ function openEditor(o, { copyFrom, draft } = {}) {
       o ? badge(cur) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
     el("div", { class: "sheet-body" },
       isNew ? null : cancelNote(o),
-      chanWarn,
+      newOrderForm ? null : chanWarn,
       copyFrom ? el("div", { class: "sheet-note" }, icon("copy"), el("span", {}, t("duplicateHint"))) : null,
       draft ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
       el("section", {},
         el("div", { class: "row2 when-row" }, reqField(t("date"), iDate), reqField(t("slot"), iSlot)),
-        el("div", { class: "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
-        iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null),
-      el("section", {}, el("h3", {}, t("buyerH")), el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
+        el("div", { class: newOrderForm ? "row2 new-order-assignment" : "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
+        !newOrderForm && iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null),
+      el("section", {}, el("h3", {}, t("buyerH")), newOrderForm ? null : el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
         el("div", { class: "row2" }, reqField(t("name"), iBName), reqField(t("phone"), phoneBox(iBPhone))),
         repeatTag),
-      el("section", {}, el("h3", {}, t("recipientH")),
-        checkRow(iSame, t("sameAsBuyer")),
+      el("section", {}, ...(newOrderForm
+        ? [el("div", { class: "new-order-recipient" }, el("h3", {}, t("recipientH")), checkRow(iSame, t("sameAsBuyerShort")))]
+        : [el("h3", {}, t("recipientH")), checkRow(iSame, t("sameAsBuyer"))]),
         recip,
         el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr),
           el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind), dropFind ? dropHits : null),
-        field(t("deliveryNote"), iDNote, el("small", { class: "note" }, t("deliveryNoteHint"))),
-        field(t("cardMsg"), iCard),
-        field(t("note"), iNotes)),
+        field(t("deliveryNote"), iDNote, newOrderForm ? null : el("small", { class: "note" }, t("deliveryNoteHint"))),
+        newOrderForm ? el("div", { class: "row2" }, field(t("cardMsg"), iCard), field(t("note"), iNotes)) : field(t("cardMsg"), iCard),
+        newOrderForm ? null : field(t("note"), iNotes)),
+      ...(newOrderForm ? [
+        el("section", { class: "compact-photos" }, el("div", { class: priceEditable() ? "new-order-extras" : "" },
+          field(t("photo"), shot.node),
+          priceEditable() ? field(t("payOrderTotal"), amountInput) : null), moreDetails)
+      ] : [
       el("section", { class: "compact-photos" }, el("h3", {}, t("photosH")),
         field(t("photo"), shot.node),
         isNew ? null : field(t("proofPhoto"), proof.node)),
       priceEditable() ? el("section", { class: "pay" }, el("h3", {}, t("payH")),
-        field(t("payOrderTotal"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount, el("span", { class: "cur" }, "PHP"))),
+        field(t("payOrderTotal"), amountInput),
         payOn ? el("div", { class: "payment-summary" }, payTotal, payLeft) : null,
-        payOn ? paymentEditor : null, payOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails),
+        payOn ? paymentEditor : null, payOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails)
+      ]),
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
       isNew || typeof lalamoveSection !== "function" ? null : lalamoveSection(o),
       isNew ? null : historySection(o, hist),
-      err),
+      newOrderForm ? null : err),
+    newOrderForm ? err : null,
     el("div", { class: "sheet-foot" }, footLeft, el("span", { class: "spacer" }), saveBtn));
 
   // New orders keep a draft in this browser until they are saved, in case the tab closes.
