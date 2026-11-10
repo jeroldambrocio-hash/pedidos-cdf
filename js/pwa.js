@@ -37,23 +37,42 @@ async function currentSub() {
 }
 async function saveSub(sub) {
   const j = sub.toJSON(), email = S.me.email;
-  const { error } = await sb.from("cdf_push_subs").upsert({ endpoint: j.endpoint, member_email: email, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), lang: LANG }, { onConflict: "endpoint" });
-  if (error) throw new Error(t("notifFail"));
+  const row = { endpoint: j.endpoint, member_email: email, p256dh: j.keys.p256dh, auth: j.keys.auth, user_agent: navigator.userAgent.slice(0, 200), lang: LANG };
+  let { error } = await sb.from("cdf_push_subs").upsert(row, { onConflict: "endpoint" });
+  // A database without the lang column (migration 028): the device is saved all the same, its notices come in English
+  if (error && (error.code === "PGRST204" || /\blang\b/.test(error.message || ""))) {
+    delete row.lang;
+    ({ error } = await sb.from("cdf_push_subs").upsert(row, { onConflict: "endpoint" }));
+  }
+  if (error) throw Object.assign(new Error(t("notifFail")), { code: error.code });
   if (S.me?.email === email) PWA.saved = { email, endpoint: j.endpoint };
 }
+// This device's subscription, saved for whoever is signed in. The browser's own one is reused; without one it
+// is created (the permission is already granted, so nothing is asked). One still tied to the account that
+// used this device before can't be taken over (42501, row-level security), so a fresh one replaces it.
+const subOpts = () => ({ userVisibleOnly: true, applicationServerKey: vapidKey() });
+async function linkDevice(reg) {
+  let sub = await reg.pushManager.getSubscription(), created = !sub;
+  if (!sub) sub = await reg.pushManager.subscribe(subOpts());
+  try { await saveSub(sub); } catch (e) {
+    if (created || e.code !== "42501") { if (created) await sub.unsubscribe().catch(() => {}); throw e; }
+    await sub.unsubscribe().catch(() => {});
+    sub = await reg.pushManager.subscribe(subOpts());
+    try { await saveSub(sub); } catch (e2) { await sub.unsubscribe().catch(() => {}); throw e2; }
+  }
+}
+// Turned off by hand on this device: stays off until the same person turns it on again
+const notifOffKey = () => "cdf-notif-off:" + (S.me?.email || "");
+const notifOffByHand = () => { try { return localStorage.getItem(notifOffKey()) === "1"; } catch { return false; } };
 async function enablePush() {
   if (!pushSupported()) return installApp();
   const perm = await Notification.requestPermission();
   if (perm !== "granted") { paintPwa(); return toast(t("notifDenied"), { type: "error" }); }
-  let created;
   try {
-    const reg = PWA.reg || (await navigator.serviceWorker.ready);
-    const existing = await reg.pushManager.getSubscription();
-    const sub = existing || (created = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: vapidKey() }));
-    await saveSub(sub);
+    await linkDevice(PWA.reg || (await navigator.serviceWorker.ready));
+    try { localStorage.removeItem(notifOffKey()); } catch {}
     toast(t("notifOnToast"));
   } catch (e) {
-    if (created) await created.unsubscribe().catch(() => {});
     // The browser itself couldn't reach its push service (Brave with Google push off, a blocked network,
     // some Chromium builds): nothing the app can fix. Say what to do and stop asking on this device for a while.
     if (/push service|registration failed|AbortError/i.test(String(e?.name) + " " + String(e?.message))) {
@@ -72,12 +91,28 @@ async function disablePush() {
       await sub.unsubscribe().catch(() => {});
     }
     PWA.saved = null;
+    try { localStorage.setItem(notifOffKey(), "1"); } catch {}
     toast(t("notifOffToast"));
   } catch { toast(t("notifFail"), { type: "error" }); }
   paintPwa();
 }
-// After signing in on a device that already allowed notifications: link it to whoever is signed in now
-async function syncPush() { try { const sub = await currentSub(); if (sub && Notification.permission === "granted") await saveSub(sub); } catch {} finally { PWA.synced = true; paintPwa(); } }
+// Every time the app opens on a device that already allowed notifications: keep them on for whoever is signed
+// in, without asking again. Covers a new sign-in, a subscription the phone dropped and one that never got saved.
+let syncing = null;
+function syncPush() {
+  return (syncing ||= (async () => {
+    try {
+      if (S.me && pushSupported() && Notification.permission === "granted" && !notifOffByHand()) {
+        const reg = PWA.reg || (await Promise.race([navigator.serviceWorker.ready, wait(4000)]));
+        if (reg) await linkDevice(reg);
+      }
+    } catch {} finally { PWA.synced = true; syncing = null; paintPwa(); }
+  })());
+}
+// A save that failed (no signal when the app opened) is tried again when the app comes back
+const retryPush = () => { if (S.me && PWA.synced && !pushActive() && document.visibilityState === "visible" && navigator.onLine !== false) syncPush(); };
+document.addEventListener("visibilitychange", retryPush);
+addEventListener("online", retryPush);
 // Signing out: this device stops receiving that person's notifications
 async function forgetPush() { PWA.saved = null; PWA.synced = false; paintNotifBanner("off"); try { const sub = await currentSub(); if (sub) { await sb.from("cdf_push_subs").delete().eq("endpoint", sub.endpoint); await sub.unsubscribe(); } } catch {} }
 

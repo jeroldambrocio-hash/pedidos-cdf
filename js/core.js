@@ -140,6 +140,7 @@ const isAdmin = () => S.me?.role === "admin";
 // The office view: only the admin
 const isStaff = () => S.me?.role === "admin";
 const isCarrier = () => S.me?.role === "carrier";
+const isFlorist = () => S.me?.role === "vendor";
 const memberName = (email) => S.members.find((m) => m.email === email)?.name || email || t("unassigned");
 const prefersReducedMotion = () => document.documentElement.dataset.motion === "reduced";
 
@@ -216,7 +217,11 @@ function wantedRange() {
     if (S.period) { if (S.period.from < r[0]) r[0] = S.period.from; if (S.period.to > r[1]) r[1] = S.period.to; }
     return r;
   }
-  return [addDays(S.today, -14), addDays(S.today, 31)];
+  const near = [addDays(S.today, -14), addDays(S.today, 31)];
+  if (!isFlorist()) return near;
+  // A florist's calendar: the months around the one on screen, never less than the days around today
+  const m = S.month, r = [iso(new Date(m.getFullYear(), m.getMonth() - 1, 1)), iso(new Date(m.getFullYear(), m.getMonth() + 2, 0))];
+  return [r[0] < near[0] ? r[0] : near[0], r[1] > near[1] ? r[1] : near[1]];
 }
 const inRange = (d) => S.range && d >= S.range[0] && d <= S.range[1];
 const inScope = (o) => !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && isOpen(o)));

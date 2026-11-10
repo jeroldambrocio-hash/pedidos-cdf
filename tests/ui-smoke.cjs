@@ -85,6 +85,9 @@ function query(table) {
       // A03: lets a test land another admin's save between this client's read and its write
       if (action === "update" && table === "cdf_orders" && window.__race) { const r = window.__race; window.__race = null; r(); }
       data = data.filter((o) => filters.every((f) => f(o)));
+      // tests/notif-calendar.cjs: a database without migration 028 (no lang column), and a device still tied to someone else (RLS)
+      if (action === "upsert" && table === "cdf_push_subs" && window.__noLang && "lang" in row) return Promise.resolve({ data: null, error: { code: "PGRST204", message: "Could not find the 'lang' column of 'cdf_push_subs' in the schema cache" } }).then(resolve, reject);
+      if (action === "upsert" && table === "cdf_push_subs" && window.__pushSubs.some((x) => x.endpoint === row.endpoint && x.member_email !== row.member_email)) return Promise.resolve({ data: null, error: { code: "42501", message: "new row violates row-level security policy" } }).then(resolve, reject);
       if (action === "upsert" && table === "cdf_push_subs") { const r = window.__pushSubs.find((x) => x.endpoint === row.endpoint); if (r) Object.assign(r, row); else window.__pushSubs.push({ ...row }); data = [row]; }
       if (action === "upsert" && table === "cdf_message_reads") { const r = window.__reads.find((x) => x.member_email === row.member_email && x.thread === row.thread); if (r) Object.assign(r, row); else window.__reads.push({ ...row }); keepChat(); data = [row]; }
       if(action === "upsert" && table === "cdf_order_prices") {

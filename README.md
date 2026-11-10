@@ -163,3 +163,14 @@ Antes de publicar el cliente, aplica `20261109120000_cdf_incremental_payments.sq
 La migración conserva el total pagado y los comprobantes previos como saldo de apertura. Los pagos nuevos guardan importe, usuario, fecha y comprobantes privados. Para corregir un pago, anúlalo con un motivo y registra el importe correcto. La anulación queda en el historial.
 
 Vista previa con datos ficticios: `node tests/demo.cjs` y abre http://localhost:4324/?role=admin. Abre el pedido 0124, con ₱2.000 ya pagados y ₱500 pendientes.
+
+## Notificaciones siempre activas y calendario de floristas (10/11/2026)
+
+- **Notificaciones**: el permiso del navegador es por dispositivo, así que cada uno (PC, móvil) se activa una vez. A partir de ahí la app
+  lo mantiene sola: al abrirla vuelve a enlazar el dispositivo con quien ha entrado, crea de nuevo la suscripción si el teléfono la perdió
+  o si se cerró sesión, y reintenta al recuperar la conexión. Solo se queda apagado si la persona pulsa «Desactivar» en ese dispositivo.
+  Si falta la migración `028_cdf_push_lang.sql` (columna `lang`), el dispositivo se guarda igualmente y sus avisos llegan en inglés.
+- **Floristas**: ven el calendario junto a su lista. Los días con pedidos suyos van marcados; al elegir un día ven lo que tienen asignado
+  (cualquier mes), y «Hoy» devuelve la lista habitual. No ven filtros, herramientas de oficina ni pedidos de otras floristas (RLS).
+
+Pruebas: `NODE_PATH=.test-tools/node_modules node tests/notif-calendar.cjs`.

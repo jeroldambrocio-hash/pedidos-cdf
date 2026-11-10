@@ -62,6 +62,7 @@ function maybeRecover() {
 function stop() {
   invalidateStats(); S.prices = {}; stopChat();
   S.me = null; S.email = null; S.orders = []; S.photoUrls = {}; S.filter = null; S.chan = null; S.query = ""; S.hits = null; S.loaded = false; S.range = null;
+  S.sel = S.today; S.month = monthOf(S.today); S.period = null; // the next person starts on today, not on the day the last one was looking at
   $("q").value = ""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
   renderSub();

@@ -3,9 +3,12 @@
 
 function renderOrders() {
   if (!S.me || S.tab !== "orders") return;
-  // Florists and drivers get their own to-do list; the calendar and the day are for the office.
-  $("ordersView").classList.toggle("solo", !isStaff());
-  if (!isStaff()) { renderAgenda(); return; }
+  // Florists and drivers get their own to-do list. A florist also has the calendar, to look ahead at what
+  // is assigned to her (the database only ever gives her her own orders); the day's office view is the admin's.
+  const florist = isFlorist();
+  $("ordersView").classList.toggle("solo", !isStaff() && !florist);
+  $("ordersView").classList.toggle("florist", florist);
+  if (!isStaff()) { if (florist) renderCal(); renderAgenda(); return; }
   renderCal(); renderDay(); renderTools();
 }
 
@@ -40,6 +43,7 @@ function renderCal() {
 }
 function selectDay(k) {
   S.sel = k; S.month = monthOf(k); S.period = null;
+  if (!isStaff()) { if (!inRange(k)) loadOrders(); else renderOrders(); return; }
   clearSearch(false);
   if (!inRange(k)) loadOrders(); else { renderCal(); flipDay(); renderTools(); }
 }

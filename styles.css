@@ -1224,6 +1224,11 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 #ordersView.solo .grid { grid-template-columns: minmax(0, 1fr); max-width: 860px; margin: 0 auto; }
 #ordersView.solo .sidebar { display: none; }
 #ordersView.solo .density, #ordersView.solo .status-mobile { display: none; }
+/* Florist: the calendar beside her own list, without the office's filters, tools and view switches */
+#ordersView.florist .density, #ordersView.florist .status-mobile,
+#ordersView.florist .cal-foot { display: none; }
+#ordersView.florist .cal-body > .panel + .panel { display: none !important; } /* its display is set inline */
+#ordersView.florist .cal-body.expanded { grid-template-rows: 1fr; }
 .sec-h .count { margin-left: 2px; }
 .agenda-list { display: grid; gap: 4px; }
 .w-top .o-main { display: grid; gap: 6px; align-content: start; min-width: 0; }

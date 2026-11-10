@@ -209,7 +209,7 @@ const I18N = {
     newDate: "Nueva fecha", newSlot: "Nueva hora", missedNotePh: "Si lo dejas vacío escribimos uno en inglés con la hora y la nueva fecha", confirmMissed: "Reprogramar", rescheduled: "Reprogramado para {date}",
     // florist and driver
     grpLate: "Atrasados", grpNext: "Próximos días", myRoute: "Mi ruta de hoy", myOrders: "Mis pedidos", todayCount: "{n} para hoy", nothingToday: "Nada para hoy", allClear: "Todo al día",
-    emptyVendor: "No tienes pedidos para hoy ni para los próximos días.", emptyCarrier: "Cuando haya pedidos listos para repartir aparecerán aquí.",
+    emptyVendor: "No tienes pedidos para hoy ni para los próximos días.", emptyVendorDay: "No tienes pedidos asignados para este día.", backToToday: "Volver a hoy", emptyCarrier: "Cuando haya pedidos listos para repartir aparecerán aquí.",
     // order sheet
     close: "Cerrar", cancel: "Cancelar", save: "Guardar", order: "Pedido #{num}", newOrderTitle: "Nuevo pedido", editOrder: "Pedido #{num}", duplicateTitle: "Copia de pedido",
     date: "Fecha", slot: "Hora de entrega", slotFrom: "Desde", slotTo: "Hasta", slotInvalid: "Elige la hora: «hasta» tiene que ser después de «desde».",
@@ -493,7 +493,7 @@ const I18N = {
     missedTitle: "Nobody home · #{num}", missedHint: "Take a photo of the door and pick when to come back. The order goes back to Ready for that day and the customer sees it on their link.",
     newDate: "New date", newSlot: "New time", missedNotePh: "Leave it empty and we write one with the time and the new date", confirmMissed: "Reschedule", rescheduled: "Rescheduled for {date}",
     grpLate: "Overdue", grpNext: "Next few days", myRoute: "Today's route", myOrders: "My orders", todayCount: "{n} for today", nothingToday: "Nothing for today", allClear: "All caught up",
-    emptyVendor: "You have no orders for today or the next few days.", emptyCarrier: "Orders ready to deliver will show up here.",
+    emptyVendor: "You have no orders for today or the next few days.", emptyVendorDay: "You have no orders assigned for this day.", backToToday: "Back to today", emptyCarrier: "Orders ready to deliver will show up here.",
     close: "Close", cancel: "Cancel", save: "Save", order: "Order #{num}", newOrderTitle: "New order", editOrder: "Order #{num}", duplicateTitle: "Copy of an order",
     date: "Date", slot: "Delivery time", slotFrom: "From", slotTo: "To", slotInvalid: "Pick the time slot: the end must be after the start.",
     orderNum: "Order no.", vendor: "Florist", carrier: "Driver", anyCarrier: "Any driver", carrierHint: "Pick one and only they see it. Otherwise whoever heads out with it takes it.",

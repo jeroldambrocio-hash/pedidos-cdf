@@ -6,18 +6,20 @@ function renderAgenda() {
   const match = (o) => !q || [o.num, o.customer_name, o.address].some((v) => norm(v).includes(q))
     || (digits.length >= 3 && String(o.customer_phone || "").replace(/\D/g, "").includes(digits.slice(-9)));
   const os = S.orders.filter(match).sort(byTime);
-  const groups = q ? [[t("searchResults"), os, true, false]] : [
+  // A florist who picked another day on the calendar sees that day; "Today" brings the usual list back
+  const picked = !q && isFlorist() && S.sel !== S.today ? S.sel : null;
+  const groups = q ? [[t("searchResults"), os, true, false]] : picked ? [[longDate(picked), os.filter((o) => o.date === picked), false, false]] : [
     [t("grpLate"), os.filter((o) => o.date < S.today && open(o)), true, true],
     [t("today") + " · " + longDate(S.today), os.filter((o) => o.date === S.today), false, false],
   ];
   // Florists plan ahead; drivers only need today's route
-  if (!q && !isCarrier()) groups.push(
+  if (!q && !picked && !isCarrier()) groups.push(
     [t("tomorrow") + " · " + longDate(tomorrow), os.filter((o) => o.date === tomorrow), false, false],
     [t("grpNext"), os.filter((o) => o.date > tomorrow && o.date <= week), true, false]);
   $("clearSearch").hidden = !q;
   $("dLabel").textContent = isCarrier() ? t("myRoute") : t("myOrders");
   const todays = S.orders.filter((o) => o.date === S.today);
-  $("dSub").textContent = (todays.length ? t("todayCount", { n: todays.length }) : t("nothingToday")) + " · " + t("manila");
+  $("dSub").textContent = (picked ? longDate(picked) : todays.length ? t("todayCount", { n: todays.length }) : t("nothingToday")) + " · " + t("manila");
   // A florist sees how many of their orders are done
   const mine = S.me?.role === "vendor";
   if (mine) refreshMemberStats(() => { if (S.tab === "orders") renderAgenda(); });
@@ -39,7 +41,8 @@ function renderAgenda() {
       el("div", { class: "sec-h" + (late ? " late" : "") }, el("h3", {}, label), el("span", { class: "count neutral" }, String(list.length))),
       el("div", { class: "list-work" }, ...list.map((o) => workCard(o, withDate, late)))));
   }
-  if (!any) empty(t(q ? "emptySearch" : "allClear"), q ? null : isCarrier() ? t("emptyCarrier") : t("emptyVendor"));
+  if (!any && picked) empty(t("emptyVendorDay"), null, el("button", { class: "btn", type: "button", onclick: () => selectDay(S.today) }, t("backToToday")));
+  else if (!any) empty(t(q ? "emptySearch" : "allClear"), q ? null : isCarrier() ? t("emptyCarrier") : t("emptyVendor"));
   stagger(box);
 }
 
