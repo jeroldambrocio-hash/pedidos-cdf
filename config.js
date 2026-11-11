@@ -14,5 +14,10 @@ window.CDF_CONFIG = {
   //   Creating drivers follows the Supabase secret CDF_DRIVERS=on in cdf-users.
   // orderChats: each order's own conversation (all admins + the florist of that order).
   // directChats: private chats between two people. The team channel always stays.
-  features: { tracking: false, drivers: false, orderChats: true, directChats: false },
+  // publicOrder: the public order form (/pedido.html). Off: the page only says it is not open yet and
+  // never calls the server. The server has its own switch too (secret PUBLIC_ORDER=on in cdf-public-order).
+  features: { tracking: false, drivers: false, orderChats: true, directChats: false, publicOrder: false },
+  // Public order form. turnstileSiteKey: Cloudflare Turnstile's public site key (its secret goes in the
+  // function as TURNSTILE_SECRET). The form does not work without it once the server asks for the check.
+  publicOrder: { turnstileSiteKey: "" },
 };

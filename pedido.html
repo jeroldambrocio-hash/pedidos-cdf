@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en" data-default-lang="en" data-motion="full">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title data-i18n="poTitle">Order request · Casa de Flores</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#171717">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Newsreader:opsz,wght@6..72,500&display=swap">
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" type="image/png" href="/img/favicon.png">
+<link rel="apple-touch-icon" href="/img/emblem.png">
+</head>
+<body class="tracking-page order-page">
+<main class="tracking order-request">
+  <div class="settings">
+    <button class="iconbtn" type="button" data-settings aria-expanded="false" aria-haspopup="true" data-i18n-aria="settings" aria-label="Settings"><span class="svg-icon" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M4 7h16M4 17h16"/><circle cx="9" cy="7" r="2.5" fill="var(--bg)"/><circle cx="15" cy="17" r="2.5" fill="var(--bg)"/></svg></span></button>
+    <div class="menu" role="dialog">
+      <div class="mrow"><span data-i18n="language">Language</span><div class="seg lang"><button type="button" data-lang="es">ES</button><button type="button" data-lang="en">EN</button></div></div>
+      <div class="mrow"><span data-i18n="textSize">Text size</span><div class="seg"><button type="button" data-size="" data-i18n="normal">Normal</button><button type="button" data-size="lg" data-i18n="large">Large</button></div></div>
+      <div class="mrow"><span data-i18n="theme">Mode</span><div class="seg"><button type="button" data-theme-set="auto" data-i18n="auto">Auto</button><button type="button" data-theme-set="light" data-i18n="light">Light</button><button type="button" data-theme-set="dark" data-i18n="dark">Dark</button></div></div>
+      <div class="mrow"><span data-i18n="motion">Animations</span><div class="seg"><button type="button" data-motion-set="full" data-i18n="motionFull">Full</button><button type="button" data-motion-set="reduced" data-i18n="motionReduced">Reduced</button></div></div>
+    </div>
+  </div>
+  <div class="logo"><img class="on-light" src="/img/logo.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"><img class="on-dark" src="/img/logo-dark.webp" alt="Casa de Flores · Flores para la vida" width="900" height="243"></div>
+  <h1 class="order-h1" data-i18n="poHeading">Request an order</h1>
+  <p class="meta center-text" data-i18n="poSub">Tell us what you'd like. We'll review it and message you to confirm price and availability.</p>
+  <div id="orderRoot"><p class="note center-text" data-i18n="poLoading">Loading the form…</p></div>
+  <noscript><p class="note center-text">This form needs JavaScript. You can also message Casa de Flores directly.</p></noscript>
+</main>
+<script src="/config.js"></script>
+<script src="/i18n.js"></script>
+<script src="/js/location-picker.js"></script>
+<script src="/js/public-order.js"></script>
+</body>
+</html>

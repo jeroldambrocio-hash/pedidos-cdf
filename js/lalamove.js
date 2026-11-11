@@ -26,18 +26,9 @@ function llParseCoords(input) {
   const lat = +m[1], lng = +m[2];
   return lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127 ? { lat, lng } : null;
 }
-const llInPH = (lat, lng) => lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127;
-// A map to put the pin on the exact door: Leaflet with OpenStreetMap tiles (free, no key), both served
-// from this site and loaded the first time the map is opened.
-let llMapLib = null;
-const llLoadMap = () => (llMapLib ||= new Promise((ok, fail) => {
-  if (window.L?.map) return ok(window.L);
-  document.head.append(el("link", { rel: "stylesheet", href: "/js/vendor/leaflet.css" }));
-  const sc = el("script", { src: "/js/vendor/leaflet.js" });
-  sc.onload = () => (window.L?.map ? ok(window.L) : fail(new Error("map")));
-  sc.onerror = () => fail(new Error("map"));
-  document.head.append(sc);
-}).catch((e) => { llMapLib = null; throw e; }));
+// The map itself (Leaflet, the Philippines' bounds, tiles and pin) lives in location-picker.js, shared with
+// the public order form.
+const llInPH = CDFMap.inPH, llLoadMap = CDFMap.load;
 // Opens the map on `start` ({lat, lng}; without one, on what `query` finds, else Metro Manila).
 // Resolves with the chosen { lat, lng }, or null when closed without choosing.
 function llPickOnMap(start, query) {
@@ -90,10 +81,8 @@ function llPickOnMap(start, query) {
       holder.replaceChildren();
       const at = start && llInPH(+start.lat, +start.lng) ? [+start.lat, +start.lng] : null;
       map = L.map(holder).setView(at || [14.6, 121.03], at ? 17 : 12);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19,
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
-      pin = L.marker(map.getCenter(), { draggable: true, title: t("mapPinTitle"),
-        icon: L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [30, 30], iconAnchor: [15, 29] }) }).addTo(map);
+      CDFMap.tiles(L, map);
+      pin = L.marker(map.getCenter(), { draggable: true, title: t("mapPinTitle"), icon: CDFMap.pinIcon(L) }).addTo(map);
       pin.on("dragend", () => { const c = pin.getLatLng(); put(c.lat, c.lng); });
       map.on("click", (e) => put(e.latlng.lat, e.latlng.lng));
       setTimeout(() => map?.invalidateSize(), 400); // the dialog was still growing when the map measured itself
