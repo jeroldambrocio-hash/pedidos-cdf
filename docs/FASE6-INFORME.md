@@ -3,6 +3,25 @@
 11/11/2026. Nada de esto se ha aplicado: ni migraciones en Supabase, ni funciones, ni Netlify, ni `main`.
 Producción se ha leído **solo en lectura** (catálogo, migraciones, funciones y logs), con tu autorización.
 
+## 0. Estado del despliegue (11/11/2026, 20:00 hora de España)
+
+Aprobado y hecho:
+- **GitHub**: PR #5 → #10 fusionadas en `main` (`ed7ff40`).
+- **Supabase, migraciones aplicadas en orden**: `20261111185306 cdf_create_order_with_payment`, `20261111185334 cdf_public_uploads`, `20261111185436 cdf_order_requests`, `20261111185458 cdf_branch_ranking` y `20261111185605 cdf_lalamove_events`.
+  - Producción coincide con lo esperado: 23 tablas, 6 buckets, 9 tablas en tiempo real y 21 disparadores.
+  - Las 40 funciones nuevas o cambiadas son **idénticas byte a byte** (md5 del código) a las del repositorio.
+- **Funciones desplegadas**: `cdf-lalamove` v16 y `cdf-push` v11, ambas sin `verify_jwt`, como antes.
+  - `cdf-lalamove`: se probó la ronda (`cdf_lalamove_work_hook`) y respondió 200. Releyó el envío real y anotó su prueba de entrega.
+  - `cdf-push`: arranca y valida la llamada (respuesta 400 `kind` ante un tipo inventado, sin enviar nada).
+
+Pendiente:
+- **Netlify**: no se ha publicado, por indicación tuya. La web publicada sigue funcionando: la función de pagos de 8 argumentos se comporta igual.
+- **`cdf-public-order`**: no se ha desplegado. Mientras el formulario no se active no hace falta; se desplegará y probará junto con Turnstile.
+
+Primera evidencia real de Lalamove: en el envío `3626117933572534460`, `GET /v3/orders` devuelve en la parada de entrega `POD.status = DELIVERED` y `deliveredAt = 02:43:48 UTC`, **sin enlace de imagen y sin `stopId`**.
+- Queda como «No proporcionada». Si Lalamove da después la imagen, se descarga sola.
+- Los próximos avisos del webhook se guardarán completos para ver dónde envía la foto.
+
 ## 1. Qué hay preparado
 
 | Fase | PR (borrador, apiladas) | Base de datos | Funciones | Web |
