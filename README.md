@@ -68,6 +68,14 @@ El formulario ya no responde «todavía no abierto»: cada envío válido crea u
 
 No incluido: borrado automático por plazos (pendiente de aprobar los plazos) ni aviso por correo.
 
+### Fase 4 · Tienda más cercana (pendiente de aprobar y aplicar)
+
+- `supabase/migrations/20261111120000_cdf_branch_ranking.sql` (una función, solo admins): `cdf_branch_ranking(lat, lng, fecha)` ordena las tiendas por distancia en línea recta (Haversine) al punto de entrega. Usa la sucursal y la ubicación de cada florista en Equipo; agrupa floristas solo si comparten ubicación y nombre de sucursal; deja fuera a quien no tiene ubicación, sucursal o tiene un punto fuera de Filipinas (y dice por qué); manda al final una tienda cuyas floristas están ausentes ese día; señala datos contradictorios (un nombre en varios sitios, un sitio con varios nombres).
+- Editor de pedido: bajo el selector de florista aparece «Tienda más cercana · km · florista» con un botón para asignar, y la lista completa. **Nunca asigna sola.** Se recalcula al cambiar el punto o la fecha.
+- Equipo: aviso en las floristas que no pueden salir en la sugerencia.
+
+No usa Google Routes ni tiempos de conducción: sería una mejora opcional con su propio coste.
+
 ## Probar en local
 
 Necesitas un servidor local, porque las rutas empiezan por `/`:
@@ -112,6 +120,13 @@ Solicitudes (Fase 3):
 NODE_PATH=.test-tools/node_modules node tests/requests-db.cjs            # recepción, revisión, aceptación, permisos, avisos
 NODE_PATH=.test-tools/node_modules node tests/requests-concurrency.cjs   # copias simultáneas y dos admins a la vez (PostgreSQL local)
 NODE_PATH=.test-tools/node_modules node tests/requests-ui.cjs            # la pestaña Solicitudes en el navegador
+```
+
+Tienda más cercana (Fase 4):
+
+```bash
+NODE_PATH=.test-tools/node_modules node tests/branch-ranking-db.cjs   # distancias, empates, ausencias, datos incompletos, conflictos
+NODE_PATH=.test-tools/node_modules node tests/branches-ui.cjs         # la sugerencia en el editor y el aviso en Equipo
 ```
 
 Demo con datos ficticios, sin servidor: `node tests/build-demo.cjs .test-tools/demo --single demo.html` genera un único HTML que se abre con doble clic (no puede conectar con Supabase: no lleva ni la dirección ni la clave).
