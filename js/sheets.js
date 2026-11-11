@@ -353,7 +353,10 @@ function openOrderView(o) {
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
       typeof orderReferences === "function" ? orderReferences(o) : null,
       chatSection(o),
-      typeof lalamoveSection === "function" && o.status === "Ready" && o.delivery !== "Delivered" && !o.cancelled_at ? lalamoveSection(o) : null,
+      typeof lalamoveSection !== "function" ? null
+        : o.status === "Ready" && o.delivery !== "Delivered" && !o.cancelled_at ? lalamoveSection(o)
+        // Delivered or cancelled: only what Lalamove left (the proofs), if a rider was booked
+        : o.delivery === "Delivered" || o.cancelled_at ? lalamoveSection(o, { proofsOnly: true }) : null,
       // Tracking off: no messages to the customer from the panel at all
       !feature("tracking") ? null : el("section", {}, el("h3", {}, t("notifyBuyer")),
         notifyRow(o, () => o.buyer_name || o.customer_name || "", () => o.buyer_phone || o.customer_phone || "", () => STEPS[stepOf(o)].k, hist)),

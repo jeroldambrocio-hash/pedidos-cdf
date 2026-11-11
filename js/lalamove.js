@@ -184,10 +184,80 @@ function llQuoteStale(o, row) {
   return null;
 }
 
-function lalamoveSection(o) {
+// Phase 5: the proofs Lalamove gave for this order's deliveries (kept in our private bucket by the
+// function) and what happened to its bookings. Stays visible after delivery or cancellation.
+// Without migration 20261111130000 the tables aren't there and nothing is shown.
+const LL_PROOF_COLS = "id,ll_order_id,kind,stop_key,provider_status,provider_at,state,storage_path,error,removed_by,removed_at,created_at";
+function llProofs(o, holder) {
+  const node = el("div", { class: "ll-proofs" });
+  let list = null, ships = [], row = null, chan = null;
+  const view = (p) => async () => {
+    const w = window.open("", "_blank");
+    const { data, error } = await sb.storage.from("cdf-lalamove-proofs").createSignedUrl(p.storage_path, 300);
+    if (error || !data?.signedUrl) { w?.close(); return toastErr(error?.message || t("llps_error")); }
+    if (w) w.location = data.signedUrl; else window.open(data.signedUrl, "_blank", "noopener");
+  };
+  const remove = (p) => async (e) => {
+    const b = e.currentTarget;
+    if (!(await askConfirm(t("llProofRemoveAsk"), t("llProofRemove"), { danger: true }))) return;
+    b.disabled = true;
+    try { await llCall({ action: "proof_remove", id: p.id }); toast(t("llProofRemoved")); await load(); }
+    catch (x) { toastErr(x.message); b.disabled = false; }
+  };
+  const tagOf = (st) => st === "available" ? "tag" : st === "pending" ? "tag risk" : st === "error" ? "tag cancel" : "tag muted";
+  const detail = (p) =>
+    p.state === "not_provided" && p.provider_status === "FAILED" ? t("llProofFailed")
+    : p.state === "error" && /^host_not_allowed:/.test(p.error || "") ? t("llProofHost", { host: p.error.slice(17) })
+    : p.state === "error" ? p.error
+    : p.state === "removed" && p.removed_by ? t("llProofRemovedBy", { who: p.removed_by })
+    : p.provider_at ? when(p.provider_at) : null;
+  function paint() {
+    if (!list) return fill(node);
+    const current = ships.find((x) => x.ll_order_id === row?.ll_order_id);
+    const pods = list.filter((p) => p.kind === "pod" && p.ll_order_id === row?.ll_order_id);
+    const waiting = row?.status === "COMPLETED" && !pods.length;
+    const older = ships.filter((x) => x.ll_order_id !== row?.ll_order_id);
+    if (!list.length && !waiting && !older.length && !current?.replace_noticed_at) return fill(node);
+    const multi = list.filter((p) => p.kind === "pod").length > 1;
+    fill(node, el("h4", {}, t("llProofs")),
+      current?.replaced_from ? el("p", { class: "note" }, icon("alert"), " " + t("llReplaced")) : null,
+      current?.replace_noticed_at && !current.replaced_by ? el("p", { class: "note" }, icon("clock"), " " + t("llReplacedWait")) : null,
+      waiting ? el("p", { class: "note" }, t("llProofWaiting")) : null,
+      list.length ? el("ul", { class: "ll-proof-list" }, list.map((p) => el("li", { class: "ll-proof", "data-state": p.state },
+        el("span", { class: "ll-proof-what" }, t("llProof_" + p.kind) + (multi && p.kind === "pod" ? " · " + t("llProofStop", { n: p.stop_key }) : "")),
+        el("span", { class: tagOf(p.state) }, t("llps_" + p.state)),
+        detail(p) ? el("span", { class: "note" }, detail(p)) : null,
+        p.state === "available" ? el("button", { class: "btn", type: "button", onclick: view(p) }, icon("camera"), " " + t("llProofView")) : null,
+        p.state === "available" && isAdmin() ? el("button", { class: "linkish", type: "button", onclick: remove(p) }, t("llProofRemove")) : null))) : null,
+      older.length ? el("details", { class: "ll-history" }, el("summary", {}, t("llHistory")),
+        el("ul", {}, older.map((x) => el("li", {}, "#" + x.ll_order_id + " · " + (t("ll_" + x.status) || x.status || "—"))))) : null);
+  }
+  async function load() {
+    const [p, h] = await Promise.all([
+      sb.from("cdf_lalamove_proofs").select(LL_PROOF_COLS).eq("order_id", o.id).order("created_at"),
+      sb.from("cdf_lalamove_shipments").select("ll_order_id,status,replaced_from,replaced_by,replace_noticed_at,created_at").eq("order_id", o.id).order("created_at"),
+    ]);
+    if (p.error) { list = null; return paint(); }      // not set up yet
+    list = p.data || []; ships = h.error ? [] : h.data || [];
+    paint();
+  }
+  load().catch(() => {});
+  if (sb.channel) {
+    chan = sb.channel("llp-" + o.id).on("postgres_changes", { event: "*", schema: "public", table: "cdf_lalamove_proofs", filter: "order_id=eq." + o.id }, () => {
+      if (node.isConnected) load().catch(() => {});
+    }).subscribe();
+    // Closed with the editor
+    let seen = false;
+    const stop = setInterval(() => { if (holder.isConnected) seen = true; else if (seen) { clearInterval(stop); sb.removeChannel(chan); } }, 3000);
+  }
+  return { node, update(r) { const was = row?.status + "|" + row?.ll_order_id; row = r; paint(); if (was !== r?.status + "|" + r?.ll_order_id) load().catch(() => {}); } };
+}
+
+function lalamoveSection(o, { proofsOnly = false } = {}) {
   const box = el("div", { class: "ll" });
   const sec = el("section", { id: "lalamoveSection", hidden: true }, el("h3", {}, icon("truck"), " Lalamove ", el("span", { class: "tag muted ll-env" })), box);
   let row = null, chan = null, busy = false;
+  const proofs = llProofs(o, sec);
 
   const status = (s) => el("span", { class: "tag " + (s === "COMPLETED" ? "" : LL_ACTIVE.has(s) ? "risk" : "cancel") }, t("ll_" + s) || s);
   const btn = (label, onclick, primary) => el("button", { class: "btn" + (primary ? " primary" : ""), type: "button", onclick: async (e) => {
@@ -264,11 +334,17 @@ function lalamoveSection(o) {
     : null;
 
   function draw() {
+    if (proofsOnly) {
+      sec.hidden = !row?.ll_order_id;
+      if (row?.ll_order_id) proofs.update(row);
+      return fill(box, row?.ll_order_id ? proofs.node : null);
+    }
     const ready = LL.cap === "ready";
     sec.querySelector(".ll-env").textContent = LL.env === "production" ? t("llLive") : t("llSandbox");
     if (!ready) return fill(box, el("p", { class: "note" }, t("llNotSetUp")));
     const riderOn = row?.ll_order_id && LL_ACTIVE.has(row.status);
-    if (o.cancelled_at && !riderOn) return fill(box, el("p", { class: "note" }, t("llOrderCancelled")));
+    if (row?.ll_order_id) proofs.update(row);
+    if (o.cancelled_at && !riderOn) return fill(box, el("p", { class: "note" }, t("llOrderCancelled")), row?.ll_order_id ? proofs.node : null);
     const err = row?.error ? el("p", { class: "err", role: "alert" }, row.error) : null;
     // Booked: status, rider, tracking link, refresh and cancel
     if (row?.ll_order_id) {
@@ -289,7 +365,8 @@ function lalamoveSection(o) {
             if (!(await askConfirm(t("llCancelAsk"), t("llCancel"), { danger: true }))) return;
             row = (await llCall({ action: "cancel", order_id: o.id })).row; draw(); toast(t("llCancelled"));
           }) : btn(t("llAgain"), () => pickPlace(quote))),
-        LL.env !== "production" && !o.cancelled_at ? manualOut() : null);
+        LL.env !== "production" && !o.cancelled_at ? manualOut() : null,
+        proofs.node);
     }
     // Quoted: show the price and book it (a quote lasts a few minutes)
     const want = wanted();
