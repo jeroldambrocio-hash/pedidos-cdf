@@ -26,5 +26,5 @@ window.CDF_CONFIG = {
   // The key below is restricted to https://casadeflores-store.netlify.app/* : a page on any other address
   // (another domain, localhost) is refused by Google and the form falls back to the free map.
   // googleMapId: optional Map ID (lets the map use Google's newer marker and a custom style).
-  publicOrder: { turnstileSiteKey: "", googleMapsKey: "AIzaSyCYm44Fhn9zxmo246vvJEuR0sIK1F_gI0A", googleMapId: "" },
+  publicOrder: { turnstileSiteKey: "0x4AAAAAAF9OGTKdi942pJhQ", googleMapsKey: "AIzaSyCYm44Fhn9zxmo246vvJEuR0sIK1F_gI0A", googleMapId: "" },
 };
