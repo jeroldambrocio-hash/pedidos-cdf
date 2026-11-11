@@ -14,5 +14,17 @@ window.CDF_CONFIG = {
   //   Creating drivers follows the Supabase secret CDF_DRIVERS=on in cdf-users.
   // orderChats: each order's own conversation (all admins + the florist of that order).
   // directChats: private chats between two people. The team channel always stays.
-  features: { tracking: false, drivers: false, orderChats: true, directChats: false },
+  // publicOrder: the public order form (/pedido.html). Off: the page only says it is not open yet and
+  // never calls the server. The server has its own switch too (secret PUBLIC_ORDER=on in cdf-public-order).
+  features: { tracking: false, drivers: false, orderChats: true, directChats: false, publicOrder: false },
+  // Public order form. turnstileSiteKey: Cloudflare Turnstile's public site key (its secret goes in the
+  // function as TURNSTILE_SECRET). The form does not work without it once the server asks for the check.
+  // googleMapsKey: a Google Maps *browser* key for the form's map and address suggestions. It is public by
+  // nature, so in Google Cloud restrict it to this site (HTTP referrer) and to "Maps JavaScript API" and
+  // "Places API (New)", and set a daily quota on both: that quota is what keeps it inside the free allowance.
+  // It is NOT the server key (GOOGLE_MAPS_KEY); never put that one here. Empty: the form uses the free map.
+  // The key below is restricted to https://casadeflores-store.netlify.app/* : a page on any other address
+  // (another domain, localhost) is refused by Google and the form falls back to the free map.
+  // googleMapId: optional Map ID (lets the map use Google's newer marker and a custom style).
+  publicOrder: { turnstileSiteKey: "", googleMapsKey: "AIzaSyCYm44Fhn9zxmo246vvJEuR0sIK1F_gI0A", googleMapId: "" },
 };

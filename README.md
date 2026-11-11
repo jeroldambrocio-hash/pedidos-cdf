@@ -43,6 +43,17 @@ El cliente detecta la función al cargar. Sin la migración, el alta de pedidos 
 
 No aplicar con el identificador cambiado si ya consta en producción: comprobar antes `supabase_migrations.schema_migrations`. La migración se detiene sola si falta la de pagos incrementales o si ya está aplicada.
 
+### Fase 2 · Formulario público con mapa y fotos (construido, sin publicar ni enlazar)
+
+- `pedido.html` + `js/public-order.js`: comprador, destinatario, Delivery/Pickup, fecha y franja, dirección y punto en el mapa (buscar, ajustar el pin, confirmar), descripción, fotos de referencia, método preferido y comprobante. Termina en «Solicitud recibida, pendiente de revisión»; no confirma precio, disponibilidad ni pago. No guarda datos personales en el navegador.
+- `js/location-picker.js`: el mapa, compartido con el panel (que sigue con Leaflet). En el formulario, con `publicOrder.googleMapsKey` en `config.js`, el selector usa **Google Maps con sugerencias de Google Places al escribir** (una sesión por búsqueda); sin clave, o si Google no carga, usa Leaflet y la búsqueda del servidor. La clave de navegador es pública: hay que restringirla en Google Cloud al dominio y a «Maps JavaScript API» y «Places API (New)», con cuota diaria en ambas.
+- `supabase/functions/cdf-public-order/`: función pública separada de Lalamove (no puede cotizar ni reservar). Sesión tras la comprobación antiabuso (Turnstile, validada en servidor), búsqueda de direcciones solo en Filipinas (Google Geocoding con tope diario contado en la base de datos, `PUBLIC_GOOGLE_DAILY`, 150 por defecto; pasado el tope, sin clave o si Google falla, Photon), subida de fotos y validación completa de la solicitud. Las fotos se comprueban por su contenido y se guardan sin EXIF/GPS en el bucket privado `cdf-solicitudes`. **En esta fase una solicitud válida recibe «todavía no abierto»: no se guarda ni se avisa a nadie (eso es la Fase 3).**
+- `supabase/migrations/20261111100000_cdf_public_uploads.sql`: sesiones de carga, archivos, límites compartidos y el bucket. Solo añade; ni visitantes ni personal tienen acceso directo.
+
+Tres interruptores, todos apagados: `features.publicOrder` en `config.js`, el secreto `PUBLIC_ORDER=on` de la función y la lista `PUBLIC_ORDER_ORIGINS`. Además `pedido.html` no está en la lista de `scripts/deploy-netlify.sh`. Sin `TURNSTILE_SECRET` la función no abre sesiones.
+
+Pendiente antes de abrirlo: claves de Turnstile, franjas y métodos de pago definitivos, proveedor de búsqueda (el servidor público de Photon no garantiza servicio) y la limpieza periódica de cargas abandonadas.
+
 ## Probar en local
 
 Necesitas un servidor local, porque las rutas empiezan por `/`:
@@ -71,6 +82,14 @@ Base de datos (PostgreSQL temporal, nunca Supabase):
 npm i --prefix .test-tools @electric-sql/pglite embedded-postgres pg
 NODE_PATH=.test-tools/node_modules node tests/create-order-db.cjs           # reglas, permisos, idempotencia, rollback
 NODE_PATH=.test-tools/node_modules node tests/create-order-concurrency.cjs  # varias sesiones a la vez, en un PostgreSQL local real
+```
+
+Formulario público (función real + SQL real en memoria; solo se simulan Turnstile, el buscador y el almacén de archivos):
+
+```bash
+NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order.test.mjs   # imágenes, validación, función, permisos
+NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order-ui.mjs     # el formulario en el navegador, móvil y escritorio
+node tests/build-form-demo.cjs demo-formulario.html                                              # el formulario en un solo HTML, sin servidor
 ```
 
 Demo con datos ficticios, sin servidor: `node tests/build-demo.cjs .test-tools/demo --single demo.html` genera un único HTML que se abre con doble clic (no puede conectar con Supabase: no lleva ni la dirección ni la clave).

@@ -5,3 +5,8 @@ verify_jwt = false
 [functions.cdf-lalamove]
 # Lalamove's webhook has no Supabase token; admin calls are checked in the handler and the webhook needs ?token=.
 verify_jwt = false
+
+[functions.cdf-public-order]
+# The public order form: visitors have no Supabase token. The handler checks the calling site, the anti-abuse
+# check and its own short-lived session, and stays off unless the secret PUBLIC_ORDER=on.
+verify_jwt = false
