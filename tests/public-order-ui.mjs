@@ -140,13 +140,13 @@ const review = (page) => page.locator(".po-form button[type=submit]").click();
 const pinAt = (page) => page.locator(".loc-where").innerText();
 const noOverflow = async (page) => assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true, "no sideways scrolling");
 
-await step("Off in the published config: the page says so and never calls the server", async () => {
+await step("Switched off in the config: the page says so and never calls the server", async () => {
   const { page, state, ctx } = await open({ feature: false });
   await page.locator(".po-done h2", { hasText: "Not open yet" }).waitFor();
   assert.equal(await page.locator("form").count(), 0); assert.equal(state.calls.length, 0);
-  const real = readFileSync(path.join(root, "config.js"), "utf8");
-  assert.match(real, /publicOrder: false/); const files = /^FILES="([^"]*)"/m.exec(readFileSync(path.join(root, "scripts/deploy-netlify.sh"), "utf8"))[1];
-  assert(!/pedido\.html/.test(readFileSync(path.join(root, "index.html"), "utf8") + files), "not linked and not in the default deploy list yet (only with PUBLIC_FORM=1)");
+  // Published since 12/11/2026 (publicOrder: true, deployed with PUBLIC_FORM=1); still not linked from the panel
+  const files = /^FILES="([^"]*)"/m.exec(readFileSync(path.join(root, "scripts/deploy-netlify.sh"), "utf8"))[1];
+  assert(!/pedido\.html/.test(readFileSync(path.join(root, "index.html"), "utf8") + files), "not linked from the panel and only deployed with PUBLIC_FORM=1");
   await ctx.close();
 });
 
