@@ -23,6 +23,8 @@ window.CDF_CONFIG = {
   // nature, so in Google Cloud restrict it to this site (HTTP referrer) and to "Maps JavaScript API" and
   // "Places API (New)", and set a daily quota on both: that quota is what keeps it inside the free allowance.
   // It is NOT the server key (GOOGLE_MAPS_KEY); never put that one here. Empty: the form uses the free map.
+  // The key below is restricted to https://casadeflores-store.netlify.app/* : a page on any other address
+  // (another domain, localhost) is refused by Google and the form falls back to the free map.
   // googleMapId: optional Map ID (lets the map use Google's newer marker and a custom style).
-  publicOrder: { turnstileSiteKey: "", googleMapsKey: "", googleMapId: "" },
+  publicOrder: { turnstileSiteKey: "", googleMapsKey: "AIzaSyCYm44Fhn9zxmo246vvJEuR0sIK1F_gI0A", googleMapId: "" },
 };
