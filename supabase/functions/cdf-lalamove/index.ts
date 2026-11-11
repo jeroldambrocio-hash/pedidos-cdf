@@ -295,10 +295,15 @@ async function webhook(req: Request) {
   const raw = await req.text();
   const mode = (Deno.env.get("LALAMOVE_WEBHOOK_SIGNATURE") || "observe").toLowerCase();
   const r = await receive(deps, raw, new URL(req.url), mode);
-  if (r.eventId && !r.duplicate) {
+  if (r.eventId) {
     later((async () => {
-      const { data } = await service.rpc("cdf_ll_events_claim", { p_limit: 1, p_id: r.eventId });
-      for (const ev of data || []) await processEvent(deps, ev);
+      if (!r.duplicate) {
+        const { data } = await service.rpc("cdf_ll_events_claim", { p_limit: 1, p_id: r.eventId });
+        for (const ev of data || []) await processEvent(deps, ev);
+      }
+      // Production has no pg_cron (checked 11/11/2026): each webhook call also does the round, so what
+      // failed earlier is retried as long as Lalamove keeps calling
+      await work(deps);
     })());
   }
   return json(r.body, r.status);

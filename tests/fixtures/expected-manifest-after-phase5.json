@@ -1,0 +1,990 @@
+{
+ "buckets": [
+  "cdf-avatars",
+  "cdf-entregas",
+  "cdf-fotos",
+  "cdf-lalamove-proofs",
+  "cdf-pagos",
+  "cdf-solicitudes"
+ ],
+ "functions": {
+  "cdf_away_conflicts()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_branch_ranking(p_lat numeric, p_lng numeric, p_date date)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_buyer_history(p_phone text, p_exclude uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_can_progress(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_can_progress_path(p_name text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_can_read_lalamove_proof(p_name text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_can_read_request_file(p_name text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_cancel_order(p_id uuid, p_reason text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_cancelled_guard()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_carrier_sees(p_status text, p_delivery text, p_date date, p_carrier text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_check_price_against_paid()": {
+   "anon": true,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_create_order(p_request uuid, p_order jsonb, p_price numeric, p_payment jsonb)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_credit_order()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_guard_legacy_price()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_hook_ok(p_secret text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_is_admin()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_is_staff()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_lalamove_track()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_lalamove_work_hook()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_event_finish(p_id bigint, p_status text, p_error text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_event_receive(p_env text, p_key text, p_type text, p_ll text, p_at timestamp with time zone, p_signature text, p_note text, p_payload jsonb)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_events_claim(p_limit integer, p_id bigint)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_events_prune()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_link_replacement(p_num text, p_new text, p_env text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_proof_failed(p_id bigint, p_error text, p_final boolean)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_proof_note(p_ll text, p_kind text, p_stop text, p_status text, p_at timestamp with time zone, p_url text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_proof_removed(p_id bigint, p_by text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_proof_stored(p_id bigint, p_path text, p_type text, p_bytes integer, p_sha text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_proofs_due(p_limit integer, p_id bigint)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_reconcile_due(p_limit integer)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_replace_noticed(p_ll text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_ll_shipment(p_ll text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_log_order()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_log_price()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_login_attempt(p_key text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_member_sees(p_email text, p_order uuid)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_member_stats()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_my_role()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_normalize(p_value text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_notify_assigned()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_notify_transit()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_open_direct(peer text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_order_references(p_order uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_outbox_done(p_id bigint)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_outbox_retry()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_outbox_send(p_id bigint)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_progress(p_id uuid, p_step text, p_note text, p_proof text, p_set_proof boolean)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_push_assigned()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_push_cancelled()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_push_direct()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_push_hook(p_body jsonb)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_push_message()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_push_rider()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_rate_hit(p_bucket text, p_limit integer, p_window_seconds integer)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_record_payment(p_order uuid, p_request uuid, p_amount numeric, p_proofs text[], p_price numeric, p_seen_price numeric, p_reverses uuid, p_reason text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_record_payment(p_order uuid, p_request uuid, p_amount numeric, p_proofs text[], p_price numeric, p_seen_price numeric, p_reverses uuid, p_reason text, p_method text, p_reference text, p_paid_at date)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_reinstate_order(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_accept(p_id uuid, p_request uuid, p_order jsonb, p_price numeric, p_payment jsonb)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_admin()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_announce()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_open(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_reject(p_id uuid, p_reason text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_reopen(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_similar(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_submit(p_token_hash text, p_ip_hash text, p_request jsonb)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_reschedule(p_id uuid, p_date date, p_slot text, p_note text, p_proof text, p_set_proof boolean)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_save_profile(p_name text, p_phone text, p_avatar text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_search_orders(p_query text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_sees_lalamove(p_order uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_set_availability(p_email text, p_from date, p_until date, p_reason text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_set_bouquet(p_id uuid, p_path text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_set_my_username(p_username text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_stamp_message_edit()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_step_of(p_status text, p_delivery text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_step_ok(p_from text, p_to text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_team_directory()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_touch()": {
+   "anon": true,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_track(p_code text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_upload_claim(p_token_hash text, p_kind text, p_ext text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_upload_files_ready(p_token_hash text, p_references uuid[], p_proof uuid)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_upload_finish(p_token_hash text, p_file uuid, p_status text, p_mime text, p_bytes integer, p_width integer, p_height integer, p_sha256 text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_upload_session_of(p_token_hash text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_upload_session_open(p_token_hash text, p_ip_hash text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  }
+ },
+ "policies": {
+  "public.cdf_direct_messages.cdf_direct_messages_edit_own": "UPDATE authenticated",
+  "public.cdf_direct_messages.cdf_direct_messages_insert": "INSERT authenticated",
+  "public.cdf_direct_messages.cdf_direct_messages_read": "SELECT authenticated",
+  "public.cdf_direct_threads.cdf_direct_threads_insert": "INSERT authenticated",
+  "public.cdf_direct_threads.cdf_direct_threads_read": "SELECT authenticated",
+  "public.cdf_lalamove.cdf_lalamove_admin_read": "SELECT authenticated",
+  "public.cdf_lalamove.cdf_lalamove_florist_read": "SELECT authenticated",
+  "public.cdf_lalamove_events.cdf_lalamove_events_admin_read": "SELECT authenticated",
+  "public.cdf_lalamove_proofs.cdf_lalamove_proofs_read": "SELECT authenticated",
+  "public.cdf_lalamove_shipments.cdf_lalamove_shipments_read": "SELECT authenticated",
+  "public.cdf_members.cdf_members_admin_write": "ALL authenticated",
+  "public.cdf_members.cdf_members_read": "SELECT authenticated",
+  "public.cdf_message_reactions.cdf_message_reactions_add": "INSERT authenticated",
+  "public.cdf_message_reactions.cdf_message_reactions_read": "SELECT authenticated",
+  "public.cdf_message_reactions.cdf_message_reactions_remove": "DELETE authenticated",
+  "public.cdf_message_reads.cdf_message_reads_own": "ALL authenticated",
+  "public.cdf_messages.cdf_messages_edit_own": "UPDATE authenticated",
+  "public.cdf_messages.cdf_messages_insert": "INSERT authenticated",
+  "public.cdf_messages.cdf_messages_read": "SELECT authenticated",
+  "public.cdf_notifications.cdf_notifications_insert": "INSERT authenticated",
+  "public.cdf_notifications.cdf_notifications_read": "SELECT authenticated",
+  "public.cdf_order_events.cdf_events_prices_private": "SELECT authenticated",
+  "public.cdf_order_events.cdf_order_events_read": "SELECT authenticated",
+  "public.cdf_order_prices.cdf_prices_admin": "ALL authenticated",
+  "public.cdf_order_requests.cdf_order_requests_admin_read": "SELECT authenticated",
+  "public.cdf_orders.cdf_orders_admin_delete": "DELETE authenticated",
+  "public.cdf_orders.cdf_orders_carrier_read": "SELECT authenticated",
+  "public.cdf_orders.cdf_orders_staff_insert": "INSERT authenticated",
+  "public.cdf_orders.cdf_orders_staff_read": "SELECT authenticated",
+  "public.cdf_orders.cdf_orders_staff_update": "UPDATE authenticated",
+  "public.cdf_orders.cdf_orders_vendor_read": "SELECT authenticated",
+  "public.cdf_push_subs.cdf_push_subs_own": "ALL authenticated",
+  "public.cdf_request_events.cdf_request_events_admin_read": "SELECT authenticated",
+  "public.cdf_request_files.cdf_request_files_admin_read": "SELECT authenticated",
+  "storage.objects.cdf_avatars_own_delete": "DELETE authenticated",
+  "storage.objects.cdf_avatars_own_update": "UPDATE authenticated",
+  "storage.objects.cdf_avatars_own_write": "INSERT authenticated",
+  "storage.objects.cdf_avatars_read": "SELECT authenticated",
+  "storage.objects.cdf_entregas_progress_delete": "DELETE authenticated",
+  "storage.objects.cdf_entregas_progress_insert": "INSERT authenticated",
+  "storage.objects.cdf_entregas_progress_read": "SELECT authenticated",
+  "storage.objects.cdf_entregas_staff": "ALL authenticated",
+  "storage.objects.cdf_fotos_carrier_read": "SELECT authenticated",
+  "storage.objects.cdf_fotos_staff": "ALL authenticated",
+  "storage.objects.cdf_fotos_vendor_read": "SELECT authenticated",
+  "storage.objects.cdf_lalamove_proofs_file_read": "SELECT authenticated",
+  "storage.objects.cdf_pagos_admin": "ALL authenticated",
+  "storage.objects.cdf_solicitudes_read": "SELECT authenticated"
+ },
+ "realtime": [
+  "cdf_direct_messages",
+  "cdf_direct_threads",
+  "cdf_lalamove",
+  "cdf_lalamove_proofs",
+  "cdf_message_reactions",
+  "cdf_messages",
+  "cdf_order_prices",
+  "cdf_order_requests",
+  "cdf_orders"
+ ],
+ "table_grants": {
+  "cdf_direct_messages:authenticated": "SELECT",
+  "cdf_direct_threads:authenticated": "SELECT",
+  "cdf_lalamove:authenticated": "SELECT",
+  "cdf_lalamove_events:authenticated": "SELECT",
+  "cdf_lalamove_shipments:authenticated": "SELECT",
+  "cdf_members:anon": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_members:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_message_reactions:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_message_reads:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_messages:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_notifications:anon": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_notifications:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_order_events:anon": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_order_events:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_order_prices:authenticated": "SELECT",
+  "cdf_order_requests:authenticated": "SELECT",
+  "cdf_orders:anon": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_orders:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_push_subs:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_request_events:authenticated": "SELECT",
+  "cdf_request_files:authenticated": "SELECT"
+ },
+ "tables": {
+  "cdf_direct_messages": {
+   "cols": [
+    "author_email:text!",
+    "body:text!",
+    "created_at:timestamp with time zone!",
+    "direct_id:uuid!",
+    "edited_at:timestamp with time zone",
+    "id:uuid!"
+   ],
+   "rls": true
+  },
+  "cdf_direct_threads": {
+   "cols": [
+    "id:uuid!",
+    "member_a:text!",
+    "member_b:text!"
+   ],
+   "rls": true
+  },
+  "cdf_lalamove": {
+   "cols": [
+    "booked_at:timestamp with time zone",
+    "cancelled_by_us:boolean!",
+    "created_at:timestamp with time zone!",
+    "driver_id:text",
+    "driver_name:text",
+    "driver_phone:text",
+    "driver_photo:text",
+    "driver_plate:text",
+    "env:text!",
+    "error:text",
+    "lat:numeric(9,6)",
+    "ll_order_id:text",
+    "lng:numeric(9,6)",
+    "order_id:uuid!",
+    "place:text",
+    "price_total:numeric(10,2)",
+    "quotation_id:text",
+    "quote_currency:text",
+    "quote_expires:timestamp with time zone",
+    "quote_for:jsonb",
+    "quote_total:numeric(10,2)",
+    "recipient_stop:text",
+    "sender_stop:text",
+    "service:text!",
+    "share_link:text",
+    "status:text",
+    "updated_at:timestamp with time zone!"
+   ],
+   "rls": true
+  },
+  "cdf_lalamove_events": {
+   "cols": [
+    "attempts:integer!",
+    "duplicates:integer!",
+    "env:text!",
+    "event_at:timestamp with time zone",
+    "event_key:text!",
+    "event_type:text!",
+    "id:bigint!",
+    "last_error:text",
+    "ll_order_id:text",
+    "locked_until:timestamp with time zone",
+    "next_attempt_at:timestamp with time zone!",
+    "payload:jsonb!",
+    "processed_at:timestamp with time zone",
+    "received_at:timestamp with time zone!",
+    "signature:text!",
+    "signature_note:text",
+    "status:text!"
+   ],
+   "rls": true
+  },
+  "cdf_lalamove_proofs": {
+   "cols": [
+    "attempts:integer!",
+    "bytes:integer",
+    "content_type:text",
+    "created_at:timestamp with time zone!",
+    "error:text",
+    "fetched_at:timestamp with time zone",
+    "id:bigint!",
+    "kind:text!",
+    "ll_order_id:text!",
+    "next_attempt_at:timestamp with time zone!",
+    "order_id:uuid!",
+    "provider_at:timestamp with time zone",
+    "provider_status:text",
+    "removed_at:timestamp with time zone",
+    "removed_by:text",
+    "sha256:text",
+    "source_url:text",
+    "state:text!",
+    "stop_key:text!",
+    "storage_path:text",
+    "updated_at:timestamp with time zone!"
+   ],
+   "rls": true
+  },
+  "cdf_lalamove_shipments": {
+   "cols": [
+    "booked_at:timestamp with time zone",
+    "created_at:timestamp with time zone!",
+    "env:text!",
+    "last_checked_at:timestamp with time zone",
+    "ll_order_id:text!",
+    "order_id:uuid!",
+    "replace_noticed_at:timestamp with time zone",
+    "replaced_by:text",
+    "replaced_from:text",
+    "status:text",
+    "updated_at:timestamp with time zone!"
+   ],
+   "rls": true
+  },
+  "cdf_login_attempts": {
+   "cols": [
+    "attempts:integer!",
+    "key:text!",
+    "window_start:timestamp with time zone!"
+   ],
+   "rls": true
+  },
+  "cdf_members": {
+   "cols": [
+    "avatar_path:text",
+    "away_from:date",
+    "away_reason:text",
+    "away_until:date",
+    "branch:text",
+    "created_at:timestamp with time zone!",
+    "email:text!",
+    "name:text!",
+    "phone:text!",
+    "pickup_address:text",
+    "pickup_lat:numeric(9,6)",
+    "pickup_lng:numeric(9,6)",
+    "role:text!",
+    "username:text"
+   ],
+   "rls": true
+  },
+  "cdf_message_reactions": {
+   "cols": [
+    "created_at:timestamp with time zone!",
+    "emoji:text!",
+    "member_email:text!",
+    "message_id:uuid!"
+   ],
+   "rls": true
+  },
+  "cdf_message_reads": {
+   "cols": [
+    "last_read_at:timestamp with time zone!",
+    "member_email:text!",
+    "thread:text!"
+   ],
+   "rls": true
+  },
+  "cdf_messages": {
+   "cols": [
+    "author_email:text!",
+    "body:text!",
+    "created_at:timestamp with time zone!",
+    "edited_at:timestamp with time zone",
+    "id:uuid!",
+    "order_id:uuid"
+   ],
+   "rls": true
+  },
+  "cdf_notifications": {
+   "cols": [
+    "audience:text!",
+    "by_email:text",
+    "channel:text!",
+    "created_at:timestamp with time zone!",
+    "detail:text!",
+    "id:bigint!",
+    "message:text!",
+    "ok:boolean!",
+    "order_id:uuid!",
+    "recipient:text!",
+    "subject:text!"
+   ],
+   "rls": true
+  },
+  "cdf_operation_keys": {
+   "cols": [
+    "by_email:text!",
+    "created_at:timestamp with time zone!",
+    "fingerprint:text!",
+    "key:uuid!",
+    "kind:text!",
+    "order_id:uuid"
+   ],
+   "rls": true
+  },
+  "cdf_order_events": {
+   "cols": [
+    "at:timestamp with time zone!",
+    "by_email:text",
+    "changes:jsonb!",
+    "id:bigint!",
+    "kind:text!",
+    "order_id:uuid!"
+   ],
+   "rls": true
+  },
+  "cdf_order_prices": {
+   "cols": [
+    "amount:numeric(10,2)",
+    "order_id:uuid!",
+    "paid:numeric(10,2)",
+    "pay_proofs:text[]!",
+    "payment_history:jsonb!"
+   ],
+   "rls": true
+  },
+  "cdf_order_requests": {
+   "cols": [
+    "accepted_key:uuid",
+    "accepted_order_id:uuid",
+    "address:text!",
+    "buyer_name:text!",
+    "buyer_phone:text!",
+    "card_message:text!",
+    "created_at:timestamp with time zone!",
+    "date:date!",
+    "description:text!",
+    "fingerprint:text!",
+    "id:uuid!",
+    "ip_hash:text",
+    "lang:text!",
+    "lat:numeric(9,6)",
+    "lng:numeric(9,6)",
+    "location_confirmed_at:timestamp with time zone",
+    "location_source:text",
+    "mode:text!",
+    "payment_method:text!",
+    "receiver_name:text!",
+    "receiver_phone:text!",
+    "ref:bigint!",
+    "reject_reason:text",
+    "request_key:uuid!",
+    "reviewed_at:timestamp with time zone",
+    "reviewed_by:text",
+    "session_id:uuid",
+    "slot:text!",
+    "special_requests:text!",
+    "status:text!",
+    "updated_at:timestamp with time zone!",
+    "version:integer!"
+   ],
+   "rls": true
+  },
+  "cdf_orders": {
+   "cols": [
+    "address:text!",
+    "amount:numeric(10,2)",
+    "archived_at:timestamp with time zone",
+    "attempts:integer!",
+    "bouquet_path:text",
+    "buyer_name:text!",
+    "buyer_phone:text!",
+    "cancel_reason:text",
+    "cancelled_at:timestamp with time zone",
+    "cancelled_by:text",
+    "card_message:text!",
+    "carrier_email:text",
+    "channel:text!",
+    "code:text!",
+    "created_at:timestamp with time zone!",
+    "customer_email:text!",
+    "customer_name:text!",
+    "customer_phone:text!",
+    "date:date!",
+    "delivered_by:text",
+    "delivery:text!",
+    "delivery_note:text!",
+    "drop_lat:numeric(9,6)",
+    "drop_lng:numeric(9,6)",
+    "extra_photos:text[]!",
+    "id:uuid!",
+    "missed_at:timestamp with time zone",
+    "missed_on:date",
+    "notes:text!",
+    "num:text!",
+    "photo_path:text",
+    "prepared_by:text",
+    "proof_path:text",
+    "slot:text!",
+    "status:text!",
+    "updated_at:timestamp with time zone!",
+    "vehicle:text",
+    "vendor_email:text"
+   ],
+   "rls": true
+  },
+  "cdf_outbox": {
+   "cols": [
+    "attempts:integer!",
+    "created_at:timestamp with time zone!",
+    "delivered_at:timestamp with time zone",
+    "id:bigint!",
+    "kind:text!",
+    "last_attempt_at:timestamp with time zone",
+    "ref_id:uuid!"
+   ],
+   "rls": true
+  },
+  "cdf_push_subs": {
+   "cols": [
+    "auth:text!",
+    "created_at:timestamp with time zone!",
+    "endpoint:text!",
+    "lang:text",
+    "last_ok_at:timestamp with time zone",
+    "member_email:text!",
+    "p256dh:text!",
+    "user_agent:text"
+   ],
+   "rls": true
+  },
+  "cdf_rate_limits": {
+   "cols": [
+    "bucket:text!",
+    "hits:integer!",
+    "window_start:timestamp with time zone!"
+   ],
+   "rls": true
+  },
+  "cdf_request_events": {
+   "cols": [
+    "by_email:text",
+    "created_at:timestamp with time zone!",
+    "detail:jsonb!",
+    "id:bigint!",
+    "kind:text!",
+    "request_id:uuid!"
+   ],
+   "rls": true
+  },
+  "cdf_request_files": {
+   "cols": [
+    "bytes:integer",
+    "checked_at:timestamp with time zone",
+    "created_at:timestamp with time zone!",
+    "height:integer",
+    "id:uuid!",
+    "kind:text!",
+    "mime:text",
+    "path:text!",
+    "request_id:uuid",
+    "session_id:uuid!",
+    "sha256:text",
+    "status:text!",
+    "width:integer"
+   ],
+   "rls": true
+  },
+  "cdf_upload_sessions": {
+   "cols": [
+    "created_at:timestamp with time zone!",
+    "expires_at:timestamp with time zone!",
+    "id:uuid!",
+    "ip_hash:text!",
+    "submitted_at:timestamp with time zone",
+    "token_hash:text!"
+   ],
+   "rls": true
+  }
+ },
+ "triggers": [
+  "cdf_direct_messages.cdf_direct_message_edited",
+  "cdf_direct_messages.cdf_direct_messages_push",
+  "cdf_lalamove.cdf_lalamove_push",
+  "cdf_lalamove.cdf_lalamove_touch",
+  "cdf_lalamove.cdf_lalamove_track",
+  "cdf_lalamove_proofs.cdf_lalamove_proofs_touch",
+  "cdf_lalamove_shipments.cdf_lalamove_shipments_touch",
+  "cdf_messages.cdf_message_edited",
+  "cdf_messages.cdf_messages_push",
+  "cdf_order_prices.cdf_price_against_paid",
+  "cdf_order_prices.cdf_price_history",
+  "cdf_order_requests.cdf_order_requests_announce",
+  "cdf_orders.cdf_legacy_price_guard",
+  "cdf_orders.cdf_orders_cancelled_guard",
+  "cdf_orders.cdf_orders_credit",
+  "cdf_orders.cdf_orders_log",
+  "cdf_orders.cdf_orders_notify",
+  "cdf_orders.cdf_orders_push",
+  "cdf_orders.cdf_orders_push_cancelled",
+  "cdf_orders.cdf_orders_touch",
+  "cdf_orders.cdf_orders_transit"
+ ]
+}
