@@ -113,6 +113,14 @@ Deno.serve(async (req) => {
     payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Nueva solicitud recibida · R" : "New order request · R") + r.ref,
       body: lang === "es" ? "Ábrela en el panel para revisarla" : "Open it in the panel to review it",
       url: APP_URL + "/?request=" + r.id, tag: "request-" + r.id });
+  } else if (body.kind === "request_expired") {
+    // A request nobody accepted or rejected before its delivery day (migration 20261112090000)
+    const { data: r } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    if (!r || r.status !== "expired") { if (body.outbox) await service.rpc("cdf_outbox_done", { p_id: body.outbox }); return json({ sent: 0 }); }
+    to = team.filter((p) => p.role === "admin").map((p) => p.email);
+    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Solicitud caducada sin revisar · R" : "Request expired unreviewed · R") + r.ref,
+      body: lang === "es" ? "Pasó su día sin aceptarla ni rechazarla" : "Its day passed before anyone accepted or rejected it",
+      url: APP_URL + "/?request=" + r.id, tag: "request-" + r.id });
   } else return json({ error: "kind" }, 400);
 
   // A notice from the outbox is confirmed once this function has done its part, so it is not sent again

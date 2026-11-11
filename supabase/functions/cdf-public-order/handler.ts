@@ -213,3 +213,23 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     return no("server", 500); // details stay in the server's log, not in the answer
   }
 }
+
+// The daily clean-up (cdf_requests_cleanup_hook, migration 20261112090000): photos and proofs of requests
+// closed more than 90 days ago, and of forms never sent, are deleted from storage, then their rows. Only
+// what the database lists is touched; a file the storage cannot delete now stays listed for tomorrow.
+export async function cleanup(d: Pick<Deps, "rpc" | "unstore">) {
+  const out = { files: 0, requests: 0, sessions: 0 };
+  for (let round = 0; round < 5; round++) {
+    const { data, error } = await d.rpc("cdf_requests_purge_list", { p_limit: 200 });
+    if (error) throw new Error(error.message);
+    const paths = ((data as { path: string }[] | null) || []).map((r) => r.path);
+    const removed = paths.length ? await d.unstore(paths) as { error?: unknown } | undefined : undefined;
+    if (removed?.error) throw new Error("storage");
+    const done = await d.rpc("cdf_requests_purge", { p_paths: paths });
+    if (done.error) throw new Error(done.error.message);
+    const r = done.data as { files: number; requests: number; sessions: number };
+    out.files += r.files; out.requests += r.requests; out.sessions += r.sessions;
+    if (paths.length < 200) break;
+  }
+  return out;
+}
