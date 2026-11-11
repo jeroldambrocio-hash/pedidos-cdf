@@ -140,6 +140,9 @@ Piezas:
 Secretos de la función (Edge Functions → Secrets):
 - `LALAMOVE_API_KEY`, `LALAMOVE_API_SECRET`: del Partner Portal de Lalamove (pestaña Sandbox).
 - `LALAMOVE_ENV`: `sandbox` (por defecto) o `production`.
+- `GOOGLE_MAPS_KEY` (opcional): clave de Google Maps restringida a **Geocoding API**. Con ella el buscador de direcciones usa
+  Google (encuentra números de casa y urbanizaciones de Filipinas); sin ella, o si Google falla o se alcanza la cuota, busca
+  en OpenStreetMap (Photon) como antes. Google da 10.000 búsquedas gratis al mes; poner en su consola un tope de 300 al día.
 - `LALAMOVE_PICKUP`: `{"lat":14.65,"lng":121.04,"address":"…","name":"Casa de Flores","phone":"+63…"}` (la tienda).
 - `LALAMOVE_WEBHOOK_TOKEN`: texto largo aleatorio. Webhook en el Partner Portal:
   `https://<proyecto>.supabase.co/functions/v1/cdf-lalamove?token=<ese texto>`.

@@ -98,6 +98,33 @@ async function openShortLink(url: string) {
   return null;
 }
 
+// Google's geocoder, used when its key is set (secret GOOGLE_MAPS_KEY): it knows the house numbers, villages and
+// buildings of the Philippines that the free map doesn't. null = not available (no key, quota reached, an error):
+// the caller then searches the free map as before. The key stays on the server and is never logged.
+async function googleGeocode(query: string): Promise<{ label: string; lat: number; lng: number }[] | null> {
+  const key = Deno.env.get("GOOGLE_MAPS_KEY");
+  if (!key) return null;
+  const u = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+  // Only the Philippines; "bounds" only prefers Metro Manila, it doesn't exclude the rest
+  Object.entries({ address: query, components: "country:PH", region: "ph", language: "en", bounds: "14.35,120.90|14.80,121.15", key })
+    .forEach(([k, v]) => u.searchParams.set(k, v));
+  const res = await fetch(u, { signal: AbortSignal.timeout(6000) });
+  if (!res.ok) return null;
+  const d = await res.json();
+  if (d.status === "ZERO_RESULTS") return [];
+  if (d.status !== "OK") { console.error("google geocode:", d.status); return null; }
+  const seen = new Set<string>();
+  return (d.results || [])
+    // With nothing found Google answers with the country itself (or a whole region): that is not an address
+    .filter((r: any) => r.geometry?.location && !(r.types || []).some((t: string) => t === "country" || t === "administrative_area_level_1"))
+    .map((r: any) => ({
+      label: String(r.formatted_address || "").replace(/,\s*Philippines$/i, "") || `${r.geometry.location.lat}, ${r.geometry.location.lng}`,
+      lat: +(+r.geometry.location.lat).toFixed(6), lng: +(+r.geometry.location.lng).toFixed(6),
+    }))
+    .filter((r: any) => inPhilippines(r.lat, r.lng) && !seen.has(r.label) && seen.add(r.label))
+    .slice(0, 5);
+}
+
 async function geocode(query: string) {
   const direct = parseCoords(query);
   if (direct) return [{ label: `${direct.lat}, ${direct.lng}`, ...direct }];
@@ -105,6 +132,8 @@ async function geocode(query: string) {
     const p = await openShortLink(query.trim()).catch(() => null);
     return p ? [{ label: `${p.lat}, ${p.lng}`, ...p }] : [];
   }
+  const g = await googleGeocode(query).catch(() => null);
+  if (g?.length) return g;
   // OpenStreetMap data through Photon (komoot): limited to the Philippines and nudged towards Metro Manila.
   // (Nominatim refuses requests from Supabase's servers, checked 9/11/2026.)
   const u = new URL("https://photon.komoot.io/api/");
