@@ -13,8 +13,17 @@
 //   LALAMOVE_SYNC_ORDERS                    In production the order follows the rider (picked up → In transit,
 //                                           completed → Delivered) unless this is "off". Never in sandbox:
 //                                           test riders must not change real orders.
+//   LALAMOVE_WEBHOOK_SIGNATURE              Phase 5. "observe" (default): each event's signature is checked and
+//                                           recorded, nothing is refused. "enforce": events without a valid one
+//                                           get 401 (Lalamove sends them again). "off": not checked.
+//   LALAMOVE_PROOF_HOSTS                    Phase 5. Hosts proof images may be downloaded from, comma separated
+//                                           (subdomains included). Default "lalamove.com".
+// Phase 5: the webhook stores each event before answering and the work is done afterwards (events.ts); a
+// round every five minutes (pg_cron → x-cdf-hook) retries what failed, reads back running bookings and
+// downloads the proofs to the private bucket cdf-lalamove-proofs.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { call, e164, FINAL, inPhilippines, LalamoveError, orderUpdateFor, parseCoords, pickupAt, validPhone, type Env } from "./lalamove.ts";
+import { afterRefresh, processEvent, receive, work, type Deps } from "./events.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -61,6 +70,28 @@ async function save(orderId: string, patch: Record<string, unknown>) {
 const getRow = async (orderId: string) => (await service.from("cdf_lalamove").select("*").eq("order_id", orderId).maybeSingle()).data;
 const getOrder = async (orderId: string) => (await service.from("cdf_orders").select("*").eq("id", orderId).maybeSingle()).data;
 
+const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("");
+const PROOFS = "cdf-lalamove-proofs";
+const deps: Deps = {
+  env: ENV, key: KEY, secret: SECRET,
+  rpc: async (name, args) => { const { data, error } = await service.rpc(name, args); return { data, error }; },
+  ll, refresh: (orderId) => refresh(orderId), fetch,
+  store: (path, bytes, mime) => service.storage.from(PROOFS).upload(path, bytes, { contentType: mime, upsert: false }),
+  sha256: async (v) => hex(await crypto.subtle.digest("SHA-256", (typeof v === "string" ? new TextEncoder().encode(v) : v) as BufferSource)),
+  hmac: async (secret, text) => {
+    const k = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), { name: "HMAC", hash: "SHA-256" }, false, ["sign"]);
+    return hex(await crypto.subtle.sign("HMAC", k, new TextEncoder().encode(text)));
+  },
+  proofHosts: (Deno.env.get("LALAMOVE_PROOF_HOSTS") || "lalamove.com").split(",").map((h) => h.trim()).filter(Boolean),
+  log: (...a) => console.error(...a),
+};
+// Work that goes on after the answer has been sent
+const later = (p: Promise<unknown>) => {
+  const run = p.catch((e) => console.error("background", e));
+  // deno-lint-ignore no-explicit-any
+  (globalThis as any).EdgeRuntime?.waitUntil?.(run);
+};
+
 // Read the delivery back from Lalamove (status, price, rider) and, in production with sync on, move the order.
 async function refresh(orderId: string) {
   const row = await getRow(orderId);
@@ -81,6 +112,8 @@ async function refresh(orderId: string) {
     const upd = order && orderUpdateFor(o.status, order);
     if (upd) await service.from("cdf_orders").update(upd).eq("id", orderId).eq("delivery", order.delivery);
   }
+  // Proofs (Phase 5): noted now, downloaded after the answer. Without the migration yet, nothing changes.
+  later(afterRefresh(deps, row.ll_order_id, o));
   return saved;
 }
 
@@ -258,20 +291,43 @@ async function webhook(req: Request) {
     try { await ll("PATCH", "/v3/webhook", { url: base }); return json({ ok: true, env: ENV }); }
     catch (e) { return json({ ok: false, env: ENV, error: e instanceof LalamoveError ? `${e.status} ${e.code}: ${e.message}` : String(e) }); }
   }
-  let body: any = {};
-  try { body = await req.json(); } catch { /* Lalamove's test ping can be empty */ }
-  const id = body?.data?.order?.orderId || body?.data?.orderId || body?.orderId;
-  if (id) {
-    const { data: row } = await service.from("cdf_lalamove").select("order_id").eq("ll_order_id", String(id)).maybeSingle();
-    if (row) { try { await refresh(row.order_id); } catch (e) { console.error("refresh", id, e); } }
+  // Stored first, answered next, worked on after the answer (and retried every five minutes if it fails)
+  const raw = await req.text();
+  const mode = (Deno.env.get("LALAMOVE_WEBHOOK_SIGNATURE") || "observe").toLowerCase();
+  const r = await receive(deps, raw, new URL(req.url), mode);
+  if (r.eventId && !r.duplicate) {
+    later((async () => {
+      const { data } = await service.rpc("cdf_ll_events_claim", { p_limit: 1, p_id: r.eventId });
+      for (const ev of data || []) await processEvent(deps, ev);
+    })());
   }
-  return json({ ok: true }); // Lalamove only needs a 200
+  return json(r.body, r.status);
+}
+
+// An office member takes a proof out: the file goes, the row stays as "removed" (who and when)
+async function removeProof(id: number, email: string) {
+  const { data: p } = await service.from("cdf_lalamove_proofs").select("id, storage_path, state").eq("id", id).maybeSingle();
+  if (!p) return json({ error: "Prueba no encontrada" }, 404);
+  if (p.storage_path) {
+    const { error } = await service.storage.from(PROOFS).remove([p.storage_path]);
+    if (error) return json({ error: error.message }, 502);
+  }
+  const { error } = await service.rpc("cdf_ll_proof_removed", { p_id: id, p_by: email });
+  if (error) return json({ error: error.message }, 500);
+  return json({ ok: true });
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
   if (new URL(req.url).searchParams.has("token")) return webhook(req);
+  // The five-minute round (pg_cron → cdf_lalamove_work_hook), proven by the shared hook secret
+  if (req.headers.get("x-cdf-hook")) {
+    const { data: okHook } = await service.rpc("cdf_hook_ok", { p_secret: req.headers.get("x-cdf-hook") || "" });
+    if (!okHook) return json({ error: "hook" }, 401);
+    if (!KEY || !SECRET) return json({ ok: false, error: "missing keys" });
+    return json({ ok: true, ...(await work(deps)) });
+  }
 
   const tokenJwt = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: caller } = await service.auth.getUser(tokenJwt);
@@ -285,6 +341,12 @@ Deno.serve(async (req) => {
   try { b = await req.json(); } catch { return json({ error: "Petición no válida" }, 400); }
   if (b.action === "status") return json({ env: ENV, ready: !!(KEY && SECRET), sync: SYNC });
   if (!KEY || !SECRET) return json({ error: "Faltan las claves de Lalamove (LALAMOVE_API_KEY / LALAMOVE_API_SECRET)" }, 500);
+
+  if (b.action === "proof_remove") {
+    if (me.role !== "admin") return json({ error: "Solo la oficina puede quitar una prueba" }, 403);
+    if (!Number.isInteger(+b.id) || +b.id < 1) return json({ error: "Prueba no válida" }, 400);
+    return await removeProof(+b.id, email);
+  }
 
   const orderId = String(b.order_id || "");
   try {

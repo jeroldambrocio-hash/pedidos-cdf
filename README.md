@@ -76,6 +76,20 @@ No incluido: borrado automático por plazos (pendiente de aprobar los plazos) ni
 
 No usa Google Routes ni tiempos de conducción: sería una mejora opcional con su propio coste.
 
+### Fase 5 · Lalamove: webhook fiable y pruebas de entrega (pendiente de aprobar y aplicar)
+
+- `supabase/migrations/20261111130000_cdf_lalamove_events.sql` (solo añade): `cdf_lalamove_events` (cada llamada del webhook, guardada antes de responder; la misma dos veces = una fila), `cdf_lalamove_shipments` (todas las reservas de cada pedido, también las que Lalamove sustituye) y `cdf_lalamove_proofs` (prueba de entrega o recogida por reserva y parada) con el bucket privado `cdf-lalamove-proofs`. Un disparador copia cada reserva de `cdf_lalamove` al historial: el código existente no cambia.
+- `cdf-lalamove`: el webhook guarda y responde 200 (500 si no pudo guardar: Lalamove reintenta); el trabajo va después y, si falla (p. ej. Lalamove no contesta), se reintenta (1, 2, 4… min, máx. 8 veces). Siempre relee el pedido con `GET /v3/orders/{id}`, así eventos tardíos o desordenados no deshacen nada. Cada 5 minutos (pg_cron → `x-cdf-hook`) reintenta, relee reservas en curso y descarga pruebas pendientes.
+- Pruebas: `stops[].POD` (documentado) se descarga una vez, byte a byte, con SHA-256: solo https, solo hosts admitidos (`LALAMOVE_PROOF_HOSTS`, por defecto `lalamove.com`, también tras redirecciones), máx. 8 MiB, solo JPEG/PNG/WebP reales. Estados: pendiente, disponible, no proporcionada (entrega fallida o sin foto), error (con motivo), eliminada (quién y cuándo).
+- `ORDER_REPLACED`: la nueva reserva se enlaza por nuestro propio número de pedido (`metadata.cdfOrder`, que enviamos al reservar), leído de Lalamove.
+- Firma del webhook: `LALAMOVE_WEBHOOK_SIGNATURE=observe` (por defecto) la comprueba y la anota sin rechazar nada; `enforce` cuando los eventos reales confirmen la fórmula. El webhook no se vuelve a registrar.
+- Panel: bloque «Pruebas» bajo Lalamove (admins y la florista del pedido), visible también tras la entrega o la cancelación; «Ver» abre un enlace de 5 minutos; «Quitar» solo admins.
+
+```bash
+NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/lalamove-events.test.mjs   # webhook, reintentos, sustitución, descargas seguras, permisos
+NODE_PATH=.test-tools/node_modules node tests/lalamove-proofs-ui.cjs                                # el bloque Pruebas en el navegador
+```
+
 ## Probar en local
 
 Necesitas un servidor local, porque las rutas empiezan por `/`:

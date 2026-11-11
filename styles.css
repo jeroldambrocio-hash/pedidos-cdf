@@ -2151,6 +2151,17 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .ll-driver { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 
 .ll-manual { justify-self: start; font-size: 0.875rem; }
+/* Proofs of delivery / pickup (Phase 5) */
+.ll-proofs { display: grid; gap: 6px; border-top: 1px solid var(--line, currentColor); padding-top: 10px; }
+.ll-proofs:empty { display: none; }
+.ll-proofs h4 { margin: 0; font-size: 0.875rem; }
+.ll-proof-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.ll-proof { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.ll-proof .tag { margin: 0; }
+.ll-proof-what { font-weight: 600; }
+.ll-proof .btn { min-height: 36px; padding: 0 12px; }
+.ll-history summary { cursor: pointer; color: var(--muted); font-size: 0.875rem; }
+.ll-history ul { margin: 6px 0 0; padding-left: 18px; color: var(--muted); font-size: 0.875rem; }
 
 /* iPhone Safari: date and time fields keep their own minimum width and centre the text, so they spill past
    the right edge of the form. Let them shrink to the field and read like the other inputs. */
