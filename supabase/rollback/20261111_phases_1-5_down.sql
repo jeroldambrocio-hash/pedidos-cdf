@@ -10,7 +10,7 @@
 begin;
 do $$ begin
   if exists (select 1 from pg_extension where extname = 'pg_cron') then
-    perform cron.unschedule(j.jobname) from cron.job j where j.jobname in ('cdf-outbox-retry', 'cdf-lalamove-work');
+    perform cron.unschedule(j.jobname) from cron.job j where j.jobname in ('cdf-outbox-retry', 'cdf-lalamove-work', 'cdf-requests-cleanup');
   end if;
 end $$;
 do $$ begin
@@ -23,6 +23,12 @@ drop policy if exists cdf_lalamove_proofs_file_read on storage.objects;
 drop policy if exists cdf_solicitudes_read on storage.objects;
 drop trigger if exists cdf_lalamove_track on public.cdf_lalamove;
 
+-- 12/11/2026 additions (request expiry and clean-up). pg_cron itself is left installed: it is harmless
+-- and other jobs may use it by then.
+drop function if exists public.cdf_requests_cleanup_hook();
+drop function if exists public.cdf_requests_purge(text[]);
+drop function if exists public.cdf_requests_purge_list(integer);
+drop function if exists public.cdf_requests_expire();
 drop table if exists public.cdf_lalamove_proofs cascade;
 drop table if exists public.cdf_lalamove_shipments cascade;
 drop table if exists public.cdf_lalamove_events cascade;

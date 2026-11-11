@@ -398,6 +398,30 @@
    "config": "search_path=\"\"",
    "definer": false
   },
+  "cdf_requests_cleanup_hook()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_requests_expire()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_requests_purge(p_paths text[])": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_requests_purge_list(p_limit integer)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_reschedule(p_id uuid, p_date date, p_slot text, p_note text, p_proof text, p_set_proof boolean)": {
    "anon": false,
    "authenticated": true,
