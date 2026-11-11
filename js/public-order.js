@@ -215,7 +215,10 @@
 
     let where = null;
     if (v.mode === "delivery") {
-      picker = CDFMap.picker({ start: place, onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
+      picker = CDFMap.picker({ start: place, google: PO.googleMapsKey ? { key: PO.googleMapsKey, mapId: PO.googleMapId || "" } : null,
+        // A chosen suggestion fills the written address only when nothing was written yet
+        onAddress: (text) => { if (!v.address.trim() && fields.address) { v.address = text.slice(0, 300); fields.address.control.value = v.address; if (errs.address) { delete errs.address; paintError("address"); } } },
+        onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
         search: async (q) => { try { return await withSession(() => post({ action: "search", query: q })); } catch (e) { throw new Error(errorText(e)); } } });
       const address = area({ rows: 3, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
       // The pin was confirmed for the address as it was written then

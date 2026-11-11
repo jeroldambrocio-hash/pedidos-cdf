@@ -1,8 +1,12 @@
 // The map, shared by the panel (Lalamove's "pick on the map") and the public order form.
-// It needs nothing from the panel: only t() from i18n.js. Leaflet and its styles are served from this
-// site and loaded the first time a map is opened; the tiles are OpenStreetMap's.
+// It needs nothing from the panel: only t() from i18n.js.
+//   · The panel uses Leaflet with OpenStreetMap tiles (served from this site, loaded on first use).
+//   · The public form's picker uses Google Maps with address suggestions as you type when a browser key is
+//     configured, and falls back to Leaflet plus the server's search when it is not, or when Google fails
+//     to load. Either way the person searches, adjusts the pin and confirms; only then does the point count.
 const CDFMap = (() => {
   const inPH = (lat, lng) => lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127;
+  const MANILA = { lat: 14.6, lng: 121.03 };
   const make = (tag, props = {}, ...kids) => {
     const e = document.createElement(tag);
     for (const [k, v] of Object.entries(props)) {
@@ -26,16 +30,100 @@ const CDFMap = (() => {
     attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
   const pinIcon = (L) => L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [30, 30], iconAnchor: [15, 29] });
 
+  // Google Maps, loaded once and only when a picker asks for it. The key is a browser key: it is meant to
+  // be public, restricted in Google Cloud to this site and to the Maps JavaScript and Places APIs, with a
+  // daily quota there (that quota, not this page, is what caps the cost).
+  let gm = null;
+  const loadGoogle = (key) => (gm ||= new Promise((ok, fail) => {
+    if (window.google?.maps?.importLibrary) return ok(window.google.maps);
+    const timer = setTimeout(() => fail(new Error("google maps: timeout")), 15000);
+    window.gm_authFailure = () => { gm = null; document.dispatchEvent(new Event("cdf-google-maps-failed")); };
+    window.__cdfGoogleMaps = () => { clearTimeout(timer); ok(window.google.maps); };
+    const sc = make("script", { async: true, src: "https://maps.googleapis.com/maps/api/js?" + new URLSearchParams({ key, v: "weekly", loading: "async",
+      libraries: "maps,marker,places", language: typeof LANG === "string" ? LANG : "en", region: "PH", callback: "__cdfGoogleMaps" }) });
+    sc.onerror = () => { clearTimeout(timer); fail(new Error("google maps: not loaded")); };
+    document.head.append(sc);
+  }).catch((e) => { gm = null; throw e; }));
+
+  // What a picker needs from a map, whichever one it is:
+  //   show(lat, lng, recentre)  draw the pin there        centre()  the middle of the view
+  //   resize()                  the box changed size
+  // onPick(lat, lng) is called when the person drags the pin or taps the map.
+  async function leafletMap(holder, at, onPick) {
+    const L = await load();
+    holder.replaceChildren();
+    const map = L.map(holder, { scrollWheelZoom: false }).setView(at ? [at.lat, at.lng] : [MANILA.lat, MANILA.lng], at ? 17 : 12);
+    tiles(L, map);
+    // The pin appears once there is a point: an empty map does not suggest one was chosen
+    const pin = L.marker(map.getCenter(), { draggable: true, keyboard: false, title: t("mapPinTitle"), icon: pinIcon(L) });
+    if (at) pin.setLatLng([at.lat, at.lng]).addTo(map);
+    pin.on("dragend", () => { const c = pin.getLatLng(); onPick(c.lat, c.lng); });
+    map.on("click", (e) => onPick(e.latlng.lat, e.latlng.lng));
+    setTimeout(() => map.invalidateSize(), 400);
+    return {
+      show: (lat, lng, recentre) => { pin.setLatLng([lat, lng]); if (!map.hasLayer(pin)) pin.addTo(map); if (recentre) map.setView([lat, lng], Math.max(map.getZoom(), 17)); },
+      centre: () => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng }; },
+      resize: () => map.invalidateSize(),
+    };
+  }
+  async function googleMap(holder, at, onPick, { key, mapId }) {
+    const maps = await loadGoogle(key);
+    const { Map: GMap } = await maps.importLibrary("maps"), markerLib = await maps.importLibrary("marker");
+    holder.replaceChildren();
+    const map = new GMap(holder, { center: at || MANILA, zoom: at ? 17 : 12, ...(mapId ? { mapId } : {}), clickableIcons: false, gestureHandling: "cooperative",
+      mapTypeControl: false, streetViewControl: false, fullscreenControl: false, restriction: { latLngBounds: { north: 21.5, south: 4, west: 116, east: 127 } } });
+    const num = (v) => (typeof v === "function" ? v() : v), where = (p) => ({ lat: num(p.lat), lng: num(p.lng) });
+    // The newer marker needs a map ID; without one the classic marker does the same job
+    let pin = null;
+    const place = (pos) => {
+      if (pin) { if (mapId) { pin.position = pos; pin.map = map; } else { pin.setPosition(pos); pin.setMap(map); } return; }
+      pin = mapId ? new markerLib.AdvancedMarkerElement({ map, position: pos, gmpDraggable: true, title: t("mapPinTitle") })
+        : new markerLib.Marker({ map, position: pos, draggable: true, title: t("mapPinTitle") });
+      pin.addListener("dragend", (e) => { const p = where(e?.latLng || (mapId ? pin.position : pin.getPosition())); onPick(p.lat, p.lng); });
+    };
+    if (at) place(at);
+    map.addListener("click", (e) => { if (e.latLng) { const p = where(e.latLng); onPick(p.lat, p.lng); } });
+    return {
+      show: (lat, lng, recentre) => { place({ lat, lng }); if (recentre) { map.setCenter({ lat, lng }); if (map.getZoom() < 17) map.setZoom(17); } },
+      centre: () => where(map.getCenter()),
+      resize: () => maps.event?.trigger?.(map, "resize"),
+    };
+  }
+  // Suggestions as the person types, from Google Places. One session token covers the keystrokes and the
+  // choice that ends them (that is how Google bills a search as one), and a new one starts after each choice.
+  async function googleSuggest(key) {
+    const maps = await loadGoogle(key), { AutocompleteSessionToken, AutocompleteSuggestion } = await maps.importLibrary("places");
+    let token = new AutocompleteSessionToken();
+    return async (input) => {
+      const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({ input, sessionToken: token, includedRegionCodes: ["ph"],
+        language: typeof LANG === "string" ? LANG : "en", region: "ph", locationBias: { west: 120.9, south: 14.35, east: 121.15, north: 14.8 } });
+      return (suggestions || []).filter((s) => s.placePrediction).slice(0, 5).map((s) => ({
+        label: String(s.placePrediction.text?.text ?? s.placePrediction.text ?? ""),
+        // The exact point is asked for only once a suggestion is chosen
+        resolve: async () => {
+          const found = s.placePrediction.toPlace();
+          await found.fetchFields({ fields: ["location", "formattedAddress"] });
+          token = new AutocompleteSessionToken();
+          const p = found.location;
+          return { lat: typeof p.lat === "function" ? p.lat() : p.lat, lng: typeof p.lng === "function" ? p.lng() : p.lng, address: found.formattedAddress || "" };
+        },
+      }));
+    };
+  }
+
   // An inline picker: search an address, choose a result, adjust the pin, then confirm.
-  //   search(query) → Promise<[{ label, lat, lng }]> or { results, credit }   (the page decides where that goes)
+  //   search(query) → Promise<[{ label, lat, lng }]> or { results, credit }   (the page's own search; used
+  //                   with the Leaflet map, and whenever Google is not available)
+  //   google          { key, mapId } to use Google Maps and its suggestions; omitted or without a key: Leaflet
   //   onChange()      called whenever the chosen point or its confirmation changes
+  //   onAddress(text) called with the address of a chosen suggestion (the page may offer it as the written one)
   // The point only counts once confirmed, and any later change (pin, result, device location, or the
   // page calling invalidate() because the written address changed) asks for confirmation again.
   // The device's location is used only when the person presses the button for it.
   //   start           { lat, lng, source, confirmedAt } to open on a point chosen before (a redrawn page)
-  function picker({ search, onChange = () => {}, start = null }) {
-    let map = null, pin = null, point = start ? { lat: start.lat, lng: start.lng } : null, source = start?.source || null,
-      confirmedAt = start?.confirmedAt || null, wanted = point;
+  function picker({ search, google = null, onChange = () => {}, onAddress = () => {}, start = null }) {
+    let view = null, point = start ? { lat: start.lat, lng: start.lng } : null, source = start?.source || null,
+      confirmedAt = start?.confirmedAt || null, suggest = null, typing = null, asked = 0;
     const id = "loc" + Math.random().toString(36).slice(2, 7);
     const status = make("p", { class: "note loc-status", role: "status" });
     const query = make("input", { class: "input", id: id + "q", type: "search", enterKeyHint: "search", autocomplete: "off", placeholder: t("locSearchPh"), "aria-label": t("locSearchPh") });
@@ -65,28 +153,42 @@ const CDFMap = (() => {
       if (!inPH(+lat, +lng)) { say(t("mapOutside"), true); return; }
       unconfirm();
       point = { lat: +(+lat).toFixed(6), lng: +(+lng).toFixed(6) }; source = from;
-      if (map) { pin.setLatLng([point.lat, point.lng]); if (!map.hasLayer(pin)) pin.addTo(map); if (recentre) map.setView([point.lat, point.lng], Math.max(map.getZoom(), 17)); }
-      else wanted = point;
+      view?.show(point.lat, point.lng, recentre);
       paint();
     };
-    const run = async () => {
-      const text = query.value.trim();
-      if (text.length < 3) { say(t("locTypeMore"), true); query.focus(); return; }
-      find.disabled = true; find.classList.add("busy"); say(t("locSearching")); results.replaceChildren();
+    const smooth = () => holder.scrollIntoView({ block: "nearest", behavior: document.documentElement.dataset.motion === "reduced" ? "auto" : "smooth" });
+    const list = (items, credit) => results.replaceChildren(...items.map((r) => make("li", {}, make("button", { type: "button", class: "loc-result", onclick: async (e) => {
       try {
-        const found = await search(text), list = Array.isArray(found) ? found : found?.results;
-        if (!list?.length) { say(t("mapNoHits"), true); return; }
-        say(t("locPick", { n: list.length }));
-        results.replaceChildren(...list.map((r) => make("li", {}, make("button", { type: "button", class: "loc-result", onclick: () => {
-          put(r.lat, r.lng, "search", true); results.replaceChildren(); say(t("locAdjust"));
-          holder.scrollIntoView({ block: "nearest", behavior: document.documentElement.dataset.motion === "reduced" ? "auto" : "smooth" });
-        } }, r.label))),
-          found?.credit === "google" ? make("li", { class: "note loc-credit" }, t("locGoogle")) : null);
-      } catch (e) { say(e?.message || t("locSearchFail"), true); }
-      finally { find.disabled = false; find.classList.remove("busy"); }
+        e.currentTarget.disabled = true;
+        const at = r.resolve ? await r.resolve() : r;
+        results.replaceChildren();
+        put(at.lat, at.lng, "search", true); say(t("locAdjust")); smooth();
+        if (at.address) onAddress(at.address);
+      } catch { say(t("locSearchFail"), true); }
+    } }, r.label))), credit ? make("li", { class: "note loc-credit" }, t("locGoogle")) : null);
+    const run = async () => {
+      clearTimeout(typing);
+      const text = query.value.trim(), mine = ++asked;
+      if (text.length < 3) { say(t("locTypeMore"), true); query.focus(); return; }
+      find.disabled = true; find.classList.add("busy"); say(t("locSearching"));
+      try {
+        const found = suggest ? await suggest(text) : await search(text), items = Array.isArray(found) ? found : found?.results;
+        if (mine !== asked) return; // a newer search is on its way
+        if (!items?.length) { results.replaceChildren(); say(t("mapNoHits"), true); return; }
+        say(t("locPick", { n: items.length }));
+        list(items, suggest ? true : found?.credit === "google");
+      } catch (e) { if (mine === asked) { results.replaceChildren(); say((!suggest && e?.message) || t("locSearchFail"), true); } }
+      finally { if (mine === asked) { find.disabled = false; find.classList.remove("busy"); } }
     };
     find.addEventListener("click", run);
     query.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run(); } });
+    // With Google, suggestions follow the typing: after a short pause and from three letters, never per key
+    query.addEventListener("input", () => {
+      if (!suggest) return;
+      clearTimeout(typing);
+      if (query.value.trim().length < 3) { asked++; results.replaceChildren(); say(""); return; }
+      typing = setTimeout(run, 350);
+    });
     here.addEventListener("click", () => {
       if (!navigator.geolocation) { say(t("locNoGps"), true); return; }
       here.disabled = true; say(t("locAsking"));
@@ -96,7 +198,7 @@ const CDFMap = (() => {
         { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
     });
     // Without dragging: move the map with the arrow keys (or by panning), then drop the pin in its centre
-    centre.addEventListener("click", () => { if (map) { const c = map.getCenter(); put(c.lat, c.lng, "pin"); say(t("locAdjust")); } });
+    centre.addEventListener("click", () => { if (view) { const c = view.centre(); put(c.lat, c.lng, "pin"); say(t("locAdjust")); } });
     confirm.addEventListener("click", () => { if (!point) return; confirmedAt = new Date().toISOString(); say(""); paint(); edit.focus(); });
     edit.addEventListener("click", () => { confirmedAt = null; say(t("locAdjust")); paint(); query.focus(); });
 
@@ -105,19 +207,18 @@ const CDFMap = (() => {
       make("div", { class: "loc-tools" }, here, centre), where,
       make("div", { class: "loc-confirm-row" }, confirm, done, edit));
 
-    load().then((L) => {
-      holder.replaceChildren();
-      const at = wanted ? [wanted.lat, wanted.lng] : null;
-      map = L.map(holder, { scrollWheelZoom: false }).setView(at || [14.6, 121.03], at ? 17 : 12);
-      tiles(L, map);
-      // The pin appears once there is a point: an empty map does not suggest one was chosen
-      pin = L.marker(map.getCenter(), { draggable: true, keyboard: false, title: t("mapPinTitle"), icon: pinIcon(L) });
-      if (at) pin.setLatLng(at).addTo(map);
-      pin.on("dragend", () => { const c = pin.getLatLng(); put(c.lat, c.lng, "pin"); });
-      map.on("click", (e) => put(e.latlng.lat, e.latlng.lng, "pin"));
-      centre.disabled = false;
-      setTimeout(() => map?.invalidateSize(), 400);
-    }).catch(() => { holder.replaceChildren(make("p", { class: "err", role: "alert" }, t("mapFail"))); });
+    const onPick = (lat, lng) => put(lat, lng, "pin");
+    const ready = (v) => { view = v; centre.disabled = false; };
+    const useLeaflet = () => { suggest = null; node.dataset.map = "leaflet"; return leafletMap(holder, point, onPick).then(ready); };
+    const failed = () => holder.replaceChildren(make("p", { class: "err", role: "alert" }, t("mapFail")));
+    if (google?.key) {
+      node.dataset.map = "google";
+      Promise.all([googleMap(holder, point, onPick, google), googleSuggest(google.key)])
+        .then(([v, s]) => { ready(v); suggest = s; })
+        // Google did not load (offline, blocked, key refused): the form still works with the other map
+        .catch(() => useLeaflet().catch(failed));
+      document.addEventListener("cdf-google-maps-failed", () => { if (node.isConnected && node.dataset.map === "google") { view = null; centre.disabled = true; useLeaflet().catch(failed); } }, { once: true });
+    } else useLeaflet().catch(failed);
 
     paint();
     return {
@@ -129,7 +230,7 @@ const CDFMap = (() => {
       pending: () => !!point && !confirmedAt,
       invalidate: () => { if (confirmedAt) { unconfirm(); paint(); } },
       focus: () => (confirmedAt ? edit : point ? confirm : query).focus(),
-      resize: () => map?.invalidateSize(),
+      resize: () => view?.resize(),
       seed: (text) => { if (!query.value) query.value = text; },
     };
   }

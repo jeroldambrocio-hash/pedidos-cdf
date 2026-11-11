@@ -59,18 +59,50 @@ const ORIGIN = "http://127.0.0.1:" + site.address().port, API = "https://demo.in
 env.PUBLIC_ORDER_ORIGINS = ORIGIN;
 const TILE = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==", "base64");
 
+
+// A stand-in for Google's Maps JavaScript API with the same shapes the form uses (Map, markers, Places
+// suggestions with session tokens). It records what it is asked in window.__gm so the tests can read it.
+const FAKE_GOOGLE = `(() => {
+  const gm = window.__gm = { requests: [], tokens: 0, fetched: [], listeners: {}, pinListeners: {}, map: null, pin: null, advanced: false, failSuggest: false };
+  const ll = (p) => ({ lat: () => p.lat, lng: () => p.lng });
+  class Map { constructor(el, o) { gm.map = this; this.o = o; this.c = { ...o.center }; this.z = o.zoom; el.dataset.google = "1"; el.textContent = "google map"; }
+    addListener(n, f) { gm.listeners[n] = f; } getCenter() { return ll(this.c); } setCenter(c) { this.c = { ...c }; } getZoom() { return this.z; } setZoom(z) { this.z = z; } }
+  class Marker { constructor(o) { gm.pin = this; this.p = o.position; this.m = o.map; this.o = o; } setPosition(p) { this.p = p; } setMap(m) { this.m = m; } getPosition() { return ll(this.p); } addListener(n, f) { gm.pinListeners[n] = f; } }
+  class AdvancedMarkerElement { constructor(o) { gm.pin = this; gm.advanced = true; this.position = o.position; this.map = o.map; this.o = o; } addListener(n, f) { gm.pinListeners[n] = f; } }
+  class AutocompleteSessionToken { constructor() { this.id = ++gm.tokens; } }
+  const known = [{ label: "Makati Avenue, Makati, Metro Manila", lat: 14.5623, lng: 121.0267 }, { label: "Makati Medical Center, Amorsolo Street, Makati", lat: 14.5592, lng: 121.0146 }, { label: "Katipunan Avenue, Quezon City", lat: 14.6397, lng: 121.0775 }];
+  const AutocompleteSuggestion = { fetchAutocompleteSuggestions: async (req) => {
+    gm.requests.push({ input: req.input, token: req.sessionToken?.id, regions: req.includedRegionCodes });
+    if (gm.failSuggest) throw new Error("OVER_QUERY_LIMIT");
+    const hits = known.filter((p) => p.label.toLowerCase().includes(req.input.toLowerCase().slice(0, 4)));
+    return { suggestions: hits.map((p) => ({ placePrediction: { text: { text: p.label, toString: () => p.label }, toPlace: () => {
+      const place = { location: null, formattedAddress: null, fetchFields: async ({ fields }) => { gm.fetched.push({ fields, token: req.sessionToken?.id }); place.location = ll(p); place.formattedAddress = p.label + ", Philippines"; } };
+      return place; } } })) };
+  } };
+  window.google = { maps: { importLibrary: async (n) => ({ maps: { Map }, marker: { Marker, AdvancedMarkerElement }, places: { AutocompleteSessionToken, AutocompleteSuggestion } }[n]), event: { trigger() {} } } };
+  gm.click = (lat, lng) => gm.listeners.click({ latLng: ll({ lat, lng }) });
+  gm.drag = (lat, lng) => { if (gm.advanced) gm.pin.position = { lat, lng }; else gm.pin.p = { lat, lng }; gm.pinListeners.dragend({ latLng: ll({ lat, lng }) }); };
+  window[new URL(document.currentScript.src).searchParams.get("callback")]();
+})();`;
+
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 // Everything the page asks for is answered here or refused: a request to any other host fails the test.
-async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en" } = {}) {
+async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "" } = {}) {
   const ctx = await browser.newContext({ viewport, locale: "en-PH", timezoneId: "Europe/Madrid", ...(geo ? { geolocation: geo, permissions: ["geolocation"] } : {}) });
   const page = await ctx.newPage();
-  const state = { calls: [], strangers: [], failUploads: 0, accept, errors: [] };
+  const state = { calls: [], strangers: [], failUploads: 0, accept, errors: [], googleScripts: [] };
   page.on("pageerror", (e) => state.errors.push(e.message));
   await page.addInitScript((l) => { try { localStorage.setItem("cdf-lang", l); } catch {} }, lang);
   await page.route("**/*", async (route) => {
     const req = route.request(), url = req.url();
     if (url.startsWith(ORIGIN + "/config.js")) return route.fulfill({ contentType: "text/javascript", body:
-      `window.CDF_CONFIG = { url: "https://demo.invalid", anonKey: "", features: { publicOrder: ${feature} }, publicOrder: { turnstileSiteKey: "" } };` });
+      `window.CDF_CONFIG = { url: "https://demo.invalid", anonKey: "", features: { publicOrder: ${feature} }, publicOrder: { turnstileSiteKey: "", googleMapsKey: "${google ? "browser-key" : ""}", googleMapId: "${mapId}" } };` });
+    if (url.startsWith("https://maps.googleapis.com/maps/api/js")) {
+      state.googleScripts.push(url);
+      if (google === "blocked") return route.abort();
+      // "refused": the script loads, then Google reports the key is not allowed (as it does for a bad referrer)
+      return route.fulfill({ contentType: "text/javascript", body: google === "refused" ? FAKE_GOOGLE + ";setTimeout(() => window.gm_authFailure(), 50);" : FAKE_GOOGLE });
+    }
     if (url.startsWith(ORIGIN)) return route.continue();
     if (url.startsWith("https://tile.openstreetmap.org/")) return route.fulfill({ contentType: "image/png", body: TILE });
     if (url.startsWith("https://fonts.")) return route.abort();
@@ -211,6 +243,114 @@ await step("Results from Google are credited to Google Maps; the free search's a
   await search(page, "12 Mabini St"); // today's allowance (1 in this test) is spent: the free search answers
   assert.equal(await page.locator(".loc-result").count(), 2); assert.equal(await page.locator(".loc-credit").count(), 0);
   await ctx.close();
+});
+
+
+await step("Google Maps: suggestions while typing (one session per search), pin on the chosen place, adjust, confirm", async () => {
+  const { page, state, ctx } = await open({ google: true });
+  await page.locator(".loc-map[data-google]").waitFor();
+  assert.equal(await page.locator(".loc-picker").getAttribute("data-map"), "google"); assert.equal(await page.locator(".leaflet-container").count(), 0);
+  const asked = new URL(state.googleScripts[0]);
+  assert.equal(asked.searchParams.get("key"), "browser-key"); assert.equal(asked.searchParams.get("region"), "PH"); assert(!state.googleScripts[0].includes("server-key"));
+  const gm = () => page.evaluate(() => ({ requests: window.__gm.requests, fetched: window.__gm.fetched, tokens: window.__gm.tokens, pin: window.__gm.pin && (window.__gm.pin.p || window.__gm.pin.position), centre: window.__gm.map.c, zoom: window.__gm.map.z, advanced: window.__gm.advanced }));
+  const box = page.locator(".loc-picker input[type=search]");
+  await box.pressSequentially("Ma", { delay: 20 }); await page.waitForTimeout(500);
+  assert.equal((await gm()).requests.length, 0, "nothing is asked before three letters");
+  await box.pressSequentially("kati Av", { delay: 20 });
+  await page.locator(".loc-result").first().waitFor();
+  let g = await gm();
+  assert.deepEqual(g.requests, [{ input: "Makati Av", token: 1, regions: ["ph"] }], "one request after the typing pauses, not one per key");
+  assert.deepEqual(await page.locator(".loc-result").allInnerTexts(), ["Makati Avenue, Makati, Metro Manila", "Makati Medical Center, Amorsolo Street, Makati"]);
+  assert.equal(await page.locator(".loc-credit").innerText(), "Results from Google Maps");
+  assert.equal(g.pin, null, "no pin before a place is chosen");
+  await page.locator(".loc-result").first().click();
+  await page.locator(".loc-where", { hasText: "Pin at 14.5623, 121.0267" }).waitFor();
+  g = await gm();
+  assert.deepEqual(g.fetched, [{ fields: ["location", "formattedAddress"], token: 1 }], "the choice closes the same session");
+  assert.equal(g.tokens, 2, "and the next search starts a new one");
+  assert.deepEqual([g.centre, g.zoom, g.pin], [{ lat: 14.5623, lng: 121.0267 }, 17, { lat: 14.5623, lng: 121.0267 }]);
+  assert.equal(await page.locator("#po-address").inputValue(), "Makati Avenue, Makati, Metro Manila, Philippines", "an empty address takes the chosen place's");
+  // Adjust: drag the pin to the delivery entrance, then tap the map; each change asks to confirm again
+  await page.locator(".loc-confirm").click();
+  await page.evaluate(() => window.__gm.drag(14.56301, 121.02712));
+  assert.equal(await page.locator(".loc-done").isVisible(), false); assert.equal(await pinAt(page), "Pin at 14.56301, 121.02712");
+  await page.locator(".loc-confirm").click();
+  await page.evaluate(() => window.__gm.click(14.5635, 121.0275));
+  assert.equal(await page.locator(".loc-status").innerText(), "The location changed: confirm it again.");
+  await page.evaluate(() => window.__gm.click(35.68, 139.69)); // Tokyo
+  assert.equal(await page.locator(".loc-status.err").count(), 1); assert.equal(await pinAt(page), "Pin at 14.5635, 121.0275");
+  await page.locator(".loc-centre").click();
+  assert.equal(await pinAt(page), "Pin at 14.5623, 121.0267");
+  await page.locator(".loc-confirm").click();
+  // A second search uses the new session; what the visitor wrote as the address is not replaced
+  await page.locator("#po-address").fill("Unit 4B, Tower 2, 123 Makati Avenue, Makati");
+  await box.fill(""); await box.pressSequentially("Katipunan", { delay: 10 });
+  await page.locator(".loc-result", { hasText: "Katipunan Avenue" }).click();
+  await page.locator(".loc-where", { hasText: "Pin at 14.6397, 121.0775" }).waitFor();
+  assert.equal((await gm()).requests.at(-1).token, 2);
+  assert.equal(await page.locator("#po-address").inputValue(), "Unit 4B, Tower 2, 123 Makati Avenue, Makati");
+  await page.locator(".loc-confirm").click();
+  await fill(page, { location: false });
+  await page.locator("#po-address").fill("Unit 4B, Tower 2, Katipunan Avenue, Quezon City"); await page.locator("#po-address").blur();
+  await page.locator(".loc-confirm").click();
+  await review(page);
+  await page.locator(".po-review").waitFor();
+  await page.getByRole("button", { name: "Send request" }).click();
+  await page.locator(".po-review .err", { hasText: "isn't taking requests yet" }).waitFor();
+  assert.deepEqual(state.calls.map((c) => c.action), ["session", "submit"], "address search never touches the server");
+  const sent = state.calls.at(-1).body;
+  assert.deepEqual([sent.lat, sent.lng, sent.location_source], [14.6397, 121.0775, "search"]);
+  assert.deepEqual(state.errors, []); assert.deepEqual(state.strangers, []);
+  await page.screenshot({ path: path.join(shots, "public-order-google-mobile.png") });
+  await ctx.close();
+});
+
+await step("Google Maps with a Map ID uses the newer marker; a failed suggestion says so and the pin can still be placed", async () => {
+  const { page, ctx } = await open({ google: true, mapId: "cdf-map" });
+  await page.locator(".loc-map[data-google]").waitFor();
+  assert.equal(await page.evaluate(() => window.__gm.map.o.mapId), "cdf-map");
+  await page.evaluate(() => { window.__gm.failSuggest = true; });
+  await page.locator(".loc-picker input[type=search]").pressSequentially("Makati", { delay: 10 });
+  await page.locator(".loc-status.err", { hasText: "Search isn't available right now" }).waitFor();
+  await page.evaluate(() => window.__gm.click(14.5623, 121.0267));
+  assert.equal(await page.evaluate(() => window.__gm.advanced), true);
+  await page.evaluate(() => window.__gm.drag(14.5624, 121.0268));
+  assert.equal(await pinAt(page), "Pin at 14.5624, 121.0268");
+  await page.locator(".loc-confirm").click();
+  assert.equal(await page.locator(".loc-done").isVisible(), true);
+  await ctx.close();
+});
+
+await step("Google Maps keeps “Use my location”: only when pressed, centred on the device, still to be adjusted and confirmed", async () => {
+  const { page, ctx } = await open({ google: true, geo: { latitude: 14.5547, longitude: 121.0244 } }); // Makati
+  await page.locator(".loc-map[data-google]").waitFor();
+  assert.equal(await page.locator(".loc-here").innerText(), "Use my location");
+  assert.equal(await pinAt(page), "No pin yet."); assert.equal(await page.evaluate(() => window.__gm.pin), null);
+  await page.locator(".loc-here").click();
+  await page.locator(".loc-where", { hasText: "Pin at 14.5547, 121.0244" }).waitFor();
+  assert.deepEqual(await page.evaluate(() => [window.__gm.map.c, window.__gm.map.z, window.__gm.pin.p]), [{ lat: 14.5547, lng: 121.0244 }, 17, { lat: 14.5547, lng: 121.0244 }]);
+  assert.equal(await page.locator(".loc-done").isVisible(), false, "it still has to be confirmed");
+  await page.evaluate(() => window.__gm.drag(14.5549, 121.0246));
+  await page.locator(".loc-confirm").click();
+  assert.equal(await page.locator(".loc-done").isVisible(), true);
+  await ctx.close();
+  const denied = await open({ google: true });
+  await denied.page.locator(".loc-map[data-google]").waitFor();
+  await denied.page.locator(".loc-here").click();
+  await denied.page.locator(".loc-status.err", { hasText: "Your location couldn't be used" }).waitFor();
+  await denied.ctx.close();
+});
+
+await step("Google unavailable (blocked, offline or key refused): the form falls back to the free map and the server's search", async () => {
+  for (const google of ["blocked", "refused"]) {
+    const { page, state, ctx } = await open({ google });
+    await page.locator(".loc-map.leaflet-container").waitFor();
+    assert.equal(await page.locator(".loc-picker").getAttribute("data-map"), "leaflet", google);
+    await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click();
+    assert.equal(await page.locator(".loc-done").isVisible(), true);
+    assert.deepEqual(state.calls.map((c) => c.action), ["session", "search"]);
+    await ctx.close();
+  }
 });
 
 await step("Without dragging: keyboard users pan the map and drop the pin at its centre", async () => {

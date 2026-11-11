@@ -19,5 +19,10 @@ window.CDF_CONFIG = {
   features: { tracking: false, drivers: false, orderChats: true, directChats: false, publicOrder: false },
   // Public order form. turnstileSiteKey: Cloudflare Turnstile's public site key (its secret goes in the
   // function as TURNSTILE_SECRET). The form does not work without it once the server asks for the check.
-  publicOrder: { turnstileSiteKey: "" },
+  // googleMapsKey: a Google Maps *browser* key for the form's map and address suggestions. It is public by
+  // nature, so in Google Cloud restrict it to this site (HTTP referrer) and to "Maps JavaScript API" and
+  // "Places API (New)", and set a daily quota on both: that quota is what keeps it inside the free allowance.
+  // It is NOT the server key (GOOGLE_MAPS_KEY); never put that one here. Empty: the form uses the free map.
+  // googleMapId: optional Map ID (lets the map use Google's newer marker and a custom style).
+  publicOrder: { turnstileSiteKey: "", googleMapsKey: "", googleMapId: "" },
 };
