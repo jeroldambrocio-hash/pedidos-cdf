@@ -2213,6 +2213,14 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .compact-photos .photo-tile .photo-preview { height: 100%; }
 .compact-photos .photo-add { display: flex; align-items: center; justify-content: center; aspect-ratio: auto; min-height: 44px; padding: 4px 8px; }
 .payment-editor { display: grid; gap: 8px; }
+/* The first payment, taken while the order is created: amount first, the rest once there is one */
+.pay-initial { display: grid; gap: 8px; }
+.pay-initial p:empty { display: none; }
+.pay-initial p { margin: 0; }
+.pay-initial-more { gap: 8px; }
+.pay-initial-more.collapse { max-height: 720px; }
+.pay-initial-more.collapse.is-collapsed { max-height: 0; margin-top: -8px; }
+.pay-meta { overflow-wrap: anywhere; }
 .payment-editor[hidden], .pay p:empty, .payment-history:empty { display: none; }
 .payment-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .payment-entry .btn { white-space: normal; }
