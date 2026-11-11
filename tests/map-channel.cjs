@@ -130,6 +130,35 @@ const server = http.createServer((req, res) => {
     await p.context().close();
   });
 
+  await step("Pin changed in the form and not saved yet: the Lalamove block shows it and prices that point", async () => {
+    const p = await open("admin", 1280);
+    await p.waitForTimeout(1000);
+    const id = await p.evaluate(withShop, ord.toString());
+    await p.evaluate((id) => { const o = S.orders.find((x) => x.id === id), d = (window.__orders || []).find((x) => x.id === id); for (const x of [o, d]) if (x) { x.drop_lat = 14.55; x.drop_lng = 121.02; } openOrder(o); }, id);
+    const sec = p.locator("#lalamoveSection");
+    await sec.waitFor({ state: "visible" });
+    await sec.getByText("Pin: 14.55, 121.02").waitFor();
+    await p.evaluate(() => { document.querySelector(".order-more").open = true; });
+    await p.locator("#f-dropmap").click();
+    await mapReady(p);
+    const box = await p.locator("#mapPick").boundingBox();
+    await p.mouse.click(box.x + box.width / 2 + 120, box.y + box.height / 2 + 70);
+    const chosen = (await pinAt(p)).match(/(-?\d+\.\d+), (-?\d+\.\d+)/).slice(1).map(Number);
+    await p.locator("#mapUse").click();
+    await dlg(p).waitFor({ state: "detached" });
+    assert.equal(+(await p.evaluate((id) => S.orders.find((x) => x.id === id).drop_lat, id)), 14.55, "the form's pin is not saved yet");
+    await sec.getByText(`Pin: ${chosen[0]}, ${chosen[1]}`).waitFor();
+    await sec.getByRole("button", { name: "Ver precio" }).click();
+    await sec.getByRole("button", { name: "Ver precio" }).click(); // vehicle and pickup time, then the price
+    await sec.locator(".ll-price").waitFor();
+    const q = await p.evaluate(() => __ll.calls.find((c) => c.action === "quote"));
+    assert.equal(q.lat, chosen[0]); assert.equal(q.lng, chosen[1]);
+    assert.equal(+(await p.evaluate((id) => S.orders.find((x) => x.id === id).drop_lat, id)), chosen[0], "asking for the price saved the pin on the order");
+    assert.equal(await p.evaluate(() => sheet.dirty()), false);
+    await shot(p, "4-block");
+    await p.context().close();
+  });
+
   await step("Lalamove block: adjust the pin of a search result; Cancel and Escape change nothing", async () => {
     const p = await open("admin", 1280);
     await p.waitForTimeout(1000); // the first load of the team is over: what is set now stays

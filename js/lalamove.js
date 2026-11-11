@@ -207,7 +207,16 @@ function lalamoveSection(o) {
   } }, label);
   const fee = (n, cur) => (cur && cur !== "PHP" ? cur + " " + Math.round(n) : peso(n));
   const shopLine = () => { const s = llShopOf(o); return s ? el("p", { class: "note ll-shop" }, icon("flower"), " " + t("llFrom", { name: s.name, address: s.pickup_address })) : null; };
-  const coordsLink = (lat, lng) => el("a", { class: "note link-out", target: "_blank", rel: "noopener", href: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` }, t("llCheckPin"));
+  // The pin the rider will be sent to, in numbers (the written address stays the same when the pin moves), and a way to see it
+  const coordsLink = (lat, lng) => el("p", { class: "note ll-pin" }, t("llPinAt", { point: `${+(+lat).toFixed(6)}, ${+(+lng).toFixed(6)}` }) + " · ",
+    el("a", { class: "link-out", target: "_blank", rel: "noopener", href: `https://www.google.com/maps/search/?api=1&query=${lat},${lng}` }, t("llCheckPin")));
+  // The point showing in the order form (More details) is the one that counts, saved or not yet: asking for a
+  // price saves it on the order (keepPoint). Without a form on screen, the order's saved point.
+  const far = (a, b) => Math.abs(+a - +b) > 0.0002;
+  const wanted = () => {
+    const f = document.getElementById("f-drop"), p = f && f.value.trim() ? llParseCoords(f.value) : null;
+    return p || (o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng } : null);
+  };
 
   // 1) Where to deliver: search the order's address (or a pasted Maps link / "lat, lng") and pick a result
   function pickPlace(after) {
@@ -232,7 +241,6 @@ function lalamoveSection(o) {
   // Booking checks the order's own saved point (033), so a point chosen here is saved on the order too.
   // Only the office can change an order: a florist keeps the order's point, or asks for it to be corrected.
   async function keepPoint(place) {
-    const far = (a, b) => Math.abs(+a - +b) > 0.0002;
     if (!S.cap.drop || (o.drop_lat != null && !far(o.drop_lat, place.lat) && !far(o.drop_lng, place.lng))) return;
     if (!isAdmin()) { if (o.drop_lat != null) throw new Error(t("llPointOffice")); return; }
     const { data, error } = await sb.from("cdf_orders").update({ drop_lat: place.lat, drop_lng: place.lng }).eq("id", o.id).select().single();
@@ -295,11 +303,12 @@ function lalamoveSection(o) {
         LL.env !== "production" && !o.cancelled_at ? manualOut() : null);
     }
     // Quoted: show the price and book it (a quote lasts a few minutes)
-    const stale = row?.quotation_id ? llQuoteStale(o, row) : null;
+    const want = wanted();
+    const stale = row?.quotation_id ? llQuoteStale(o, row) || (want && (far(want.lat, row.lat) || far(want.lng, row.lng)) ? t("llStalePlace") : null) : null;
     const fresh = row?.quotation_id && row.quote_expires && Date.parse(row.quote_expires) > Date.now() + 15000 && !stale;
     if (stale && row.quote_expires && Date.parse(row.quote_expires) > Date.now()) {
       // Something changed since the price (florist, place, day or slot): ask for a new one
-      const k = o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng, label: o.address || `${o.drop_lat}, ${o.drop_lng}` } : null;
+      const k = want ? { ...want, label: o.address || `${want.lat}, ${want.lng}` } : null;
       return fill(box, el("p", { class: "err", role: "alert" }, icon("alert"), " " + stale + " " + t("llStaleAgain")),
         el("div", { class: "btn-row" }, k ? btn(t("llGetPrice"), () => quote(k), true) : null, btn(t("llChangePlace"), () => pickPlace(quote), !k)));
     }
@@ -323,7 +332,7 @@ function lalamoveSection(o) {
         manualOut());
     }
     // Nothing yet (or the quote expired): start from the last confirmed point, else the one saved with the order (033).
-    const known = o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng, label: o.address || `${o.drop_lat}, ${o.drop_lng}` }
+    const known = want ? { ...want, label: o.address || `${want.lat}, ${want.lng}` }
       : row?.lat != null ? { lat: +row.lat, lng: +row.lng, label: row.place || `${row.lat}, ${row.lng}` } : null;
     // The rider picks up at the assigned florist's shop, so there has to be one first.
     if (!llShopOf(o)) {
@@ -352,6 +361,8 @@ function lalamoveSection(o) {
       if (p.new?.order_id && !busy) { row = p.new; draw(); }
     }).subscribe();
     const stop = setInterval(() => { if (!sec.isConnected) { clearInterval(stop); sb.removeChannel(chan); } }, 3000);
+    // The pin was changed in the form: show that point here straight away (not while a rider is booked)
+    document.getElementById("f-drop")?.addEventListener("change", () => { if (sec.isConnected && !busy && !(row?.ll_order_id && LL_ACTIVE.has(row.status))) draw(); });
     if (row?.ll_order_id && LL_ACTIVE.has(row.status) && LL.cap === "ready") llCall({ action: "refresh", order_id: o.id }).then((d) => { if (d?.row && !busy) { row = d.row; draw(); } }).catch(() => {});
   })().catch(() => { sec.hidden = true; });
   return sec;

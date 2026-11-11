@@ -2258,3 +2258,5 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .map-pin span::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: #fff; }
 .map-where { margin: 0; min-height: 1.3em; }
 .chan-pick.invalid { outline: 2px solid var(--fail); outline-offset: 5px; border-radius: 10px; }
+.ll-pin { margin: 0; }
+.ll-pin .link-out { font: inherit; }
