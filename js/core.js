@@ -194,7 +194,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d, b, v, pay, mk] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v, pay, mk, rq, rf] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -208,9 +208,12 @@ async function detectSchema() {
     sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
     // Order + price + first payment in one step: an empty call only says whether the function is there
     isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, () => ({})) : {},
+    // Phase 3: requests from the public form (admins) and their photos on orders (admins and florists)
+    isAdmin() ? sb.from("cdf_order_requests").select("id").limit(1).then((r) => r, () => ({ error: true })) : { error: true },
+    sb.rpc("cdf_order_references", { p_order: "00000000-0000-0000-0000-000000000000" }).then((r) => r, () => ({ error: true })),
   ]);
   S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, paid: isAdmin() && !m.error && !pay.error,
-    create: mk?.data?.available === true };
+    create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
@@ -321,6 +324,7 @@ function render() {
   if (S.tab === "team") renderTeam();
   else if (S.tab === "stats") renderStats();
   else if (S.tab === "chat") renderChat();
+  else if (S.tab === "requests") renderRequests();
   else renderOrders();
   refreshAwayConflicts();
   paintGapBanner();

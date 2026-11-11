@@ -54,6 +54,20 @@ Tres interruptores, todos apagados: `features.publicOrder` en `config.js`, el se
 
 Pendiente antes de abrirlo: claves de Turnstile, franjas y métodos de pago definitivos, proveedor de búsqueda (el servidor público de Photon no garantiza servicio) y la limpieza periódica de cargas abandonadas.
 
+### Fase 3 · Solicitudes del formulario en el panel (pendiente de aprobar y aplicar)
+
+El formulario ya no responde «todavía no abierto»: cada envío válido crea una **solicitud** (no un pedido), una sola vez aunque llegue repetida, con sus fotos y un aviso a los admins sin datos personales. El cliente ve «Solicitud recibida, pendiente de revisión» y su referencia (R12).
+
+- `supabase/migrations/20261111110000_cdf_order_requests.sql` (solo añade): `cdf_order_requests`, `cdf_request_events`, `cdf_outbox` (avisos con reintento), `request_id` en `cdf_request_files`, funciones de recepción (`cdf_request_submit`, solo servidor) y de revisión para admins (`cdf_request_open`, `_reject`, `_reopen`, `_accept`, `_similar`), `cdf_order_references` y una regla de lectura en el bucket `cdf-solicitudes`.
+- **Aceptar** abre el editor de pedido relleno con la solicitud; al guardar, `cdf_request_accept` crea el pedido (con precio y anticipo, reglas de la Fase 1) y cierra la solicitud en la misma transacción. Dos admins a la vez: uno gana, el otro recibe «ya aceptada».
+- Una solicitud no cuenta en ventas, calendario ni trabajo de floristas hasta que se acepta.
+- El comprobante del cliente queda «sin verificar»: no cambia lo pagado.
+- La florista del pedido ve las fotos de referencia del cliente, nunca el comprobante.
+- Panel: pestaña **Solicitudes** con contador (solo admins), detalle, rechazar con motivo, volver a revisar, aceptar, aviso en tiempo real y enlace `?request=` desde la notificación.
+- `cdf-push` tiene un tipo de aviso nuevo, `request`, y confirma cada aviso para que no se repita.
+
+No incluido: borrado automático por plazos (pendiente de aprobar los plazos) ni aviso por correo.
+
 ## Probar en local
 
 Necesitas un servidor local, porque las rutas empiezan por `/`:
@@ -90,6 +104,14 @@ Formulario público (función real + SQL real en memoria; solo se simulan Turnst
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order.test.mjs   # imágenes, validación, función, permisos
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order-ui.mjs     # el formulario en el navegador, móvil y escritorio
 node tests/build-form-demo.cjs demo-formulario.html                                              # el formulario en un solo HTML, sin servidor
+```
+
+Solicitudes (Fase 3):
+
+```bash
+NODE_PATH=.test-tools/node_modules node tests/requests-db.cjs            # recepción, revisión, aceptación, permisos, avisos
+NODE_PATH=.test-tools/node_modules node tests/requests-concurrency.cjs   # copias simultáneas y dos admins a la vez (PostgreSQL local)
+NODE_PATH=.test-tools/node_modules node tests/requests-ui.cjs            # la pestaña Solicitudes en el navegador
 ```
 
 Demo con datos ficticios, sin servidor: `node tests/build-demo.cjs .test-tools/demo --single demo.html` genera un único HTML que se abre con doble clic (no puede conectar con Supabase: no lleva ni la dirección ni la clave).

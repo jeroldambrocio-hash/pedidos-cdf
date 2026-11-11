@@ -1,5 +1,6 @@
 // Web push for the installed app (iPhone 16.4+ from the home screen, Android): chat messages that mention
-// someone or happen on their order, private messages, and orders handed to (or cancelled for) a florist or a driver.
+// someone or happen on their order, private messages, orders handed to (or cancelled for) a florist or a driver,
+// and new requests from the public order form (to the admins).
 // Called only by database triggers (cdf_push_hook) with the shared x-cdf-hook secret, like cdf-notify.
 // Needs the CDF_VAPID_KEYS secret (JSON {publicKey, privateKey} JWKs); without it nothing is sent.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
@@ -103,9 +104,20 @@ Deno.serve(async (req) => {
     payloadFor = (lang) => ({ kind: "order", title: "Lalamove · #" + o.num + " · " + why(lang),
       body: lang === "es" ? "Vuelve a pedir rider o márcalo para llevarlo a mano" : "Book a rider again or take it by hand",
       url: APP_URL + "/?order=" + o.id, tag: "rider-" + o.id });
+  } else if (body.kind === "request") {
+    // A new request from the public form (migration 20261111110000): every admin hears it. Nothing personal
+    // goes in the notice (it may show on a locked screen): only that there is one, and its reference.
+    const { data: r } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    if (!r || !["received", "in_review"].includes(r.status)) { if (body.outbox) await service.rpc("cdf_outbox_done", { p_id: body.outbox }); return json({ sent: 0 }); }
+    to = team.filter((p) => p.role === "admin").map((p) => p.email);
+    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Nueva solicitud recibida · R" : "New order request · R") + r.ref,
+      body: lang === "es" ? "Ábrela en el panel para revisarla" : "Open it in the panel to review it",
+      url: APP_URL + "/?request=" + r.id, tag: "request-" + r.id });
   } else return json({ error: "kind" }, 400);
 
-  if (!to.length) return json({ sent: 0 });
+  // A notice from the outbox is confirmed once this function has done its part, so it is not sent again
+  const done = async () => { if (body.outbox) await service.rpc("cdf_outbox_done", { p_id: body.outbox }); };
+  if (!to.length) { await done(); return json({ sent: 0 }); }
   const { data: subs } = await service.from("cdf_push_subs").select("*").in("member_email", to);
   let sent = 0, gone = 0;
   for (const s of subs || []) {
@@ -123,5 +135,6 @@ Deno.serve(async (req) => {
       } else console.error("push failed", status, String(e));
     }
   }
+  await done();
   return json({ sent, gone });
 });

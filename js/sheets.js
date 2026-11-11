@@ -351,6 +351,7 @@ function openOrderView(o) {
         o.extra_photos?.length ? [el("dt", {}, t("extraPhotos")), el("dd", {}, el("div", { class: "photo-grid ro" }, o.extra_photos.map((p, i) => el("div", { class: "pic" }, imgOf(p, ENTREGAS, t("extraPhotos") + " " + (i + 1), true)))))] : null,
         o.delivery_note ? [el("dt", {}, t("deliveryNote")), el("dd", {}, o.delivery_note)] : null,
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
+      typeof orderReferences === "function" ? orderReferences(o) : null,
       chatSection(o),
       typeof lalamoveSection === "function" && o.status === "Ready" && o.delivery !== "Delivered" && !o.cancelled_at ? lalamoveSection(o) : null,
       // Tracking off: no messages to the customer from the panel at all
@@ -446,7 +447,7 @@ function phoneBox(input) {
 
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",
   "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
-function openEditor(o, { copyFrom, draft } = {}) {
+function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   let isNew = !o;
   const newOrderForm = isNew && !copyFrom;
   // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
@@ -575,7 +576,8 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const downAmount = () => (iDown.value === "" ? 0 : +iDown.value);
   // The same key (and order id) for every attempt at saving this new order. It travels with the draft, so an
   // order restored after the tab closed mid-save is still recognised by the server instead of being duplicated.
-  let createReq = draft?._req?.key && draft._req.id ? { key: draft._req.key, id: draft._req.id, proofs: null } : null, createSettled = false;
+  let createReq = fromRequest?.accept ? { key: fromRequest.accept.key, id: fromRequest.accept.id, proofs: null }
+    : draft?._req?.key && draft._req.id ? { key: draft._req.key, id: draft._req.id, proofs: null } : null, createSettled = false;
   const draftNow = () => ({ ...collect(), ...(createReq ? { _req: { key: createReq.key, id: createReq.id } } : {}) });
   const payMessage = el("p", { class: "note", role: "status" });
   const payLeft = el("output", { class: "pay-left", id: "f-payleft" });
@@ -880,8 +882,10 @@ function openEditor(o, { copyFrom, draft } = {}) {
         catch (e) { return e.message; }
         payment.proofs = createReq.proofs;
       }
-      const res = await sb.rpc("cdf_create_order", { p_request: createReq.key, p_order: { id: createReq.id, ...dbRow },
-        p_price: priceEditable() ? row.amount : null, p_payment: payment }).then((r) => r, (e) => ({ error: { message: String(e?.message || e) } }));
+      // From a request: the same order, and the request closed with it in the same transaction
+      const args = { p_request: createReq.key, p_order: { id: createReq.id, ...dbRow }, p_price: priceEditable() ? row.amount : null, p_payment: payment };
+      const res = await (fromRequest ? sb.rpc("cdf_request_accept", { p_id: fromRequest.id, ...args }) : sb.rpc("cdf_create_order", args))
+        .then((r) => r, (e) => ({ error: { message: String(e?.message || e) } }));
       if (res.error || !res.data?.order) {
         const e = res.error || { message: "" };
         // Refused by the database: nothing was saved, so the files uploaded for it go too
@@ -889,18 +893,25 @@ function openEditor(o, { copyFrom, draft } = {}) {
           if (createReq.proofs?.length) await sb.storage.from("cdf-pagos").remove(createReq.proofs);
           createReq.proofs = null;
           if (e.message === "cdf_operation_conflict" || e.message === "cdf_operation_gone") {
-            createSettled = true; clearTimeout(draftT); writeDraft(null); loadOrders(); return t("createConflict");
+            createSettled = true; clearTimeout(draftT); if (!fromRequest) writeDraft(null); loadOrders(); return t("createConflict");
           }
+          // Someone else accepted or rejected this request meanwhile: nothing was created here
+          if (/^cdf_request_/.test(e.message)) { createSettled = true; if (typeof loadRequests === "function") loadRequests(); return reqError(e); }
           if (e.code === "23505") return /cdf_orders_num_key/.test(e.message + (e.details || "")) ? t("dupNum", { num: row.num }) : t("saveFail", { msg: e.message });
           const key = { cdf_payment_above_due: "payAboveDue", cdf_invalid_payment: "payInitialInvalid", cdf_invalid_payment_proofs: "photoUploadFail" }[e.message];
           return key ? t(key) : t("saveFail", { msg: e.code === "42501" ? t("createForbidden") : e.message });
         }
         // No answer: it may or may not have been saved. Saving again asks for the same operation.
         if (payProofs) payProofsBox.inert = !!createReq.proofs?.length;
-        clearTimeout(draftT); writeDraft(draftNow());
+        clearTimeout(draftT); if (!fromRequest) writeDraft(draftNow());
         return t("createRetry");
       }
       saved = res.data.order;
+      if (fromRequest && res.data.request) {
+        const i = RQ.list.findIndex((x) => x.id === fromRequest.id);
+        if (i >= 0) RQ.list[i] = res.data.request;
+        paintRequestCount();
+      }
       const price = res.data.price;
       Object.assign(saved, { amount: price?.amount ?? null, paid: price?.paid ?? null, pay_proofs: price?.pay_proofs || [] });
       if (price) invalidateStats();
@@ -953,11 +964,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
       const r = await sb.from("cdf_orders").update(pics).eq("id", saved.id).select().single();
       if (r.error) photoTrouble = true; else { saved = { ...saved, ...r.data }; await Promise.all([shot, extras, proof].map((p) => p.cleanup())); }
     }
-    if (isNew) writeDraft(null);
+    if (isNew && !fromRequest) writeDraft(null);
     upsertLocal(saved);
     S.sel = row.date; S.month = monthOf(row.date);
     await closeSheet(true);
-    toast(photoTrouble ? t("partialSave") : t(isNew ? "created" : "saved"), photoTrouble ? { type: "error" } : {});
+    toast(photoTrouble ? t("partialSave") : fromRequest ? t("reqAcceptedToast", { ref: "R" + fromRequest.ref, num: saved.num }) : t(isNew ? "created" : "saved"), photoTrouble ? { type: "error" } : {});
     if (!inRange(row.date)) loadOrders(); else render();
     // The new order glows for a moment where it landed
     if (!isNew) requestAnimationFrame(()=>{const card=document.querySelector(`#list .entry[data-id="${saved.id}"]`);card?.classList.add("flash")});
@@ -1006,13 +1017,15 @@ function openEditor(o, { copyFrom, draft } = {}) {
     saveBtn.disabled = false; saveBtn.classList.remove("busy");
     if (msg) setErr(msg);
   } },
-    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? t(copyFrom ? "duplicateTitle" : "newOrderTitle") : t("editOrder", { num: f.num })),
+    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? (fromRequest ? t("reqAcceptTitle", { ref: "R" + fromRequest.ref }) : t(copyFrom ? "duplicateTitle" : "newOrderTitle")) : t("editOrder", { num: f.num })),
       o ? badge(cur) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
     el("div", { class: "sheet-body" },
       isNew ? null : cancelNote(o),
       newOrderForm ? null : chanWarn,
       copyFrom ? el("div", { class: "sheet-note" }, icon("copy"), el("span", {}, t("duplicateHint"))) : null,
-      draft ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
+      fromRequest ? el("div", { class: "sheet-note req-from" }, icon("inbox"), el("span", {}, t("reqFromSheet", { ref: "R" + fromRequest.ref }))) : null,
+      fromRequest ? requestPhotos(fromRequest) : null,
+      draft && !fromRequest ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
       el("section", {},
         el("div", { class: "row2 when-row" }, reqField(t("date"), iDate), reqField(t("slot"), iSlot)),
         el("div", { class: newOrderForm ? "row2 new-order-assignment" : "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
@@ -1044,6 +1057,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
         downOn ? downBlock : null,
         payOn ? paymentEditor : null, payOn && !downOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails)
       ]),
+      isNew || typeof orderReferences !== "function" ? null : orderReferences(o),
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
@@ -1055,7 +1069,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   // New orders keep a draft in this browser until they are saved, in case the tab closes.
   let draftT;
-  function keepDraft() { if (!isNew || !initial || createSettled) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? draftNow() : null), 400); }
+  function keepDraft() { if (!isNew || !initial || createSettled || fromRequest) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? draftNow() : null), 400); }
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   openLayer(node, { dirty, dispose: () => { [shot, extras, proof, payProofs].forEach((p) => p?.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });

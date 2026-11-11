@@ -1,5 +1,6 @@
 // Line icons (24px grid, drawn with currentColor) and the channel marks from Simple Icons (img/channels/SOURCES.md).
 const ICONS = {
+  inbox: '<path d="M22 12h-6l-2 3h-4l-2-3H2"/><path d="M5.45 5.11 2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/>',
   web: '<circle cx="12" cy="12" r="9"/><ellipse cx="12" cy="12" rx="4" ry="9"/><path d="M3 12h18"/>',
   orders: '<rect x="5" y="4" width="14" height="17" rx="2"/><path d="M9 4V2h6v2M9 9h6m-6 4h6"/>',
   package: '<path d="m12 22-9-5V7l9-5 9 5v10l-9 5ZM3 7l9 5 9-5m-9 5v10m-4.5-17.5 9 5"/>',

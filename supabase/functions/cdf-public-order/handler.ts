@@ -6,7 +6,7 @@
 //   search   look an address up (its own endpoint: this function cannot price or book riders)
 //   upload   send one photo; it is checked and cleaned here before it is stored, privately
 //   remove   take back a photo sent in this session
-//   submit   Phase 2: the request is checked in full, then answered "not open yet" (Phase 3 stores it)
+//   submit   the request is checked in full and stored once (Phase 3), for the team to review
 // It is off unless the secret PUBLIC_ORDER=on, and answers only the sites listed in PUBLIC_ORDER_ORIGINS.
 import { CheckError, checkRequest, cleanImage, IMAGE_MAX_BYTES, inPhilippines } from "./checks.ts";
 
@@ -192,11 +192,21 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       try { request = checkRequest(body, d.now()); }
       catch (e) { return e instanceof CheckError ? no(e.message, 422, e.field) : no("invalid", 422); }
       if (!(await within("submit:" + hash, LIMITS.submitsPerSession))) return no("slow_down", 429);
-      const ready = await d.rpc("cdf_upload_files_ready", { p_token_hash: hash, p_references: request.reference_files, p_proof: request.payment_proof });
-      if (ready.error) return no("server", 500);
-      if (ready.data !== true) return no("files", 422, "reference_files");
-      // Phase 2 stops here on purpose: the request is valid, and nothing is stored or announced yet.
-      return no("requests_not_open", 503);
+      // One transaction: the request, its files, the session closed and the notice queued. A second copy of
+      // the same request (double tap, retry after a lost answer) gets the first one back.
+      const saved = await d.rpc("cdf_request_submit", { p_token_hash: hash, p_ip_hash: ipHash, p_request: request });
+      if (saved.error) {
+        const m = saved.error.message;
+        if (/cdf_session_invalid/.test(m)) return no("session", 401);
+        if (/cdf_request_files/.test(m)) return no("files", 422, "reference_files");
+        if (/cdf_operation_conflict/.test(m)) return no("conflict", 409);
+        if (/cdf_invalid_request/.test(m)) return no("invalid", 422, "date");
+        return no("server", 500);
+      }
+      // Notices that did not get through earlier go again now; never holds up the answer
+      await d.rpc("cdf_outbox_retry", {}).catch(() => null);
+      const { ref } = saved.data as { ref: number };
+      return json({ received: true, ref });
     }
     return no("invalid");
   } catch {

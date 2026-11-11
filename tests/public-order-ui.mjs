@@ -85,6 +85,8 @@ const FAKE_GOOGLE = `(() => {
   window[new URL(document.currentScript.src).searchParams.get("callback")]();
 })();`;
 
+// What the database stored for a request (the real SQL behind the real function)
+const storedRequest = async (key) => { const r = (await db.query("select mode, address, lat from public.cdf_order_requests where request_key = $1", [key])).rows[0]; return r && { ...r, lat: r.lat == null ? null : Number(r.lat) }; };
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 // Everything the page asks for is answered here or refused: a request to any other host fails the test.
 async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "" } = {}) {
@@ -112,8 +114,6 @@ async function open({ feature = true, viewport = { width: 390, height: 844 }, ge
     if (action === "upload" && state.failUploads > 0) { state.failUploads--; return route.abort("connectionreset"); } // the connection drops mid-upload
     const res = await handle(new Request(url, { method: req.method(), headers: { ...req.headers(), origin: ORIGIN, "x-forwarded-for": "203.0.113.7" }, body: req.postDataBuffer() ?? undefined }), deps);
     let status = res.status, body = await res.text();
-    // Phase 2's function answers a valid request with "not open yet". To see the last screen, a test may stand in for Phase 3.
-    if (state.accept && /requests_not_open/.test(body)) { status = 200; body = JSON.stringify({ received: true }); }
     return route.fulfill({ status, headers: Object.fromEntries(res.headers), body });
   });
   await page.goto(ORIGIN + "/pedido.html");
@@ -296,7 +296,7 @@ await step("Google Maps: suggestions while typing (one session per search), pin 
   await review(page);
   await page.locator(".po-review").waitFor();
   await page.getByRole("button", { name: "Send request" }).click();
-  await page.locator(".po-review .err", { hasText: "isn't taking requests yet" }).waitFor();
+  await page.locator(".po-done h2").waitFor();
   assert.deepEqual(state.calls.map((c) => c.action), ["session", "submit"], "address search never touches the server");
   const sent = state.calls.at(-1).body;
   assert.deepEqual([sent.lat, sent.lng, sent.location_source], [14.6397, 121.0775, "search"]);
@@ -434,7 +434,7 @@ await step("Buying from another country: the buyer's own location is refused as 
   // The date is the shop's (Manila), whatever the buyer's clock says
   assert.equal(await page.locator(".po-summary").innerText().then((s) => s.includes(new Intl.DateTimeFormat("en-PH", { dateStyle: "full", timeZone: "UTC" }).format(new Date(tomorrow() + "T00:00:00Z")))), true);
   await page.getByRole("button", { name: "Send request" }).click();
-  await page.locator(".po-review .err", { hasText: "isn't taking requests yet" }).waitFor();
+  await page.locator(".po-done h2").waitFor();
   const sent = state.calls.find((c) => c.action === "submit").body;
   assert.deepEqual([sent.lat, sent.lng, sent.location_source, sent.mode], [14.6397, 121.0775, "search", "delivery"]);
   assert(Date.now() - Date.parse(sent.location_confirmed_at) < 60_000);
@@ -458,18 +458,19 @@ await step("Pickup: no address and no pin are asked for or sent", async () => {
   await fill(page, { pickup: true });
   assert.equal(await page.locator(".loc-picker").count(), 0); assert.equal(await page.locator("#po-address").count(), 0);
   assert.match(await page.locator(".po-pickup-note").innerText(), /which shop/);
-  await review(page);
-  await page.locator(".po-review").waitFor();
-  await page.getByRole("button", { name: "Send request" }).click();
-  await page.locator(".po-review .err", { hasText: "isn't taking requests yet" }).waitFor();
-  const sent = state.calls.find((c) => c.action === "submit").body;
-  assert.equal(sent.mode, "pickup");
-  for (const k of ["address", "lat", "lng", "location_source", "location_confirmed_at"]) assert(!(k in sent), k);
-  // Back to delivery: what was typed and chosen for it is still there
-  await page.getByRole("button", { name: "Back to edit" }).click();
+  // Back to delivery: what was typed for it is still there; then pickup again
   await page.locator("[data-mode=delivery]").click();
   assert.equal(await page.locator("#po-address").inputValue(), "12 Katipunan Ave, Loyola Heights, Quezon City");
   assert.equal(await page.locator("#po-buyer_name").inputValue(), "Jose Santos");
+  await page.locator("[data-mode=pickup]").click();
+  await review(page);
+  await page.locator(".po-review").waitFor();
+  await page.getByRole("button", { name: "Send request" }).click();
+  await page.locator(".po-done h2").waitFor();
+  const sent = state.calls.find((c) => c.action === "submit").body;
+  assert.equal(sent.mode, "pickup");
+  for (const k of ["address", "lat", "lng", "location_source", "location_confirmed_at"]) assert(!(k in sent), k);
+  assert.deepEqual(await storedRequest(sent.request_key), { mode: "pickup", address: "", lat: null });
   await ctx.close();
 });
 
@@ -506,7 +507,7 @@ await step("Several photos: sent as they are added, cleaned on the server, priva
   assert.match(await page.locator(".po-summary").innerText(), /Pending verification/);
   await page.screenshot({ path: path.join(shots, "public-order-mobile-review.png"), fullPage: true });
   await page.getByRole("button", { name: "Send request" }).click();
-  await page.locator(".po-review .err", { hasText: "isn't taking requests yet" }).waitFor();
+  await page.locator(".po-done h2").waitFor();
   const sent = state.calls.find((c) => c.action === "submit").body;
   assert.equal(sent.reference_files.length, 5); assert.match(sent.payment_proof, /^[0-9a-f-]{36}$/);
   assert.equal((await db.query("select count(*)::int n from public.cdf_order_prices")).rows[0].n, 0, "a proof from a customer changes nothing that has been paid");
@@ -554,7 +555,7 @@ await step("Upload interrupted: the photo is marked, can be retried, and is stor
 });
 
 await step("Sending: the request is reviewed first, and the last screen says “received, pending review”, nothing more", async () => {
-  const { page, state, ctx } = await open({ accept: true });
+  const { page, state, ctx } = await open();
   await page.locator("#po-same").check();
   assert.equal(await page.locator("#po-receiver_name").isVisible(), false);
   await fill(page, {}).catch(() => {}); // receiver fields are hidden: fill the rest by hand
@@ -584,7 +585,7 @@ await step("Sending: the request is reviewed first, and the last screen says “
 });
 
 await step("The server has the last word: a field it refuses brings the visitor back to that field", async () => {
-  const { page, ctx } = await open({ accept: true });
+  const { page, ctx } = await open();
   await fill(page);
   await review(page);
   await page.locator(".po-review").waitFor();
