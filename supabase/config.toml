@@ -3,10 +3,33 @@
 verify_jwt = false
 
 [functions.cdf-lalamove]
-# Lalamove's webhook has no Supabase token; admin calls are checked in the handler and the webhook needs ?token=.
+# Lalamove's webhook has no Supabase token; admin calls are checked in the handler, the webhook needs ?token=
+# (and, once LALAMOVE_WEBHOOK_SIGNATURE=enforce, a valid signature), the 5-minute round needs x-cdf-hook.
 verify_jwt = false
 
 [functions.cdf-public-order]
 # The public order form: visitors have no Supabase token. The handler checks the calling site, the anti-abuse
 # check and its own short-lived session, and stays off unless the secret PUBLIC_ORDER=on.
 verify_jwt = false
+
+# Phase 6: the rest written down as production has them (checked 11/11/2026), so a deploy from this folder
+# never flips one by accident.
+[functions.cdf-notify]
+# Called by database triggers through pg_net with the shared x-cdf-hook secret, no Supabase token.
+verify_jwt = false
+
+[functions.cdf-push]
+# Same as cdf-notify: database triggers, x-cdf-hook.
+verify_jwt = false
+
+[functions.cdf-track]
+# The customer's public tracking page; the order code is checked in the handler.
+verify_jwt = false
+
+[functions.cdf-shopify]
+# Shopify's webhook, proven by its HMAC signature (not deployed today).
+verify_jwt = false
+
+[functions.cdf-users]
+# Admin-only team management: needs a signed-in session.
+verify_jwt = true

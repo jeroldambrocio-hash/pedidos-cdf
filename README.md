@@ -90,6 +90,19 @@ NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/lalamov
 NODE_PATH=.test-tools/node_modules node tests/lalamove-proofs-ui.cjs                                # el bloque Pruebas en el navegador
 ```
 
+### Fase 6 · Verificación y preparación del despliegue
+
+Informe para aprobar: [`docs/FASE6-INFORME.md`](docs/FASE6-INFORME.md) (evidencias, orden de despliegue, secretos, vuelta atrás).
+
+```bash
+NODE_PATH=.test-tools/node_modules node tests/production-parity.cjs   # el repo = producción; las fases solo añaden; instalación limpia = actualización; vuelta atrás
+```
+
+- `tests/lib/manifest.sql`: lo que la base de datos expone (tablas, RLS, políticas, funciones y permisos). Solo lectura; se ejecuta en producción antes y después de aplicar y se compara con `tests/fixtures/`.
+- `supabase/rollback/20261111_phases_1-5_down.sql`: deshace las fases 1–5 (probado). No lo ejecuta nada.
+- `supabase/config.toml` recoge el `verify_jwt` de todas las funciones tal como está en producción.
+- `PUBLIC_FORM=1 scripts/deploy-netlify.sh` publica también `pedido.html`; sin la variable, no.
+
 ## Probar en local
 
 Necesitas un servidor local, porque las rutas empiezan por `/`:

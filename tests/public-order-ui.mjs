@@ -145,7 +145,8 @@ await step("Off in the published config: the page says so and never calls the se
   await page.locator(".po-done h2", { hasText: "Not open yet" }).waitFor();
   assert.equal(await page.locator("form").count(), 0); assert.equal(state.calls.length, 0);
   const real = readFileSync(path.join(root, "config.js"), "utf8");
-  assert.match(real, /publicOrder: false/); assert(!/pedido\.html/.test(readFileSync(path.join(root, "index.html"), "utf8") + readFileSync(path.join(root, "scripts/deploy-netlify.sh"), "utf8")), "not linked and not in the deploy list yet");
+  assert.match(real, /publicOrder: false/); const files = /^FILES="([^"]*)"/m.exec(readFileSync(path.join(root, "scripts/deploy-netlify.sh"), "utf8"))[1];
+  assert(!/pedido\.html/.test(readFileSync(path.join(root, "index.html"), "utf8") + files), "not linked and not in the default deploy list yet (only with PUBLIC_FORM=1)");
   await ctx.close();
 });
 
