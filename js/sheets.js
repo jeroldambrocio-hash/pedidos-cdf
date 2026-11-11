@@ -519,6 +519,13 @@ function openEditor(o, { copyFrom, draft } = {}) {
     finally { if (b) { b.disabled = false; b.classList.remove("busy"); } }
   }
   const dropFind = iDrop && typeof llCall === "function" ? el("button", { class: "linkish", type: "button", id: "f-dropfind", onclick: (e) => locate(false, e.currentTarget) }, icon("search"), " " + t("dropFind")) : null;
+  // The pin put by hand on a map: for addresses the search doesn't know (house numbers, villages)
+  const dropMap = iDrop && typeof llPickOnMap === "function" ? el("button", { class: "linkish", type: "button", id: "f-dropmap", onclick: async () => {
+    const p = await llPickOnMap(dropPoint(), iAddr.value.trim());
+    if (!p) return;
+    iDrop.value = `${p.lat}, ${p.lng}`; fromAddr = ""; dropHits.replaceChildren(); paintDrop();
+    iDrop.dispatchEvent(new Event("change", { bubbles: true }));
+  } }, icon("map"), " " + t("mapPickBtn")) : null;
   if (dropFind) iAddr.addEventListener("blur", () => {
     const q = iAddr.value.trim();
     if (q.length >= 8 && !iDrop.value.trim() && q !== lastAuto) { lastAuto = q; locate(true); }
@@ -724,7 +731,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
   };
   const iChan = el("div", { class: "chan-pick", role: "group", "aria-label": t("channel") }, CHANNELS.map((c) =>
     el("button", { type: "button", class: "chan-opt", "data-c": c, style: "--cc:" + chanColor(c), "aria-label": c, title: c,
-      onclick: () => { channel = channel === c ? "" : c; syncChan(); keepDraft(); } }, chanMark(c))));
+      onclick: () => { channel = channel === c ? "" : c; iChan.classList.remove("invalid"); syncChan(); keepDraft(); } }, chanMark(c))));
 
   // Returning customer: the same buyer phone on other orders already loaded
   const repeatTag = el("div", { class: "repeat-tag collapse is-collapsed", role: "status" });
@@ -790,6 +797,9 @@ function openEditor(o, { copyFrom, draft } = {}) {
       [iBPhone, iSame.checked ? row.buyer_phone : row.buyer_phone || row.customer_email], [iAddr, row.address]];
     if (!iSame.checked) need.push([iName, row.customer_name], [iPhone, row.customer_phone]);
     const miss = need.filter(([, v]) => !v).map(([x]) => x.closest(".field"));
+    // The channel is required too: where every order came from is what the statistics are built on
+    const noChannel = !row.channel;
+    if (noChannel) iChan.classList.add("invalid");
     const badPhones = [[iBPhone, row.buyer_phone], [iPhone, iSame.checked ? "" : row.customer_phone]].filter(([, v]) => !phoneOk(v)).map(([x]) => x.closest(".field"));
     if (miss.some((field) => moreDetails.contains(field))) moreDetails.open = true;
     if (miss.length || badPhones.length) {
@@ -798,6 +808,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       [...miss, ...badPhones][0].scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" });
       return miss.length ? (iSlot.closest(".field").classList.contains("invalid") && iSlot.first.value ? t("slotInvalid") : t("fillRequired")) : t("phoneInvalid");
     }
+    if (noChannel) { iChan.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" }); iChan.querySelector(".chan-opt")?.focus(); return t("chanRequired"); }
     if (priceEditable() && !iAmount.validity.valid) { iAmount.focus(); return t("payInvalidPrice"); }
     if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { moreDetails.open = true; iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
     if (iDrop && iDrop.value.trim() && !dropPoint()) { moreDetails.open = true; paintDrop(); iDrop.focus(); return t("dropBad"); }
@@ -873,7 +884,6 @@ function openEditor(o, { copyFrom, draft } = {}) {
     S.sel = row.date; S.month = monthOf(row.date);
     await closeSheet(true);
     toast(photoTrouble ? t("partialSave") : t(isNew ? "created" : "saved"), photoTrouble ? { type: "error" } : {});
-    if (!row.channel) setTimeout(() => toast(t("savedNoChannel"), { type: "info" }), 350);
     if (!inRange(row.date)) loadOrders(); else render();
     // The new order glows for a moment where it landed
     if (!isNew) requestAnimationFrame(()=>{const card=document.querySelector(`#list .entry[data-id="${saved.id}"]`);card?.classList.add("flash")});
@@ -941,7 +951,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
         : [el("h3", {}, t("recipientH")), checkRow(iSame, t("sameAsBuyer"))]),
         recip,
         el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr),
-          el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind), dropFind ? dropHits : null),
+          el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind, dropMap), dropFind ? dropHits : null),
         field(t("deliveryNote"), iDNote, newOrderForm ? null : el("small", { class: "note" }, t("deliveryNoteHint"))),
         newOrderForm ? el("div", { class: "row2" }, field(t("cardMsg"), iCard), field(t("note"), iNotes)) : field(t("cardMsg"), iCard),
         newOrderForm ? null : field(t("note"), iNotes)),
@@ -978,6 +988,11 @@ function openEditor(o, { copyFrom, draft } = {}) {
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
   paintDrop(); paintPay();
+  // The Lalamove block saved a new point on the order: show it here as the saved one, not as a pending change
+  iDrop?.addEventListener("cdf-point-saved", (e) => {
+    iDrop.value = `${e.detail.lat}, ${e.detail.lng}`; fromAddr = ""; dropHits.replaceChildren(); paintDrop();
+    if (initial) { initial.drop_lat = e.detail.lat; initial.drop_lng = e.detail.lng; }
+  });
   sheet.order = o;
   if (payOn && isNew) payMessage.textContent = t("payAfterSave");
   if (payOn && !isNew) { resetProofs(); loadPayments(); }

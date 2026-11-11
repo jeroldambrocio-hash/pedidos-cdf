@@ -43,6 +43,10 @@ function editMember(m) {
     if (!v || llParseCoords(v) || !/goo\.gl\//i.test(v)) return;
     try { const r = (await llCall({ action: "geocode", query: v })).results?.[0]; if (r) pick.point.value = `${r.lat}, ${r.lng}`; } catch {}
   });
+  const pickMap = pick ? el("button", { class: "linkish", type: "button", id: "ePickMap", onclick: async () => {
+    const p = await llPickOnMap(llParseCoords(pick.point.value), pick.addr.value.trim());
+    if (p) pick.point.value = `${p.lat}, ${p.lng}`;
+  } }, icon("map"), " " + t("mapPickBtn")) : null;
   const err = el("div", { class: "err", role: "alert" });
   const close = async () => { if (!scrim.isConnected) return; scrim.classList.add("leaving"); if (!prefersReducedMotion()) await wait(330); scrim.remove(); back?.focus?.(); };
   const save = el("button", { class: "btn primary", type: "submit" }, t("save"));
@@ -85,6 +89,7 @@ function editMember(m) {
       pick ? el("h3", { class: "grp" }, t("pickupTitle")) : null,
       pick ? field(t("pickupAddr"), pick.addr) : null,
       pick ? field(t("pickupPoint"), pick.point, el("small", { class: "note" }, t("pickupPointHint"))) : null,
+      pickMap,
       pick && !m.phone ? el("p", { class: "hint" }, t("pickupNoPhone")) : null,
       err),
     el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: close }, t("cancel")), save));

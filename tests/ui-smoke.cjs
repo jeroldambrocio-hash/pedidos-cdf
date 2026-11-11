@@ -523,6 +523,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#f-bname").fill("Buyer test"); await p.locator("#f-bphone").fill("0917 555 0101");
       await p.locator("#f-same").check();
       await p.locator("#f-addr").fill("Rockwell, Makati");
+      await p.locator(".chan-opt[data-c=Instagram]").click(); // the channel is required (tests/map-channel.cjs)
       await p.locator(".sheet button[type=submit]").click();
       // No florist yet: it asks once ("Save anyway") so a rider can't be booked by surprise
       await p.locator(".dialog").getByRole("button", { name: "Save anyway" }).click();

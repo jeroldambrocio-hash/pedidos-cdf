@@ -2247,3 +2247,14 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .new-order-sheet .sheet-head .chan-pick { order: 0; width: auto; }
   .new-order-sheet .new-order-assignment { grid-template-columns: minmax(0, 2fr) minmax(0, 3fr); }
 }
+
+/* Map to put the delivery pin by hand (Leaflet + OpenStreetMap) */
+.map-dialog { width: min(720px, calc(100% - 24px)); }
+.map-dialog .sheet-body { display: grid; gap: 10px; }
+.map-pick { height: min(52vh, 440px); min-height: 240px; border-radius: 12px; overflow: hidden; border: 1px solid var(--line-soft); background: var(--sunk); isolation: isolate; display: grid; place-items: center; }
+.map-pick.leaflet-container { display: block; font: inherit; }
+.map-pin { background: none; border: 0; }
+.map-pin span { position: absolute; left: 3px; top: 0; width: 24px; height: 24px; border-radius: 50% 50% 50% 0; rotate: -45deg; background: #d7263d; border: 3px solid #fff; box-shadow: 0 2px 6px rgb(0 0 0 / .5); }
+.map-pin span::after { content: ""; position: absolute; inset: 6px; border-radius: 50%; background: #fff; }
+.map-where { margin: 0; min-height: 1.3em; }
+.chan-pick.invalid { outline: 2px solid var(--fail); outline-offset: 5px; border-radius: 10px; }

@@ -174,3 +174,16 @@ Vista previa con datos ficticios: `node tests/demo.cjs` y abre http://localhost:
   (cualquier mes), y «Hoy» devuelve la lista habitual. No ven filtros, herramientas de oficina ni pedidos de otras floristas (RLS).
 
 Pruebas: `NODE_PATH=.test-tools/node_modules node tests/notif-calendar.cjs`.
+
+## Pin en el mapa y canal obligatorio (11/11/2026)
+
+- **Pin a mano**: «Marcar en el mapa» abre un mapa (Leaflet + OpenStreetMap, gratis y sin clave; la librería va en `js/vendor/`)
+  para arrastrar el pin hasta la puerta cuando el buscador no encuentra la dirección. Está en el pedido (junto a «Buscar en el mapa»),
+  en el bloque de Lalamove («Marcar en el mapa» y «Ajustar el pin en el mapa») y en Equipo → editar (tienda de la florista).
+  El rider recibe siempre la dirección escrita del pedido además del punto.
+- El punto elegido en el bloque de Lalamove se guarda también en el pedido (la reserva exige que coincidan). Solo un admin puede
+  cambiarlo; una florista con un pedido que ya tiene punto debe pedir la corrección a la oficina.
+- **Canal obligatorio**: no se guarda un pedido (nuevo o editado) sin canal: Shopify, Instagram, TikTok o Web.
+
+Pruebas: `node tests/map-channel.cjs`.
+

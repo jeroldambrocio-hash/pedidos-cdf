@@ -26,6 +26,82 @@ function llParseCoords(input) {
   const lat = +m[1], lng = +m[2];
   return lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127 ? { lat, lng } : null;
 }
+const llInPH = (lat, lng) => lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127;
+// A map to put the pin on the exact door: Leaflet with OpenStreetMap tiles (free, no key), both served
+// from this site and loaded the first time the map is opened.
+let llMapLib = null;
+const llLoadMap = () => (llMapLib ||= new Promise((ok, fail) => {
+  if (window.L?.map) return ok(window.L);
+  document.head.append(el("link", { rel: "stylesheet", href: "/js/vendor/leaflet.css" }));
+  const sc = el("script", { src: "/js/vendor/leaflet.js" });
+  sc.onload = () => (window.L?.map ? ok(window.L) : fail(new Error("map")));
+  sc.onerror = () => fail(new Error("map"));
+  document.head.append(sc);
+}).catch((e) => { llMapLib = null; throw e; }));
+// Opens the map on `start` ({lat, lng}; without one, on what `query` finds, else Metro Manila).
+// Resolves with the chosen { lat, lng }, or null when closed without choosing.
+function llPickOnMap(start, query) {
+  return new Promise((resolve) => {
+    const back = document.activeElement, scrim = el("div", { class: "scrim center-scrim" });
+    let map = null, pin = null, point = null;
+    const done = async (v) => {
+      if (!scrim.isConnected) return;
+      scrim.classList.add("leaving");
+      if (!prefersReducedMotion()) await wait(330);
+      try { map?.remove(); } catch {}
+      scrim.remove(); back?.focus?.(); resolve(v);
+    };
+    const holder = el("div", { class: "map-pick", id: "mapPick" }, el("p", { class: "note" }, t("mapLoading")));
+    const where = el("p", { class: "note map-where", role: "status" }, t("mapNoPin"));
+    const ok = el("button", { class: "btn primary", id: "mapUse", type: "button", disabled: true, onclick: () => done(point) }, t("mapUse"));
+    const put = (lat, lng, centre) => {
+      if (!map) return;
+      if (!llInPH(lat, lng)) { where.textContent = t("mapOutside"); return; }
+      point = { lat: +(+lat).toFixed(6), lng: +(+lng).toFixed(6) };
+      pin.setLatLng([point.lat, point.lng]);
+      if (centre) map.setView([point.lat, point.lng], Math.max(map.getZoom(), 17));
+      where.textContent = t("mapAt", { point: `${point.lat}, ${point.lng}` }); ok.disabled = false;
+    };
+    const q = el("input", { id: "mapSearch", class: "input", value: query || "", placeholder: t("mapSearchPh"), autocomplete: "off", "aria-label": t("mapSearchPh") });
+    const find = el("button", { class: "btn", type: "button", onclick: async () => {
+      const text = q.value.trim();
+      if (!text || !map) return;
+      find.disabled = true; find.classList.add("busy");
+      try {
+        const r = (await llCall({ action: "geocode", query: text })).results?.[0];
+        if (r) put(r.lat, r.lng, true); else where.textContent = t("mapNoHits");
+      } catch (x) { where.textContent = x.message; }
+      finally { find.disabled = false; find.classList.remove("busy"); }
+    } }, t("llSearch"));
+    q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); find.click(); } });
+    const box = el("div", { class: "dialog map-dialog", role: "dialog", "aria-modal": "true", tabindex: "-1", "aria-labelledby": "mapTitle" },
+      el("div", { class: "sheet-body" },
+        el("h2", { id: "mapTitle", class: "dialog-text" }, t("mapTitle")),
+        el("p", { class: "note" }, t("mapHint")),
+        el("div", { class: "ll-search" }, q, find), holder, where),
+      el("div", { class: "sheet-foot" }, el("button", { class: "btn", type: "button", onclick: () => done(null) }, t("cancel")), ok));
+    scrim.append(box);
+    closeOnBackdrop(scrim, () => done(null));
+    scrim.addEventListener("dismiss", () => done(null));
+    $("dialogRoot").append(scrim);
+    queueMicrotask(() => box.focus());
+    llLoadMap().then((L) => {
+      if (!scrim.isConnected) return;
+      holder.replaceChildren();
+      const at = start && llInPH(+start.lat, +start.lng) ? [+start.lat, +start.lng] : null;
+      map = L.map(holder).setView(at || [14.6, 121.03], at ? 17 : 12);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19,
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+      pin = L.marker(map.getCenter(), { draggable: true, title: t("mapPinTitle"),
+        icon: L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [30, 30], iconAnchor: [15, 29] }) }).addTo(map);
+      pin.on("dragend", () => { const c = pin.getLatLng(); put(c.lat, c.lng); });
+      map.on("click", (e) => put(e.latlng.lat, e.latlng.lng));
+      setTimeout(() => map?.invalidateSize(), 400); // the dialog was still growing when the map measured itself
+      if (at) put(at[0], at[1]); else if (q.value.trim()) find.click();
+    }).catch(() => fill(holder, el("p", { class: "err", role: "alert" }, t("mapFail"))));
+  });
+}
+
 // The shop the rider picks up from: the assigned florist's (Team → edit). null when there isn't one yet.
 // A florist doesn't load the whole team (her list comes from a directory without addresses): for her own
 // orders her shop is in her own profile (S.me).
@@ -139,16 +215,37 @@ function lalamoveSection(o) {
     const list = el("div", { class: "ll-results" });
     const search = btn(t("llSearch"), async () => {
       const { results } = await llCall({ action: "geocode", query: q.value.trim() });
-      fill(list, results.length ? results.map((r) => el("button", { class: "ll-hit", type: "button", onclick: () => after(r) },
+      fill(list, results.length ? results.map((r) => el("button", { class: "ll-hit", type: "button", onclick: () => Promise.resolve(after(r)).catch((x) => toastErr(x.message)) },
         icon("map"), el("span", {}, r.label))) : el("p", { class: "note" }, t("llNoHits")));
     });
     q.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); search.click(); } });
-    fill(box, el("p", { class: "note" }, t("llWhereHint")), el("div", { class: "ll-search" }, q, search), list);
+    // Not in the list (house numbers and many villages aren't on the free map): put the pin by hand
+    const onMap = btn(t("mapPickBtn"), async () => {
+      const from = row?.lat != null ? { lat: +row.lat, lng: +row.lng } : o.drop_lat != null ? { lat: +o.drop_lat, lng: +o.drop_lng } : null;
+      const p = await llPickOnMap(from, q.value.trim());
+      if (p) await after({ ...p, label: o.address || q.value.trim() || `${p.lat}, ${p.lng}` });
+    });
+    fill(box, el("p", { class: "note" }, t("llWhereHint")), el("div", { class: "ll-search" }, q, search), list, el("div", { class: "btn-row" }, onMap));
     q.focus();
+  }
+
+  // Booking checks the order's own saved point (033), so a point chosen here is saved on the order too.
+  // Only the office can change an order: a florist keeps the order's point, or asks for it to be corrected.
+  async function keepPoint(place) {
+    const far = (a, b) => Math.abs(+a - +b) > 0.0002;
+    if (!S.cap.drop || (o.drop_lat != null && !far(o.drop_lat, place.lat) && !far(o.drop_lng, place.lng))) return;
+    if (!isAdmin()) { if (o.drop_lat != null) throw new Error(t("llPointOffice")); return; }
+    const { data, error } = await sb.from("cdf_orders").update({ drop_lat: place.lat, drop_lng: place.lng }).eq("id", o.id).select().single();
+    if (error) throw new Error(t("saveFail", { msg: error.message }));
+    Object.assign(o, { drop_lat: data.drop_lat, drop_lng: data.drop_lng, updated_at: data.updated_at });
+    upsertLocal(data);
+    // The order form on screen shows the same point, and doesn't count it as an unsaved change
+    document.getElementById("f-drop")?.dispatchEvent(new CustomEvent("cdf-point-saved", { detail: { lat: place.lat, lng: place.lng } }));
   }
 
   // 2) Price for the chosen point
   async function quote(place) {
+    await keepPoint(place);
     const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || o.vehicle || "MOTORCYCLE") }, t("llv_" + v))));
     const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: o.slot })));
     const go = async () => {
@@ -158,7 +255,9 @@ function lalamoveSection(o) {
     };
     fill(box, shopLine(), el("p", {}, el("b", {}, t("llDeliverTo")), " ", place.label), coordsLink(place.lat, place.lng),
       el("div", { class: "row2" }, field(t("llVehicle"), vehicle), field(t("llPickup"), when)),
-      el("div", { class: "btn-row" }, btn(t("llGetPrice"), go, true), btn(t("llChangePlace"), () => pickPlace(quote))));
+      el("div", { class: "btn-row" }, btn(t("llGetPrice"), go, true),
+        btn(t("mapAdjust"), async () => { const p = await llPickOnMap(place); if (p) await quote({ ...p, label: o.address || place.label }); }),
+        btn(t("llChangePlace"), () => pickPlace(quote))));
   }
 
   // Taken out another way (own car, another courier) or a test booking in sandbox: move the order by hand.
