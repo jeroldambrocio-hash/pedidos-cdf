@@ -236,19 +236,26 @@ const jpg = fixture("gps.jpg");
   assert.equal((await send(body({ reference_files: [randomUUID()] }), { session: s })).error, "files");
   assert.equal((await send(body({ reference_files: [proof] }), { session: s })).error, "files");            // a proof is not a reference
   assert.equal((await send(body(), { session: other })).error, "files");                                    // someone else's photos
-  assert.equal((await send(body({ reference_files: [], payment_proof: null }), { session: other })).error, "requests_not_open");
-  const sent = await send(body(), { session: s });
-  assert.deepEqual(sent, { status: 503, cors: ORIGIN, error: "requests_not_open" });
-  assert.equal((await rows("select count(*)::int n from public.cdf_orders"))[0].n, 0);
-  assert.equal((await rows("select count(*)::int n from net.calls"))[0].n, 0);
-  ok("A complete request passes every check and is answered “not open yet”: Phase 2 stores no request, creates no order and sends no notice");
+  const fromOther = await send(body({ reference_files: [], payment_proof: null }), { session: other });
+  assert.equal(fromOther.status, 200); assert.equal(fromOther.received, true);
+  const full = body(), sent = await send(full, { session: s });
+  assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(sent.ref, fromOther.ref + 1);
+  assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "status"], "the visitor learns the reference and nothing else");
+  // The same request again (the answer got lost): the same reference, nothing new
+  assert.equal((await send(full, { session: s })).ref, sent.ref);
+  assert.equal((await send({ ...full, description: "Something else entirely" }, { session: s })).status, 409);
+  assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 2);
+  assert.equal((await rows("select count(*)::int n from public.cdf_request_files where request_id is not null"))[0].n, refs.length + 1);
+  assert.equal((await rows("select count(*)::int n from public.cdf_orders"))[0].n, 0, "a request is not an order");
+  assert.equal((await rows("select count(*)::int n from net.calls where body->>'kind' = 'request'"))[0].n, 2, "one notice per request");
+  ok("A complete request is stored once with its photos and announced once; sent again it gets the same reference; it creates no order");
 
   // ---------- limits and expiry ----------
   await db.exec("update public.cdf_upload_sessions set expires_at = now() - interval '1 minute'");
   assert.equal((await send({ action: "search", query: "Katipunan" }, { session: s })).status, 401);
   assert.equal((await upload(jpg, { session: s })).status, 401);
-  assert.equal((await send(body(), { session: s })).error, "files");
-  ok("An expired session can no longer search, upload or send"); }
+  assert.equal((await send(body(), { session: s })).status, 401);
+  ok("An expired or used session can no longer search, upload or send another request"); }
 
 { const ip = "192.0.2.50";
   const results = [];
@@ -294,15 +301,19 @@ ok("Google answers address searches up to a daily number counted in the database
 { const tables = ["cdf_upload_sessions", "cdf_request_files", "cdf_rate_limits"];
   for (const role of ["anon", "authenticated"]) {
     await db.exec(`set role ${role}`);
-    for (const tb of tables) for (const sql of [`select * from public.${tb}`, `delete from public.${tb}`, `insert into public.${tb} default values`])
+    for (const tb of tables) for (const sql of [`select * from public.${tb}`, `delete from public.${tb}`, `insert into public.${tb} default values`]) {
+      // Phase 3 lets admins read the files attached to a request; any other signed-in person reads none
+      if (role === "authenticated" && tb === "cdf_request_files" && sql.startsWith("select")) { assert.equal((await db.query(sql)).rows.length, 0); continue; }
       await assert.rejects(db.query(sql), { code: "42501" }, `${role}: ${sql}`);
+    }
     for (const sql of ["select public.cdf_rate_hit('x', 1, 60)", "select public.cdf_upload_session_open('a','b')", "select public.cdf_upload_session_of('a')",
       "select public.cdf_upload_claim('a','reference','jpg')", "select public.cdf_upload_files_ready('a', '{}', null)"]) await assert.rejects(db.query(sql), { code: "42501" }, `${role}: ${sql}`);
     await db.exec("reset role");
   }
   const [bucket] = await rows("select public, file_size_limit, allowed_mime_types from storage.buckets where id='cdf-solicitudes'");
   assert.equal(bucket.public, false); assert.equal(Number(bucket.file_size_limit), 3145728); assert.deepEqual(bucket.allowed_mime_types, ["image/jpeg", "image/png", "image/webp"]);
-  assert.equal((await rows("select count(*)::int n from pg_policies where schemaname='storage' and (qual like '%cdf-solicitudes%' or with_check like '%cdf-solicitudes%')"))[0].n, 0); }
-ok("Neither a visitor nor a signed-in member of staff can read or write sessions, files or limits, or call their functions; the bucket is private");
+  // One storage rule, from Phase 3: reading only (admins; the assigned florist for reference photos). No writing.
+  assert.deepEqual((await rows("select cmd from pg_policies where schemaname='storage' and (qual like '%cdf-solicitudes%' or with_check like '%cdf-solicitudes%')")).map((r) => r.cmd), ["SELECT"]); }
+ok("Neither a visitor nor a signed-in member of staff can write sessions, files or limits, or call their functions; the bucket is private and only readable as Phase 3 allows");
 
 await db.close();

@@ -59,7 +59,10 @@ window.__reactions = JSON.parse(sessionStorage.getItem("__reactions") || "null")
 const keepChat = () => { sessionStorage.setItem("__reactions", JSON.stringify(window.__reactions)); sessionStorage.setItem("__messages", JSON.stringify(window.__messages)); sessionStorage.setItem("__reads", JSON.stringify(window.__reads)); };
 window.__pushSubs = [];
 const directThreads = [], directMessages = [];
-const tables = () => ({ cdf_direct_threads: directThreads, cdf_direct_messages: directMessages, cdf_message_reactions: window.__reactions, cdf_push_subs: window.__pushSubs, cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [] });
+const tables = () => ({ cdf_direct_threads: directThreads, cdf_direct_messages: directMessages, cdf_message_reactions: window.__reactions, cdf_push_subs: window.__pushSubs, cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [],
+  // Phase 3: requests from the public form; only admins read them (RLS)
+  cdf_order_requests: window.__role === "admin" || !window.__role ? (window.__requests ||= []) : [], cdf_request_files: window.__role === "admin" || !window.__role ? (window.__requestFiles ||= []) : [],
+  cdf_request_events: window.__role === "admin" || !window.__role ? (window.__requestEvents ||= []) : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
   let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*";
@@ -133,7 +136,7 @@ window.supabase = { createClient: () => ({
   storage: { from: (b) => ({ createSignedUrl: async (p) => ({ data: { signedUrl: "/img/emblem.webp" } }),
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
-  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages"&&config.event==="INSERT")window.__realtimeMsg=cb;else if(config.table==="cdf_messages"&&config.event==="UPDATE")window.__realtimeEdit=cb;else if(config.table==="cdf_message_reactions")window.__realtimeReact=cb;else if(_a==="broadcast")window.__typingCb=cb;else if(config.table==="cdf_orders")window.__realtime=cb; return this; }, subscribe() { return this; }, send(m) { (window.__calls ||= []).push({ broadcast: m.event, payload: m.payload }); return Promise.resolve("ok"); } }), removeChannel() {},
+  channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages"&&config.event==="INSERT")window.__realtimeMsg=cb;else if(config.table==="cdf_messages"&&config.event==="UPDATE")window.__realtimeEdit=cb;else if(config.table==="cdf_message_reactions")window.__realtimeReact=cb;else if(_a==="broadcast")window.__typingCb=cb;else if(config.table==="cdf_orders")window.__realtime=cb;else if(config.table==="cdf_order_requests")window.__realtimeRequest=cb; return this; }, subscribe() { return this; }, send(m) { (window.__calls ||= []).push({ broadcast: m.event, payload: m.payload }); return Promise.resolve("ok"); } }), removeChannel() {},
   functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args }); return { data: { ok: true }, error: null }; } },
   rpc: (name, args) => {
     if (name === "cdf_open_direct") return { single: async () => {
@@ -166,6 +169,50 @@ window.supabase = { createClient: () => ({
       keys[args.p_request] = { id: order.id, print };
       if (window.__createResponseLost) { window.__createResponseLost = false; return { error: { message: "TypeError: Failed to fetch" } }; }
       return answer(keys[args.p_request], false);
+    }
+    // Phase 3: reviewing requests (same answers as the database functions in migration 20261111110000)
+    if (/^cdf_request_|^cdf_order_references$/.test(name)) {
+      const me = email[window.__role] || "admin@example.com", admin = !window.__role || window.__role === "admin";
+      const reqs = (window.__requests ||= []), evs = (window.__requestEvents ||= []), files = (window.__requestFiles ||= []);
+      const copy = (v) => JSON.parse(JSON.stringify(v));
+      if (name === "cdf_order_references") {
+        const r = reqs.find((x) => x.accepted_order_id === args.p_order), o = window.__orders.find((x) => x.id === args.p_order);
+        if (!r || !o) return { data: [], error: null };
+        return { data: files.filter((f) => f.request_id === r.id && (admin || (f.kind === "reference" && o.vendor_email === me))).map((f) => ({ ...f, request_ref: r.ref })), error: null };
+      }
+      if (!admin) return { data: null, error: { code: "42501", message: "Forbidden" } };
+      const r = reqs.find((x) => x.id === args.p_id);
+      if (!r) return { data: null, error: { code: "P0001", message: "cdf_request_gone" } };
+      const ev = (kind, detail = {}) => evs.push({ request_id: r.id, kind, by_email: me, detail, created_at: new Date().toISOString() });
+      const open = () => r.status === "received" || r.status === "in_review";
+      if (name === "cdf_request_open") { if (r.status === "received") { Object.assign(r, { status: "in_review", reviewed_by: me }); ev("opened"); } return { data: copy(r), error: null }; }
+      if (name === "cdf_request_reject") {
+        if (r.status === "rejected") return { data: copy(r), error: null };
+        if (!open()) return { data: null, error: { code: "P0001", message: "cdf_request_closed" } };
+        Object.assign(r, { status: "rejected", reject_reason: (args.p_reason || "").trim() || null, reviewed_by: me }); ev("rejected", { reason: r.reject_reason }); return { data: copy(r), error: null };
+      }
+      if (name === "cdf_request_reopen") {
+        if (r.status !== "rejected") return { data: null, error: { code: "P0001", message: "cdf_request_closed" } };
+        Object.assign(r, { status: "in_review", reject_reason: null, reviewed_by: me }); ev("reopened"); return { data: copy(r), error: null };
+      }
+      if (name === "cdf_request_similar") {
+        const phones = [r.buyer_phone, r.receiver_phone];
+        return { data: { requests: reqs.filter((x) => x.id !== r.id && x.date === r.date && x.status !== "rejected" && (phones.includes(x.buyer_phone) || phones.includes(x.receiver_phone))).map((x) => ({ id: x.id, ref: x.ref, status: x.status })),
+          orders: window.__orders.filter((o) => o.id !== r.accepted_order_id && o.date === r.date && !o.cancelled_at && (phones.includes(o.buyer_phone) || phones.includes(o.customer_phone))).map((o) => ({ id: o.id, num: o.num })) }, error: null };
+      }
+      if (name === "cdf_request_accept") {
+        if (window.__acceptTakenBy) { Object.assign(r, { status: "accepted", accepted_key: "someone-else", accepted_order_id: null }); window.__acceptTakenBy = null; }
+        if (r.status === "accepted" && r.accepted_key !== args.p_request) return { data: null, error: { code: "P0001", message: "cdf_request_taken" } };
+        if (r.status !== "accepted" && !open()) return { data: null, error: { code: "P0001", message: "cdf_request_closed" } };
+        const lost = window.__acceptLost; window.__acceptLost = false;
+        window.__createResponseLost = false;
+        return sb.rpc("cdf_create_order", { p_request: args.p_request, p_order: args.p_order, p_price: args.p_price, p_payment: args.p_payment }).then((made) => {
+          if (made.error) return made;
+          if (r.status !== "accepted") { Object.assign(r, { status: "accepted", accepted_key: args.p_request, accepted_order_id: made.data.order.id, reviewed_by: me }); ev("accepted", { order_id: made.data.order.id, num: made.data.order.num }); }
+          if (lost) return { data: null, error: { message: "TypeError: Failed to fetch" } };
+          return { data: { ...made.data, request: copy(r) }, error: null };
+        });
+      }
     }
     if (name === "cdf_record_payment") {
       if (window.__role && window.__role !== "admin") return { error: { code: "42501" } };

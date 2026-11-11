@@ -201,10 +201,18 @@ function paintNotifBanner(state) {
 
 // ?chat=<order id | team> and ?order=<id>: where a notification takes you
 async function openDeepLink(params = new URLSearchParams(location.search)) {
-  const chat = params.get("chat"), order = params.get("order");
-  if (!S.me || (!chat && !order)) return;
+  const chat = params.get("chat"), order = params.get("order"), request = params.get("request");
+  if (!S.me || (!chat && !order && !request)) return;
   try { history.replaceState(null, "", location.pathname); } catch {}
   if (chat && CH.on) return openThread(chat);
+  // A new request from the public form (the notice the admins get)
+  if (request && reqOn()) {
+    setTab("requests");
+    let r = RQ.list.find((x) => x.id === request);
+    if (!r) { const { data } = await sb.from("cdf_order_requests").select("*").eq("id", request).maybeSingle(); r = data; }
+    if (r) openRequest(r);
+    return;
+  }
   if (order) {
     let o = byId(order);
     if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("id", order).maybeSingle(); o = data; }

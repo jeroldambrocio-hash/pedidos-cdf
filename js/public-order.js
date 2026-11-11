@@ -23,7 +23,7 @@
     address: "", description: "", special_requests: "", card_message: "", payment_method: "" };
   const files = { reference: [], payment_proof: [] }; // { id, name, url, state: "sending" | "ready" | "failed", blob, file, error }
   let view = CFG.features?.publicOrder === true ? "form" : "off", place = null, picker = null, session = null, sessionWait = null;
-  let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "";
+  let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "";
 
   // ---------- server ----------
   const headers = (extra = {}) => ({ ...(CFG.anonKey ? { apikey: CFG.anonKey, Authorization: "Bearer " + CFG.anonKey } : {}), ...(session ? { "x-cdf-session": session } : {}), ...extra });
@@ -68,7 +68,7 @@
       return await fn();
     }
   };
-  const errorText = (e) => t({ network: "poErrNetwork", slow_down: "poErrSlow", quota: "poErrQuota", captcha: "poErrCaptcha", off: "poNotOpen", requests_not_open: "poNotOpen",
+  const errorText = (e) => t({ network: "poErrNetwork", slow_down: "poErrSlow", quota: "poErrQuota", captcha: "poErrCaptcha", off: "poNotOpen", requests_not_open: "poNotOpen", conflict: "poErrServer",
     search_unavailable: "locSearchFail", file_too_big: "poErrBig", not_an_image: "poErrNotImage", bad_dimensions: "poErrNotImage", empty_file: "poErrNotImage",
     session_lost: "poSessionExpired", origin: "poNotOpen", heic: "poErrHeic" }[e?.code] || "poErrServer");
 
@@ -284,7 +284,8 @@
       if (sending) return;
       sending = true; sendBtn.disabled = back.disabled = true; sendBtn.classList.add("busy"); msg.textContent = ""; sendBtn.textContent = t("poSending");
       try {
-        await withSession(() => post({ action: "submit", ...p }));
+        const answer = await withSession(() => post({ action: "submit", ...p }));
+        doneRef = answer?.ref ? "R" + answer.ref : "";
         view = "done"; touched = false;
         // Nothing of the request stays in the page once it is sent
         for (const k of Object.keys(v)) v[k] = typeof v[k] === "boolean" ? false : k === "mode" ? "delivery" : "";
@@ -325,7 +326,9 @@
   function render() {
     if (view === "off") root.replaceChildren(h("div", { class: "card po-done" }, h("h2", {}, t("poOffTitle")), h("p", {}, t("poOff"))));
     else if (view === "done") {
-      root.replaceChildren(h("div", { class: "card po-done", role: "status" }, h("h2", { tabIndex: -1 }, t("poDoneTitle")), h("p", {}, t("poDone")), h("p", { class: "note" }, t("poDoneNote"))));
+      root.replaceChildren(h("div", { class: "card po-done", role: "status" }, h("h2", { tabIndex: -1 }, t("poDoneTitle")),
+        doneRef ? h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, doneRef)) : null,
+        h("p", {}, t("poDone")), h("p", { class: "note" }, t("poDoneNote"))));
       root.querySelector("h2").focus();
     } else if (view === "review") renderReview();
     else renderForm();

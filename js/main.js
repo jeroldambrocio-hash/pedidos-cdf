@@ -1,7 +1,7 @@
 // Start-up: sign-in, who the person is, the sidebar and account menu, and the controls that live in the page itself.
 
 function show(view) {
-  for (const v of ["login", "noaccess", "ordersView", "teamView", "statsView", "chatView"]) {
+  for (const v of ["login", "noaccess", "ordersView", "teamView", "statsView", "chatView", "requestsView"]) {
     const n = $(v), on = v === view;
     if (on && n.hidden) { n.classList.remove("view"); void n.offsetWidth; n.classList.add("view"); }
     n.hidden = !on;
@@ -65,6 +65,8 @@ function stop() {
   S.sel = S.today; S.month = monthOf(S.today); S.period = null; // the next person starts on today, not on the day the last one was looking at
   $("q").value = ""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
+  if (RQ.channel) { sb.removeChannel(RQ.channel); RQ.channel = null; }
+  RQ.list = []; RQ.keys = {}; $("tabRequests").hidden = true;
   renderSub();
   closeSheet(true); setConnection(null); show("login");
   if (linkError) { $("lErr").textContent = t(linkError === "otp_expired" ? "linkExpired" : "linkFailed"); linkError = null; try { history.replaceState(null, "", location.pathname); } catch {} }
@@ -98,6 +100,7 @@ async function start(user) {
   setTab("orders");
   await loadOrders();
   subscribe();
+  await loadRequests(); subscribeRequests(); // Phase 3: requests from the public form (admins)
   await loadChat();
   syncPush(); paintPwa(); openDeepLink(); // this device's notifications follow whoever signs in; open what a notification pointed at
 }
@@ -128,13 +131,14 @@ function renderSub() {
   $("tabOrdersLabel").textContent = !S.me || isStaff() ? t("tabOrders") : isCarrier() ? t("myRoute") : t("myOrders");
   $("tabOrders").dataset.tip = $("tabOrdersLabel").textContent;
   $("tabStats").dataset.tip = t("tabStats"); $("tabTeam").dataset.tip = t("tabTeam");
+  if (S.me && reqOn()) paintRequestCount();
 }
 
 // ---------- sections ----------
 function setTab(tab) {
   S.tab = tab;
-  for (const [id, v] of [["tabOrders", "orders"], ["tabStats", "stats"], ["tabTeam", "team"], ["tabChat", "chat"]]) $(id).setAttribute("aria-current", tab === v ? "page" : "false");
-  show({ orders: "ordersView", team: "teamView", stats: "statsView", chat: "chatView" }[tab]);
+  for (const [id, v] of [["tabOrders", "orders"], ["tabStats", "stats"], ["tabTeam", "team"], ["tabChat", "chat"], ["tabRequests", "requests"]]) $(id).setAttribute("aria-current", tab === v ? "page" : "false");
+  show({ orders: "ordersView", team: "teamView", stats: "statsView", chat: "chatView", requests: "requestsView" }[tab]);
   window.scrollTo({ top: 0 });
   render();
 }
@@ -146,6 +150,8 @@ $("brandHomeMobile").onclick = goHome;
 $("tabTeam").onclick = () => setTab("team");
 $("tabStats").onclick = () => setTab("stats");
 $("tabChat").onclick = () => setTab("chat");
+$("tabRequests").onclick = () => { if (reqOn()) setTab("requests"); };
+$("reqFilter").addEventListener("click", (e) => { const b = e.target.closest("button[data-f]"); if (b) setRequestFilter(b.dataset.f); });
 $("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { setStatsPeriod(b.dataset.days); } });
 for (const id of ["statsFrom", "statsTo"]) $(id).addEventListener("change", setStatsDates);
 $("periodSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) { setPeriod(b.dataset.p); if (b.dataset.p === "custom") $("periodFrom").focus({ preventScroll: true }); } });
