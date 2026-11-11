@@ -564,6 +564,19 @@ function openEditor(o, { copyFrom, draft } = {}) {
   const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr, expand: true });
   const payOn = priceEditable() && S.cap.paid;
   const iPayment = el("input", { id: "f-payment", type: "number", inputmode: "decimal", min: 0.01, step: 0.01, max: 99999999.99 });
+  // A new order can be saved with its first payment (down payment): order, price and payment go to the
+  // server as one operation (cdf_create_order), so there is never an order whose price or payment got lost.
+  const createOn = isNew && isAdmin() && !!S.cap.create, downOn = createOn && payOn;
+  const iDown = el("input", { id: "f-down", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 99999999.99, placeholder: "0" });
+  const iMethod = el("select", { id: "f-method" }, el("option", { value: "" }, t("payMethodPick")),
+    ...PAY_METHODS.map((m) => el("option", { value: m }, t("pm_" + m))));
+  const iPayRef = el("input", { id: "f-payref", maxlength: 120, autocomplete: "off", placeholder: t("payRefPh") });
+  const iPaidAt = el("input", { id: "f-paidat", type: "date", value: manilaToday(), max: manilaToday(), min: "2020-01-01" });
+  const downAmount = () => (iDown.value === "" ? 0 : +iDown.value);
+  // The same key (and order id) for every attempt at saving this new order. It travels with the draft, so an
+  // order restored after the tab closed mid-save is still recognised by the server instead of being duplicated.
+  let createReq = draft?._req?.key && draft._req.id ? { key: draft._req.key, id: draft._req.id, proofs: null } : null, createSettled = false;
+  const draftNow = () => ({ ...collect(), ...(createReq ? { _req: { key: createReq.key, id: createReq.id } } : {}) });
   const payMessage = el("p", { class: "note", role: "status" });
   const payLeft = el("output", { class: "pay-left", id: "f-payleft" });
   const payTotal = el("output", { class: "note" });
@@ -583,12 +596,24 @@ function openEditor(o, { copyFrom, draft } = {}) {
   }
   function paintPay() {
     const total = iAmount.value === "" ? null : +iAmount.value;
-    const paid = +(paymentRow?.paid ?? o?.paid ?? 0);
+    const paid = downOn ? downAmount() || 0 : +(paymentRow?.paid ?? o?.paid ?? 0);
     const left = total == null ? null : (Math.round(total * 100) - Math.round(paid * 100)) / 100;
     payTotal.textContent = t("payAccumulated", { sum: paymentPesos(paid) });
     payLeft.className = "pay-left " + (left === 0 ? "ok" : "due");
-    payLeft.textContent = left == null ? t("payNoTotal") : left < 0 ? t("payPriceBelowPaid") : t("payLeft", { sum: paymentPesos(left) });
+    payLeft.textContent = left == null ? t("payNoTotal") : left < 0 ? t(downOn ? "payAboveDue" : "payPriceBelowPaid") : t(downOn ? "payBalance" : "payLeft", { sum: paymentPesos(left) });
+    if (downOn) { const none = !(downAmount() > 0); downMore.classList.toggle("is-collapsed", none); downMore.inert = none; }
   }
+  // Method, date, reference and proof only matter once an amount is typed
+  const downMore = el("div", { class: "pay-initial-more collapse is-collapsed" },
+    el("div", { class: "row2" }, reqField(t("payMethod"), iMethod), reqField(t("payDate"), iPaidAt)),
+    field(t("payRef"), iPayRef), proofEditor);
+  const downBlock = el("div", { class: "pay-initial" },
+    field(t("payInitial"), el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iDown, el("span", { class: "cur" }, "PHP"))),
+    downMore, payLeft, payMessage);
+  iDown.addEventListener("input", paintPay);
+  const paymentMeta = (entry) => [entry.method ? (PAY_METHODS.includes(entry.method) ? t("pm_" + entry.method) : entry.method) : null,
+    entry.reference ? t("payRefShort", { ref: entry.reference }) : null,
+    entry.paid_at ? t("payPaidOn", { date: new Intl.DateTimeFormat(LANG, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(entry.paid_at + "T00:00:00Z")) }) : null].filter(Boolean).join(" · ");
   const paymentDate = (entry) => new Intl.DateTimeFormat(LANG, { dateStyle: "medium", timeStyle: "short", timeZone: TZ }).format(new Date(entry.created_at));
   function paintPaymentHistory(entries) {
     const reversed = new Set(entries.map((entry) => entry.reverses));
@@ -607,6 +632,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
       return el("div", { class: "payment-movement" },
         el("div", { class: "payment-summary" }, el("span", {}, t(kind)), el("strong", {}, paymentPesos(entry.amount))),
         entry.created_at ? el("small", { class: "note" }, paymentDate(entry), " · ", entry.by_email) : null,
+        paymentMeta(entry) ? el("small", { class: "note pay-meta" }, paymentMeta(entry)) : null,
         entry.reason ? el("p", { class: "note" }, entry.reason) : null,
         entry.id && entry.amount > 0 && !reversed.has(entry.id) ? el("details", { class: "payment-correction" },
           el("summary", {}, t("payCorrect")),
@@ -768,7 +794,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     return row;
   };
   let initial = null;
-  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty || !!payProofs?.dirty || !!iPayment.value || paymentBusy || !!pendingPayment;
+  const dirty = () => JSON.stringify(collect()) !== JSON.stringify(initial) || shot.dirty || extras.dirty || proof.dirty || !!payProofs?.dirty || !!iPayment.value || paymentBusy || !!pendingPayment || !!iDown.value || !!iPayRef.value.trim();
 
   const linkBlock = isNew ? el("p", { class: "note", style: "margin:0" }, t("linkAfterSave")) : (() => {
     const li = el("input", { id: "f-link", class: "input", readonly: true, value: trackUrl(o), onfocus: (e) => e.target.select(), "aria-label": t("customerLink") });
@@ -810,6 +836,19 @@ function openEditor(o, { copyFrom, draft } = {}) {
     }
     if (noChannel) { iChan.scrollIntoView({ block: "center", behavior: prefersReducedMotion() ? "auto" : "smooth" }); iChan.querySelector(".chan-opt")?.focus(); return t("chanRequired"); }
     if (priceEditable() && !iAmount.validity.valid) { iAmount.focus(); return t("payInvalidPrice"); }
+    // The first payment: never a zero movement; never more than the total; how and when it was paid are required
+    let payment = null;
+    if (downOn) {
+      const down = downAmount();
+      if (!iDown.validity.valid || !(down >= 0)) { iDown.closest(".field").classList.add("invalid"); iDown.focus(); return t("payInitialInvalid"); }
+      if (down > 0) {
+        if (row.amount == null) { iAmount.focus(); return t("payInitialNeedsTotal"); }
+        if (Math.round(down * 100) > Math.round(row.amount * 100)) { iDown.closest(".field").classList.add("invalid"); iDown.focus(); return t("payAboveDue"); }
+        if (!iMethod.value) { iMethod.closest(".field").classList.add("invalid"); iMethod.focus(); return t("payMethodRequired"); }
+        if (!iPaidAt.value || !iPaidAt.validity.valid) { iPaidAt.closest(".field").classList.add("invalid"); iPaidAt.focus(); return t("payDateInvalid"); }
+        payment = { amount: down, method: iMethod.value, reference: iPayRef.value.trim() || null, paid_at: iPaidAt.value };
+      } else if (payProofs?.dirty || iPayRef.value.trim()) { iDown.closest(".field").classList.add("invalid"); iDown.focus(); return t("payInitialNoAmount"); }
+    }
     if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { moreDetails.open = true; iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
     if (iDrop && iDrop.value.trim() && !dropPoint()) { moreDetails.open = true; paintDrop(); iDrop.focus(); return t("dropBad"); }
     // Things a rider booking will need: a heads-up, never a block. Only for orders still to come.
@@ -831,7 +870,42 @@ function openEditor(o, { copyFrom, draft } = {}) {
       && !(await okToAssign(dbRow.vendor_email, [dbRow.date]))) return;
 
     let saved, error;
-    if (isNew) ({ data: saved, error } = await sb.from("cdf_orders").insert(dbRow).select().single());
+    if (createOn) {
+      // One request, one transaction. The key and the order id stay the same for every attempt from this
+      // form: if the answer got lost and the order is already there, the server returns it instead of
+      // creating a second one; if what is sent no longer matches what was saved, it says so.
+      createReq ||= { key: crypto.randomUUID(), id: crypto.randomUUID(), proofs: null };
+      if (payment) {
+        try { createReq.proofs ??= (await payProofs.upload(createReq.id)) || []; }
+        catch (e) { return e.message; }
+        payment.proofs = createReq.proofs;
+      }
+      const res = await sb.rpc("cdf_create_order", { p_request: createReq.key, p_order: { id: createReq.id, ...dbRow },
+        p_price: priceEditable() ? row.amount : null, p_payment: payment }).then((r) => r, (e) => ({ error: { message: String(e?.message || e) } }));
+      if (res.error || !res.data?.order) {
+        const e = res.error || { message: "" };
+        // Refused by the database: nothing was saved, so the files uploaded for it go too
+        if (e.code || /^cdf_/.test(e.message)) {
+          if (createReq.proofs?.length) await sb.storage.from("cdf-pagos").remove(createReq.proofs);
+          createReq.proofs = null;
+          if (e.message === "cdf_operation_conflict" || e.message === "cdf_operation_gone") {
+            createSettled = true; clearTimeout(draftT); writeDraft(null); loadOrders(); return t("createConflict");
+          }
+          if (e.code === "23505") return /cdf_orders_num_key/.test(e.message + (e.details || "")) ? t("dupNum", { num: row.num }) : t("saveFail", { msg: e.message });
+          const key = { cdf_payment_above_due: "payAboveDue", cdf_invalid_payment: "payInitialInvalid", cdf_invalid_payment_proofs: "photoUploadFail" }[e.message];
+          return key ? t(key) : t("saveFail", { msg: e.code === "42501" ? t("createForbidden") : e.message });
+        }
+        // No answer: it may or may not have been saved. Saving again asks for the same operation.
+        if (payProofs) payProofsBox.inert = !!createReq.proofs?.length;
+        clearTimeout(draftT); writeDraft(draftNow());
+        return t("createRetry");
+      }
+      saved = res.data.order;
+      const price = res.data.price;
+      Object.assign(saved, { amount: price?.amount ?? null, paid: price?.paid ?? null, pay_proofs: price?.pay_proofs || [] });
+      if (price) invalidateStats();
+    }
+    else if (isNew) ({ data: saved, error } = await sb.from("cdf_orders").insert(dbRow).select().single());
     else {
       // Only what this person changed, so a status set meanwhile by the florist or driver is never undone.
       const changed = Object.fromEntries(Object.entries(dbRow).filter(([k, v]) => JSON.stringify(v ?? "") !== JSON.stringify(initial[k] ?? "")));
@@ -859,7 +933,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
     // Only a price that was typed or changed is written: an order whose price never loaded keeps it
-    if (priceEditable() && (isNew || row.amount !== initial.amount)) {
+    if (!createOn && priceEditable() && (isNew || row.amount !== initial.amount)) {
       try {
         await savePrice(saved.id, { amount: row.amount }, isNew ? null : { amount: initial.amount });
         saved.amount = row.amount;
@@ -918,14 +992,14 @@ function openEditor(o, { copyFrom, draft } = {}) {
     iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
     iDrop ? field(t("dropPasteLabel"), iDrop, dropNote) : null,
     extras.node ? el("div", { class: "compact-photos" }, field(t("morePhotos"), extras.node)) : null,
-    payOn ? proofEditor : null));
+    payOn && !downOn ? proofEditor : null));
   const cur = o ? stepOf(o) : 0;
   const amountInput = el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount,
     el("span", { class: "cur" }, "PHP"));
   const node = el("form", { class: newOrderForm ? "sheet new-order-sheet" : "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
     e.preventDefault();
     if (paymentBusy || pendingPayment) return;
-    if (iPayment.value || payProofs?.dirty) { payMessage.textContent = t("payApplyFirst"); return; }
+    if (!downOn && (iPayment.value || payProofs?.dirty)) { payMessage.textContent = t("payApplyFirst"); return; }
     saveBtn.disabled = true; saveBtn.classList.add("busy");
     let msg;
     try { msg = await save(); } catch (x) { msg = t("saveFail", { msg: x.message || String(x) }); }
@@ -958,15 +1032,17 @@ function openEditor(o, { copyFrom, draft } = {}) {
       ...(newOrderForm ? [
         el("section", { class: "compact-photos" }, el("div", { class: priceEditable() ? "new-order-extras" : "" },
           field(t("photo"), shot.node),
-          priceEditable() ? field(t("payOrderTotal"), amountInput) : null), moreDetails)
+          priceEditable() ? field(t("payOrderTotal"), amountInput) : null),
+          downOn ? downBlock : null, moreDetails)
       ] : [
       el("section", { class: "compact-photos" }, el("h3", {}, t("photosH")),
         field(t("photo"), shot.node),
         isNew ? null : field(t("proofPhoto"), proof.node)),
       priceEditable() ? el("section", { class: "pay" }, el("h3", {}, t("payH")),
         field(t("payOrderTotal"), amountInput),
-        payOn ? el("div", { class: "payment-summary" }, payTotal, payLeft) : null,
-        payOn ? paymentEditor : null, payOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails)
+        payOn && !downOn ? el("div", { class: "payment-summary" }, payTotal, payLeft) : null,
+        downOn ? downBlock : null,
+        payOn ? paymentEditor : null, payOn && !downOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails)
       ]),
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
@@ -979,7 +1055,7 @@ function openEditor(o, { copyFrom, draft } = {}) {
 
   // New orders keep a draft in this browser until they are saved, in case the tab closes.
   let draftT;
-  function keepDraft() { if (!isNew || !initial) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? collect() : null), 400); }
+  function keepDraft() { if (!isNew || !initial || createSettled) return; clearTimeout(draftT); draftT = setTimeout(() => writeDraft(dirty() ? draftNow() : null), 400); }
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   openLayer(node, { dirty, dispose: () => { [shot, extras, proof, payProofs].forEach((p) => p?.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
@@ -994,7 +1070,8 @@ function openEditor(o, { copyFrom, draft } = {}) {
     if (initial) { initial.drop_lat = e.detail.lat; initial.drop_lng = e.detail.lng; }
   });
   sheet.order = o;
-  if (payOn && isNew) payMessage.textContent = t("payAfterSave");
+  if (downOn) { resetProofs(); proofEditor.hidden = false; }
+  else if (payOn && isNew) payMessage.textContent = t("payAfterSave");
   if (payOn && !isNew) { resetProofs(); loadPayments(); }
   if (!payOn && priceEditable() && o?.id && o.amount === undefined) {
     sb.from("cdf_order_prices").select("amount").eq("order_id", o.id).maybeSingle().then(({ data }) => {

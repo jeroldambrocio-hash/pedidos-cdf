@@ -31,6 +31,18 @@ Shopify sigue siendo opcional: requiere desplegar `cdf-shopify`, configurar `SHO
 
 Estadísticas: fechas de entrega de Manila, archivados incluidos. «A la primera» = entregados sin reintento / entregados, fallidos o con intentos. «Clientes que repiten» = compradores del periodo con más de un pedido en todo su historial hasta hoy. Con precios, el ticket medio usa pedidos con importe conocido. El gráfico de 90 días agrupa por semanas.
 
+### Fase 1 · Anticipo al crear el pedido (pendiente de aprobar y aplicar)
+
+`supabase/migrations/20261111090000_cdf_create_order_with_payment.sql` añade, sin borrar ni renombrar nada:
+
+- `cdf_create_order(p_request, p_order, p_price, p_payment)`: pedido, precio y pago inicial en una sola transacción, solo admin. Si algo falla no queda nada. Repetir la misma petición (doble pulsación, respuesta perdida) devuelve el pedido ya creado; la misma clave con otro contenido da `cdf_operation_conflict`.
+- `cdf_operation_keys`: las claves de esas operaciones. Sin acceso desde el cliente.
+- `cdf_record_payment` con tres campos más por movimiento: `method`, `reference` y `paid_at` (fecha declarada del pago; `created_at` sigue siendo el momento del registro y `by_email` quién lo registró). La llamada de ocho argumentos del cliente publicado sigue funcionando igual; los movimientos antiguos no cambian.
+
+El cliente detecta la función al cargar. Sin la migración, el alta de pedidos funciona como antes (pedido y precio por separado, pagos después de guardar), así que el cliente puede publicarse antes o después. Con ella, el formulario de pedido nuevo muestra pago inicial, método, fecha, referencia, justificantes y saldo pendiente.
+
+No aplicar con el identificador cambiado si ya consta en producción: comprobar antes `supabase_migrations.schema_migrations`. La migración se detiene sola si falta la de pagos incrementales o si ya está aplicada.
+
 ## Probar en local
 
 Necesitas un servidor local, porque las rutas empiezan por `/`:
@@ -52,6 +64,16 @@ NODE_PATH=.test-tools/node_modules node tests/ui-smoke.cjs
 ```
 
 Usan un Supabase falso dentro del navegador y Google Chrome. Las capturas quedan en `.impeccable/review/`.
+
+Base de datos (PostgreSQL temporal, nunca Supabase):
+
+```bash
+npm i --prefix .test-tools @electric-sql/pglite embedded-postgres pg
+NODE_PATH=.test-tools/node_modules node tests/create-order-db.cjs           # reglas, permisos, idempotencia, rollback
+NODE_PATH=.test-tools/node_modules node tests/create-order-concurrency.cjs  # varias sesiones a la vez, en un PostgreSQL local real
+```
+
+Demo con datos ficticios, sin servidor: `node tests/build-demo.cjs .test-tools/demo --single demo.html` genera un único HTML que se abre con doble clic (no puede conectar con Supabase: no lleva ni la dirección ni la clave).
 
 ## Publicar
 

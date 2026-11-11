@@ -120,6 +120,8 @@ const norm = (v) => String(v ?? "").normalize("NFD").replace(/[̀-ͯ]/g, "").toL
 const pricesOn = () => S.cap.amount && isAdmin() && pref("cdf-prices") === "on";
 // The bouquet price field in the editor: always there for the admin, whatever "Show prices" says
 const priceEditable = () => S.cap.amount && isAdmin();
+// Ways a payment can come in (the stored value; labels are pm_<value> in i18n.js)
+const PAY_METHODS = ["gcash", "maya", "bank", "cash", "card", "other"];
 const paymentPesos = (n) => "₱" + Number(n).toLocaleString("en-PH", { maximumFractionDigits: 2 });
 const peso = (n) => "₱" + Math.round(n || 0).toLocaleString("en-PH");
 
@@ -192,7 +194,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d, b, v, pay] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v, pay, mk] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -204,8 +206,11 @@ async function detectSchema() {
     sb.from("cdf_members").select("branch").limit(1), // 035: each person's branch of the shop
     sb.from("cdf_orders").select("vehicle").limit(1), // 036: Lalamove vehicle per order
     sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
+    // Order + price + first payment in one step: an empty call only says whether the function is there
+    isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, () => ({})) : {},
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, paid: isAdmin() && !m.error && !pay.error };
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, paid: isAdmin() && !m.error && !pay.error,
+    create: mk?.data?.available === true };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.

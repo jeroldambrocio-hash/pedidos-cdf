@@ -144,6 +144,29 @@ window.supabase = { createClient: () => ({
     } };
     return (async () => {
     window.__calls.push({ rpc: name, args });
+    // Order + price + first payment in one step (same answers as the database function)
+    if (name === "cdf_create_order") {
+      if (window.__noCreateRpc) return { error: { code: "PGRST202", message: "Could not find the function public.cdf_create_order" } };
+      if (window.__role && window.__role !== "admin") return { error: { code: "42501", message: "Forbidden" } };
+      if (!args.p_request && !args.p_order) return { data: { available: true } };
+      if (!args.p_request || !args.p_order) return { error: { code: "P0001", message: "cdf_invalid_order" } };
+      if (window.__createOffline) return { error: { message: "TypeError: Failed to fetch" } };
+      const keys = (window.__opKeys ||= {}), print = JSON.stringify([args.p_order, args.p_price, args.p_payment]);
+      const answer = (k, replayed) => ({ data: JSON.parse(JSON.stringify({ order: window.__orders.find((o) => o.id === k.id), price: window.__prices.find((p) => p.order_id === k.id) || null, replayed })) });
+      if (keys[args.p_request]) return keys[args.p_request].print === print ? answer(keys[args.p_request], true) : { error: { code: "P0001", message: "cdf_operation_conflict" } };
+      const pay = args.p_payment;
+      if (pay && (!(pay.amount > 0) || Math.round(pay.amount * 100) !== pay.amount * 100 || !pay.method || !/^\d{4}-\d{2}-\d{2}$/.test(pay.paid_at || "") || args.p_price == null)) return { error: { code: "P0001", message: "cdf_invalid_payment" } };
+      if (pay && pay.amount > args.p_price) return { error: { code: "P0001", message: "cdf_payment_above_due" } };
+      if (window.__orders.some((o) => o.num === args.p_order.num)) return { error: { code: "23505", message: 'duplicate key value violates unique constraint "cdf_orders_num_key"' } };
+      const order = { ...base, proof_path: null, ...args.p_order, code: "new" + String(Date.now()).slice(-7), updated_at: new Date().toISOString() };
+      window.__orders.push(order);
+      if (args.p_price != null) window.__prices.push({ order_id: order.id, amount: args.p_price, paid: pay ? pay.amount : null, pay_proofs: [],
+        payment_history: pay ? [{ id: args.p_request, kind: "payment", amount: pay.amount, created_at: new Date().toISOString(), by_email: "admin@example.com",
+          proofs: pay.proofs || [], reverses: null, reason: null, method: pay.method, reference: pay.reference || null, paid_at: pay.paid_at }] : [] });
+      keys[args.p_request] = { id: order.id, print };
+      if (window.__createResponseLost) { window.__createResponseLost = false; return { error: { message: "TypeError: Failed to fetch" } }; }
+      return answer(keys[args.p_request], false);
+    }
     if (name === "cdf_record_payment") {
       if (window.__role && window.__role !== "admin") return { error: { code: "42501" } };
       const price = window.__prices.find(p => p.order_id === args.p_order) ||
@@ -528,8 +551,186 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       // No florist yet: it asks once ("Save anyway") so a rider can't be booked by surprise
       await p.locator(".dialog").getByRole("button", { name: "Save anyway" }).click();
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
-      const ins = (await calls(p)).find((c) => c.action === "insert");
-      assert.equal(ins.row.vendor_email, null); assert.equal(ins.row.buyer_phone, "+639175550101"); assert.equal(ins.row.customer_name, "Buyer test");
+      // The order goes to the server as one operation (order + price + first payment), never as a bare insert
+      assert(!(await calls(p)).some((c) => c.action === "insert" && c.table === "cdf_orders"));
+      const ins = (await calls(p)).find((c) => c.rpc === "cdf_create_order" && c.args.p_order);
+      assert.equal(ins.args.p_order.vendor_email, null); assert.equal(ins.args.p_order.buyer_phone, "+639175550101"); assert.equal(ins.args.p_order.customer_name, "Buyer test");
+      assert.equal(ins.args.p_price, null); assert.equal(ins.args.p_payment, null);
+    });
+    const fillNew = async (q, num, { total, down } = {}) => {
+      await q.evaluate(() => localStorage.removeItem("cdf-draft"));
+      await q.locator("#newBtn").click();
+      await q.locator("#f-num").fill(num);
+      await q.locator(".slot-pick select").nth(0).selectOption("540");
+      await q.locator("#f-vendor").selectOption("ana@example.com");
+      await q.locator("#f-bname").fill("Down Payer"); await q.locator("#f-bphone").fill("0917 555 0202");
+      await q.locator("#f-same").check();
+      await q.locator("#f-addr").fill("Katipunan Ave, Quezon City");
+      await q.locator(".chan-opt[data-c=Instagram]").click();
+      if (total != null) await q.locator("#f-amount").fill(String(total));
+      if (down != null) await q.locator("#f-down").fill(String(down));
+    };
+    const submit = (q) => q.locator(".sheet button[type=submit]").click();
+    const creates = async (q) => (await calls(q)).filter((c) => c.rpc === "cdf_create_order" && c.args.p_order);
+    await step("Phase 1 · Down payment while creating: balance, required method, one request, ₱2,500 − ₱2,000 = ₱500", async () => {
+      await p.evaluate(() => (window.__calls = []));
+      await fillNew(p, "2001");
+      const more = p.locator(".pay-initial-more"), left = p.locator(".new-order-sheet #f-payleft");
+      assert(await more.evaluate((x) => x.classList.contains("is-collapsed") && x.inert), "method, date and proof wait for an amount");
+      assert.equal(await left.innerText(), "Add the price to see what's left");
+      await p.locator("#f-amount").fill("2500");
+      assert.match(await left.innerText(), /Remaining balance: ₱2,500$/);
+      await p.locator("#f-down").fill("3000");
+      assert.equal(await left.innerText(), "The payment exceeds the remaining balance.");
+      await submit(p);
+      assert.equal(await p.locator(".sheet .err").innerText(), "The payment exceeds the remaining balance.");
+      await p.locator("#f-down").fill("2000");
+      assert.match(await left.innerText(), /Remaining balance: ₱500$/);
+      assert(!(await more.evaluate((x) => x.classList.contains("is-collapsed") || x.inert)));
+      assert.equal(await p.locator("#f-paidat").inputValue(), await p.evaluate(() => manilaToday()));
+      await submit(p);
+      assert.equal(await p.locator(".sheet .err").innerText(), "Choose the payment method.");
+      assert.equal((await creates(p)).length, 0, "nothing is sent while the form is incomplete");
+      await p.getByRole("combobox", { name: "Payment method" }).selectOption({ label: "GCash" });
+      await p.getByRole("textbox", { name: "Payment reference (optional)" }).fill("GC-778812");
+      await p.locator(".pay-initial input[type=file]").setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: fs.readFileSync(path.join(root, "img/emblem.png")) });
+      await p.locator(".pay-initial .photo-tile img").waitFor();
+      await capture(p, "new-order-downpayment-desktop");
+      await p.setViewportSize({ width: 375, height: 812 });
+      await p.locator(".pay-initial").scrollIntoViewIfNeeded();
+      await capture(p, "new-order-downpayment-mobile");
+      assert(await p.locator("#f-down").evaluate((x) => x.getBoundingClientRect().height >= 40), "touch-sized amount field");
+      await p.setViewportSize({ width: 1440, height: 1000 });
+      await submit(p);
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      const sent = await creates(p);
+      assert.equal(sent.length, 1);
+      const { p_order, p_price, p_payment } = sent[0].args;
+      assert.equal(p_price, 2500);
+      assert.deepEqual({ ...p_payment, proofs: p_payment.proofs.length }, { amount: 2000, method: "gcash", reference: "GC-778812", paid_at: await p.evaluate(() => manilaToday()), proofs: 1 });
+      assert(p_payment.proofs[0].startsWith(p_order.id + "/"), "the proof is filed under the new order");
+      assert(!("amount" in p_order) && !("status" in p_order));
+      const all = await calls(p);
+      assert(!all.some((c) => c.action === "insert" && c.table === "cdf_orders") && !all.some((c) => c.action === "upsert" && c.table === "cdf_order_prices") && !all.some((c) => c.rpc === "cdf_record_payment"),
+        "no separate insert, price write or payment call");
+      const saved = await p.evaluate(() => { const o = window.__orders.filter((x) => x.num === "2001"); return { n: o.length, price: window.__prices.find((x) => x.order_id === o[0].id) }; });
+      assert.equal(saved.n, 1); assert.equal(saved.price.amount - saved.price.paid, 500); assert.equal(saved.price.payment_history.length, 1);
+      // Opened again: the movement shows how and when it was paid, and more payments use the usual flow
+      await p.locator(".order", { hasText: "#2001" }).locator(".o-name").click();
+      await p.locator(".payment-movement").waitFor();
+      assert.match(await p.locator(".payment-movement .pay-meta").innerText(), /^GCash · Ref\. GC-778812 · paid on /);
+      assert.match(await p.locator(".pay #f-payleft").innerText(), /₱500$/);
+      assert(await p.locator("#f-payment").isVisible() && (await p.locator("#f-down").count()) === 0);
+      await p.keyboard.press("Escape");
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+    });
+    await step("Phase 1 · No down payment writes no zero movement; a stray reference or proof is questioned", async () => {
+      await p.evaluate(() => (window.__calls = []));
+      await fillNew(p, "2002", { total: 1800, down: 0 });
+      await submit(p);
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      const [{ args }] = await creates(p);
+      assert.equal(args.p_price, 1800); assert.equal(args.p_payment, null);
+      assert.deepEqual(await p.evaluate(() => window.__prices.find((x) => x.order_id === window.__orders.find((o) => o.num === "2002").id).payment_history), []);
+      await fillNew(p, "2003", { total: 1800 });
+      await p.locator("#f-down").fill("5"); await p.locator("#f-payref").fill("REF"); await p.locator("#f-down").fill("");
+      await submit(p);
+      assert.match(await p.locator(".sheet .err").innerText(), /reference or proof without an amount/);
+      await p.locator("#f-down").fill("10.005");
+      await submit(p);
+      assert.match(await p.locator(".sheet .err").innerText(), /Check the initial payment/);
+      assert.equal((await creates(p)).length, 1, "only the first order was sent");
+      await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+    });
+    await step("Phase 1 · A lost answer: saving again repeats the same request, one order, one payment, one upload", async () => {
+      await p.evaluate(() => { window.__calls = []; window.__createResponseLost = true; });
+      await fillNew(p, "2004", { total: 2500, down: 2000 });
+      await p.locator("#f-method").selectOption("bank");
+      await p.locator(".pay-initial input[type=file]").setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: fs.readFileSync(path.join(root, "img/emblem.png")) });
+      await p.locator(".pay-initial .photo-tile img").waitFor();
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "Press Save again" }).waitFor();
+      assert.equal(await p.evaluate(() => window.__orders.filter((x) => x.num === "2004").length), 1, "it did reach the server");
+      await submit(p);
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      const sent = await creates(p);
+      assert.equal(sent.length, 2); assert.deepEqual(sent[1].args, sent[0].args);
+      assert.equal((await calls(p)).filter((c) => c.upload === "cdf-pagos").length, 1);
+      const saved = await p.evaluate(() => { const o = window.__orders.filter((x) => x.num === "2004"); return { n: o.length, price: window.__prices.filter((x) => x.order_id === o[0].id) }; });
+      assert.equal(saved.n, 1); assert.equal(saved.price.length, 1); assert.equal(saved.price[0].paid, 2000); assert.equal(saved.price[0].payment_history.length, 1);
+      assert.equal(await p.locator(".order", { hasText: "#2004" }).count(), 1);
+    });
+    await step("Phase 1 · Lost answer, then edited: the server says it was already saved instead of creating a second order", async () => {
+      await p.evaluate(() => { window.__calls = []; window.__createResponseLost = true; });
+      await fillNew(p, "2005", { total: 900, down: 900 });
+      await p.locator("#f-method").selectOption("cash");
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "Press Save again" }).waitFor();
+      await p.locator("#f-bname").fill("Someone Else");
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "already saved a moment ago" }).waitFor();
+      assert.equal(await p.evaluate(() => window.__orders.filter((x) => x.num === "2005").length), 1);
+      assert.equal(await p.evaluate(() => localStorage.getItem("cdf-draft")), null, "no draft is left to save it a second time");
+      await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      await p.locator(".order", { hasText: "#2005" }).waitFor();
+    });
+    await step("Phase 1 · A draft restored after a lost answer still carries its request: saving it returns the order already made", async () => {
+      await p.evaluate(() => { window.__calls = []; window.__createResponseLost = true; });
+      await fillNew(p, "2007", { total: 1200 });
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "Press Save again" }).waitFor();
+      await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      await p.locator("#newBtn").click();
+      await p.locator(".dialog").getByRole("button", { name: "Bring it back" }).click();
+      await p.locator("#f-num").fill("2007"); await p.locator("#f-amount").fill("1200");
+      await submit(p);
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      const sent = await creates(p);
+      assert.equal(sent.length, 2); assert.equal(sent[1].args.p_request, sent[0].args.p_request); assert.equal(sent[1].args.p_order.id, sent[0].args.p_order.id);
+      assert.equal(await p.evaluate(() => window.__orders.filter((x) => x.num === "2007").length), 1);
+    });
+    await step("Phase 1 · A refusal from the server saves nothing and removes the uploaded proof; offline keeps the form", async () => {
+      await p.evaluate(() => (window.__calls = []));
+      await fillNew(p, "0124", { total: 500, down: 100 });
+      await p.locator("#f-method").selectOption("maya");
+      await p.locator(".pay-initial input[type=file]").setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: fs.readFileSync(path.join(root, "img/emblem.png")) });
+      await p.locator(".pay-initial .photo-tile img").waitFor();
+      const before = await p.evaluate(() => [window.__orders.length, window.__prices.length]);
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "#0124" }).waitFor();
+      assert.deepEqual(await p.evaluate(() => [window.__orders.length, window.__prices.length]), before);
+      const up = (await calls(p)).find((c) => c.upload === "cdf-pagos"), gone = (await calls(p)).find((c) => c.remove === "cdf-pagos");
+      assert.deepEqual(gone.paths, [up.path]);
+      await p.evaluate(() => { window.__createOffline = true; });
+      await p.locator("#f-num").fill("2006");
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "Press Save again" }).waitFor();
+      assert.equal(await p.locator("#f-down").inputValue(), "100");
+      await p.evaluate(() => { window.__createOffline = false; });
+      await submit(p);
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      assert.equal(await p.evaluate(() => window.__prices.find((x) => x.order_id === window.__orders.find((o) => o.num === "2006").id).paid), 100);
+      assert.equal((await calls(p)).filter((c) => c.upload === "cdf-pagos").length, 2, "the proof is uploaded again for the attempt that succeeds");
+    });
+    await step("Phase 1 · A database without the new function keeps the old flow (client can be published first)", async () => {
+      const q = await open("admin", { before: { __noCreateRpc: true } });
+      await fillNew(q, "3001", { total: 700 });
+      assert.equal(await q.locator("#f-down").count(), 0);
+      await submit(q);
+      await q.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      const all = await calls(q);
+      assert(all.some((c) => c.action === "insert" && c.table === "cdf_orders") && all.some((c) => c.action === "upsert" && c.table === "cdf_order_prices"));
+      assert.equal((await creates(q)).length, 0);
+      await q.context().close();
+    });
+    await step("Phase 1 · A florist is never offered prices or the down payment", async () => {
+      const q = await open("vendor");
+      assert.equal(await q.locator("#newBtn").isVisible().catch(() => false), false);
+      assert(!(await calls(q)).some((c) => c.rpc === "cdf_create_order"), "not even the capability check is made for a florist");
+      await q.context().close();
     });
     await step("Invalid phone is caught before saving", async () => {
       await p.locator("#newBtn").click();
