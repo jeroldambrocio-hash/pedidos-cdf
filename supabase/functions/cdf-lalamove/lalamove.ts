@@ -72,10 +72,13 @@ export const validPhone = (p: string) => /^\+[1-9]\d{6,14}$/.test(p);
 
 // Lalamove status → the panel's delivery field. Only moves forward; anything else leaves the order alone.
 // ASSIGNING_DRIVER / ON_GOING (rider heading to the shop): no change · PICKED_UP: In transit · COMPLETED: Delivered.
+// A rider booked while the order was still "Preparing" (nobody pressed "Mark ready"): once the rider has the
+// bouquet it was ready, so the order is marked Ready together with the move.
 export function orderUpdateFor(llStatus: string, order: { status: string; delivery: string; cancelled_at?: string | null }) {
-  if (order.cancelled_at || order.status !== "Ready") return null;
-  if (llStatus === "PICKED_UP" && order.delivery === "-") return { delivery: "In transit" };
-  if (llStatus === "COMPLETED" && (order.delivery === "-" || order.delivery === "In transit")) return { delivery: "Delivered" };
+  if (order.cancelled_at || (order.status !== "Ready" && order.status !== "Preparing")) return null;
+  const ready = order.status === "Preparing" ? { status: "Ready" } : {};
+  if (llStatus === "PICKED_UP" && order.delivery === "-") return { ...ready, delivery: "In transit" };
+  if (llStatus === "COMPLETED" && (order.delivery === "-" || order.delivery === "In transit")) return { ...ready, delivery: "Delivered" };
   return null;
 }
 
