@@ -557,6 +557,8 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   // Florists: available on the order's date first, absences marked; redone when the date changes
   const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
   iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
+  // Phase 4: the shop nearest to the delivery point, suggested beside the florist picker (admins)
+  const shops = isAdmin() && S.cap.ranking && typeof shopSuggestion === "function" ? shopSuggestion(iVend) : null;
   const iCarr = S.cap.carrier && feature("drivers") ? sel("f-carrier", [["", t("anyCarrier")], ...S.members.filter((m) => m.role === "carrier").map((m) => [m.email, m.name])], f.carrier_email) : null;
   const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true, expand: true });
   // Extra photos (030); a stand-in that never changes anything while the column isn't there
@@ -1029,6 +1031,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       el("section", {},
         el("div", { class: "row2 when-row" }, reqField(t("date"), iDate), reqField(t("slot"), iSlot)),
         el("div", { class: newOrderForm ? "row2 new-order-assignment" : "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
+        shops ? shops.node : null,
         !newOrderForm && iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null),
       el("section", {}, el("h3", {}, t("buyerH")), newOrderForm ? null : el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
         el("div", { class: "row2" }, reqField(t("name"), iBName), reqField(t("phone"), phoneBox(iBPhone))),
@@ -1078,6 +1081,14 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();
   paintDrop(); paintPay();
+  // The suggestion follows the delivery point and the date, whichever way the point is set
+  if (shops) {
+    let shopT;
+    const syncShops = () => { clearTimeout(shopT); shopT = setTimeout(() => shops.update(dropPoint(), iDate.value), 250); };
+    iDrop?.addEventListener("input", syncShops); iDrop?.addEventListener("change", syncShops);
+    iDrop?.addEventListener("cdf-point-saved", syncShops); iDate.addEventListener("change", syncShops);
+    shops.update(dropPoint(), iDate.value);
+  }
   // The Lalamove block saved a new point on the order: show it here as the saved one, not as a pending change
   iDrop?.addEventListener("cdf-point-saved", (e) => {
     iDrop.value = `${e.detail.lat}, ${e.detail.lng}`; fromAddr = ""; dropHits.replaceChildren(); paintDrop();

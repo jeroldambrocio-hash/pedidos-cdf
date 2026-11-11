@@ -125,7 +125,10 @@ function renderTeam() {
         phone ? el("a", { class: "m-phone", href: "tel:+" + phone }, icon("phone"), phoneNice(phone)) : null,
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
-        m.role === "vendor" ? doneLine(m.email) : null),
+        m.role === "vendor" ? doneLine(m.email) : null,
+        // Phase 4: a florist without a shop location or branch never appears in the nearest-shop suggestion
+        florist && S.cap.ranking && (m.pickup_lat == null || !(m.branch || "").trim())
+          ? el("small", { class: "shop-gap" }, icon("alert"), t("shopGapTeam", { what: [m.pickup_lat == null ? t("shopMiss_point") : null, !(m.branch || "").trim() ? t("shopMiss_branch") : null].filter(Boolean).join(", ") })) : null),
       el("span", { class: "role-tag role-" + m.role }, t("role_" + m.role)),
       el("div", { class: "m-acts" },
       CH.directOn && !self ? el("button", { class: "btn", type: "button", onclick: (e) => openDirect(m.email, e.currentTarget) }, t("chatDirect")) : null,

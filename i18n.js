@@ -29,6 +29,12 @@ const I18N = {
     statsRidersTrips: "{n} viajes", statsRidersAvg: "media {sum}", statsRidersShare: "{n}% de las ventas",
     payH: "Precio y pago", payPaidAmount: "Pagado", payProofs: "Justificantes de pago", payProofsHint: "Foto o captura de cada transferencia. Solo la ven los admins.",
     payOrderTotal: "Precio total",
+    // Nearest shop (Phase 4)
+    shopGapTeam: "No sale en la tienda más cercana: {what}", shopNearest: "Tienda más cercana:", shopKm: "{km} km", shopUse: "Asignar a {name}", shopChosen: "Asignada", shopAway: "ausente ese día",
+    shopAll: "Todas las tiendas por distancia", shopStraight: "Distancia en línea recta desde la tienda hasta el punto de entrega: no es el tiempo de conducción (tráfico, puentes y accesos cambian el orden).",
+    shopAllAway: "Todas las tiendas con ubicación están ausentes ese día.", shopNone: "Ninguna florista tiene tienda con ubicación: añádela en Equipo.",
+    shopLeftOut: "Fuera de la sugerencia:", shopMiss_point: "sin ubicación de tienda", shopMiss_point_outside: "ubicación fuera de Filipinas", shopMiss_branch: "sin sucursal",
+    shopConflicts: "Revisa en Equipo:", shopClash_name_many_points: "«{label}» está en varios sitios ({who})", shopClash_point_many_names: "un mismo sitio con varios nombres: {label} ({who})",
     // Requests from the public order form (Phase 3)
     tabRequests: "Solicitudes", reqSub: "Lo que los clientes envían desde el formulario de pedido. Al aceptar una, se convierte en pedido.", reqFilterLabel: "Mostrar",
     reqF_open: "Por revisar", reqF_accepted: "Aceptadas", reqF_rejected: "Rechazadas", reqTabCount: "Solicitudes · {n} por revisar",
@@ -372,6 +378,12 @@ const I18N = {
     statsRidersTrips: "{n} trips", statsRidersAvg: "average {sum}", statsRidersShare: "{n}% of sales",
     payH: "Price and payment", payPaidAmount: "Paid", payProofs: "Proofs of payment", payProofsHint: "A photo or screenshot of each transfer. Only admins see them.",
     payOrderTotal: "Total price",
+    // Nearest shop (Phase 4)
+    shopGapTeam: "Not in the nearest-shop suggestion: {what}", shopNearest: "Nearest shop:", shopKm: "{km} km", shopUse: "Assign to {name}", shopChosen: "Assigned", shopAway: "away that day",
+    shopAll: "All shops by distance", shopStraight: "Straight-line distance from the shop to the delivery point: not the driving time (traffic, bridges and access can change the order).",
+    shopAllAway: "Every shop with a location is away that day.", shopNone: "No florist has a shop location yet: add it in Team.",
+    shopLeftOut: "Not in the suggestion:", shopMiss_point: "no shop location", shopMiss_point_outside: "location outside the Philippines", shopMiss_branch: "no branch",
+    shopConflicts: "Check in Team:", shopClash_name_many_points: "“{label}” is at more than one place ({who})", shopClash_point_many_names: "one place under several names: {label} ({who})",
     // Requests from the public order form (Phase 3)
     tabRequests: "Requests", reqSub: "What customers sent from the order form. Accepting one turns it into an order.", reqFilterLabel: "Show",
     reqF_open: "To review", reqF_accepted: "Accepted", reqF_rejected: "Rejected", reqTabCount: "Requests · {n} to review",

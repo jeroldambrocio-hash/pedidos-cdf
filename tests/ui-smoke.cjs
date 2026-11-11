@@ -170,6 +170,21 @@ window.supabase = { createClient: () => ({
       if (window.__createResponseLost) { window.__createResponseLost = false; return { error: { message: "TypeError: Failed to fetch" } }; }
       return answer(keys[args.p_request], false);
     }
+    // Phase 4: the nearest shop (same rules as cdf_branch_ranking, over the fake team)
+    if (name === "cdf_branch_ranking") {
+      if (window.__role && window.__role !== "admin") return { data: null, error: { code: "42501", message: "Forbidden" } };
+      if (args.p_lat == null || args.p_lng == null) return { data: null, error: { code: "P0001", message: "cdf_invalid_point" } };
+      const rad = (d) => (d * Math.PI) / 180, km = (a, b, c, d) => Math.round(2 * 6371 * Math.asin(Math.sqrt(Math.sin(rad(c - a) / 2) ** 2 + Math.cos(rad(a)) * Math.cos(rad(c)) * Math.sin(rad(d - b) / 2) ** 2)) * 100) / 100;
+      const away = (m) => !!(args.p_date && m.away_from && args.p_date >= m.away_from && (!m.away_until || args.p_date <= m.away_until));
+      const flo = members.filter((m) => m.role === "vendor"), ok = (m) => m.pickup_lat != null && (m.branch || "").trim();
+      const shops = {};
+      for (const m of flo.filter(ok)) { const k = m.branch + "|" + (+m.pickup_lat).toFixed(5) + "|" + (+m.pickup_lng).toFixed(5);
+        (shops[k] ||= { branch: m.branch, address: m.pickup_address, lat: +m.pickup_lat, lng: +m.pickup_lng, km: km(+args.p_lat, +args.p_lng, +m.pickup_lat, +m.pickup_lng), florists: [] }).florists.push({ email: m.email, name: m.name, away: away(m) }); }
+      const ranked = Object.values(shops).map((s) => ({ ...s, florists: s.florists.sort((a, b) => a.away - b.away || a.name.localeCompare(b.name)), all_away: s.florists.every((f) => f.away) }))
+        .sort((a, b) => a.all_away - b.all_away || a.km - b.km || a.branch.localeCompare(b.branch));
+      const incomplete = flo.filter((m) => !ok(m)).map((m) => ({ email: m.email, name: m.name, missing: [m.pickup_lat == null ? "point" : null, !(m.branch || "").trim() ? "branch" : null].filter(Boolean) }));
+      return { data: { ranked, incomplete, conflicts: [] }, error: null };
+    }
     // Phase 3: reviewing requests (same answers as the database functions in migration 20261111110000)
     if (/^cdf_request_|^cdf_order_references$/.test(name)) {
       const me = email[window.__role] || "admin@example.com", admin = !window.__role || window.__role === "admin";

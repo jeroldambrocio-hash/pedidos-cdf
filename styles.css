@@ -2396,3 +2396,23 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
   .req-filter { width: 100%; }
   .req-filter button { flex: 1; white-space: nowrap; padding-inline: 8px; }
 }
+
+/* ---------- Nearest shop (Phase 4): a suggestion under the florist picker, never an assignment ---------- */
+.shop-suggest { display: grid; gap: 6px; margin-top: -4px; padding: 10px 12px; border: 1px solid var(--line-soft); border-radius: var(--r-ctl); background: var(--sunk); }
+.shop-best { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
+.shop-best > span:first-of-type { flex: 1 1 220px; }
+.shop-best svg.i { width: 16px; height: 16px; flex: none; color: var(--muted); }
+.shop-use { min-height: 36px; padding-inline: 12px; }
+.shop-chosen { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; color: var(--state-done); }
+.shop-chosen svg.i { color: var(--state-done); }
+.shop-all summary { cursor: pointer; font-size: .8125rem; color: var(--muted); }
+.shop-all > .note { margin: 6px 0; }
+.shop-list { display: grid; gap: 8px; margin: 0; padding-left: 20px; }
+.shop-list li.is-away { color: var(--muted); }
+.shop-row-head { display: flex; gap: 8px; align-items: baseline; }
+.shop-km { font-variant-numeric: tabular-nums; color: var(--muted); }
+.shop-florists { display: flex; flex-wrap: wrap; gap: 4px 12px; }
+.shop-florists .is-chosen { font-weight: 700; }
+.shop-left, .shop-clash { margin: 6px 0 0; }
+.shop-gap { display: flex; gap: 4px; align-items: center; color: var(--prep); }
+.shop-gap svg.i { width: 14px; height: 14px; }
