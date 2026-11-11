@@ -61,6 +61,7 @@ const CDFMap = (() => {
     map.on("click", (e) => onPick(e.latlng.lat, e.latlng.lng));
     setTimeout(() => map.invalidateSize(), 400);
     return {
+      clear: () => { pin.remove(); },
       show: (lat, lng, recentre) => { pin.setLatLng([lat, lng]); if (!map.hasLayer(pin)) pin.addTo(map); if (recentre) map.setView([lat, lng], Math.max(map.getZoom(), 17)); },
       centre: () => { const c = map.getCenter(); return { lat: c.lat, lng: c.lng }; },
       resize: () => map.invalidateSize(),
@@ -84,30 +85,50 @@ const CDFMap = (() => {
     if (at) place(at);
     map.addListener("click", (e) => { if (e.latLng) { const p = where(e.latLng); onPick(p.lat, p.lng); } });
     return {
+      clear: () => { if (pin) { if (mapId) pin.map = null; else pin.setMap(null); } },
       show: (lat, lng, recentre) => { place({ lat, lng }); if (recentre) { map.setCenter({ lat, lng }); if (map.getZoom() < 17) map.setZoom(17); } },
       centre: () => where(map.getCenter()),
       resize: () => maps.event?.trigger?.(map, "resize"),
     };
   }
+  // One Google map per page, however many times the form is drawn again (language, delivery/pickup, back
+  // from the review): Google counts every new map as a map load, so the same one is moved, not rebuilt.
+  let shared = null;
+  const sharedGoogle = (opts, into) => (shared ||= (() => {
+    const holder = make("div", { class: "map-pick loc-map", role: "application", "aria-label": t("locMapLabel") }, make("p", { class: "note" }, t("mapLoading")));
+    const target = { onPick: () => {} };
+    into.replaceWith(holder);
+    return googleMap(holder, null, (lat, lng) => target.onPick(lat, lng), opts).then((view) => ({ holder, view, target }));
+  })().catch((e) => { shared = null; throw e; }));
+
   // Suggestions as the person types, from Google Places. One session token covers the keystrokes and the
   // choice that ends them (that is how Google bills a search as one), and a new one starts after each choice.
   async function googleSuggest(key) {
     const maps = await loadGoogle(key), { AutocompleteSessionToken, AutocompleteSuggestion } = await maps.importLibrary("places");
     let token = new AutocompleteSessionToken();
+    // The same text asked twice in one session (typing, deleting, typing again) is answered from here.
+    // It is emptied with the session: a kept suggestion would carry a token that is no longer valid.
+    const seen = new Map();
     return async (input) => {
+      const text = input.toLowerCase();
+      if (seen.has(text)) return seen.get(text);
+      const mine = token;
       const { suggestions } = await AutocompleteSuggestion.fetchAutocompleteSuggestions({ input, sessionToken: token, includedRegionCodes: ["ph"],
         language: typeof LANG === "string" ? LANG : "en", region: "ph", locationBias: { west: 120.9, south: 14.35, east: 121.15, north: 14.8 } });
-      return (suggestions || []).filter((s) => s.placePrediction).slice(0, 5).map((s) => ({
+      const items = (suggestions || []).filter((s) => s.placePrediction).slice(0, 5).map((s) => ({
         label: String(s.placePrediction.text?.text ?? s.placePrediction.text ?? ""),
         // The exact point is asked for only once a suggestion is chosen
         resolve: async () => {
           const found = s.placePrediction.toPlace();
+          // Only the point and its address: both belong to the cheapest Place Details tier (Essentials)
           await found.fetchFields({ fields: ["location", "formattedAddress"] });
-          token = new AutocompleteSessionToken();
+          token = new AutocompleteSessionToken(); seen.clear();
           const p = found.location;
           return { lat: typeof p.lat === "function" ? p.lat() : p.lat, lng: typeof p.lng === "function" ? p.lng() : p.lng, address: found.formattedAddress || "" };
         },
       }));
+      if (mine === token) seen.set(text, items);
+      return items;
     };
   }
 
@@ -156,7 +177,7 @@ const CDFMap = (() => {
       view?.show(point.lat, point.lng, recentre);
       paint();
     };
-    const smooth = () => holder.scrollIntoView({ block: "nearest", behavior: document.documentElement.dataset.motion === "reduced" ? "auto" : "smooth" });
+    const smooth = () => node.querySelector(".loc-map")?.scrollIntoView({ block: "nearest", behavior: document.documentElement.dataset.motion === "reduced" ? "auto" : "smooth" });
     const list = (items, credit) => results.replaceChildren(...items.map((r) => make("li", {}, make("button", { type: "button", class: "loc-result", onclick: async (e) => {
       try {
         e.currentTarget.disabled = true;
@@ -182,12 +203,13 @@ const CDFMap = (() => {
     };
     find.addEventListener("click", run);
     query.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); run(); } });
-    // With Google, suggestions follow the typing: after a short pause and from three letters, never per key
+    // With Google, suggestions follow the typing: after half a second's pause and from three letters, never
+    // per key (each request that reaches Google is counted)
     query.addEventListener("input", () => {
       if (!suggest) return;
       clearTimeout(typing);
       if (query.value.trim().length < 3) { asked++; results.replaceChildren(); say(""); return; }
-      typing = setTimeout(run, 350);
+      typing = setTimeout(run, 500);
     });
     here.addEventListener("click", () => {
       if (!navigator.geolocation) { say(t("locNoGps"), true); return; }
@@ -209,16 +231,37 @@ const CDFMap = (() => {
 
     const onPick = (lat, lng) => put(lat, lng, "pin");
     const ready = (v) => { view = v; centre.disabled = false; };
-    const useLeaflet = () => { suggest = null; node.dataset.map = "leaflet"; return leafletMap(holder, point, onPick).then(ready); };
-    const failed = () => holder.replaceChildren(make("p", { class: "err", role: "alert" }, t("mapFail")));
+    const box = () => node.querySelector(".loc-map");
+    const useLeaflet = () => {
+      suggest = null; node.dataset.map = "leaflet";
+      const fresh = make("div", { class: "map-pick loc-map", role: "application", "aria-label": t("locMapLabel") }, make("p", { class: "note" }, t("mapLoading")));
+      box().replaceWith(fresh);
+      return leafletMap(fresh, point, onPick).then(ready);
+    };
+    const failed = () => box().replaceChildren(make("p", { class: "err", role: "alert" }, t("mapFail")));
+    const useGoogle = () => {
+      const was = shared;
+      Promise.all([sharedGoogle(google, box()), googleSuggest(google.key)]).then(([g, s]) => {
+        if (!node.isConnected) return; // the form was drawn again meanwhile: the newer picker takes the map
+        if (box() !== g.holder) box().replaceWith(g.holder);
+        g.target.onPick = onPick;
+        if (point) g.view.show(point.lat, point.lng, true); else if (was) g.view.clear();
+        ready(g.view); suggest = s;
+      // Google did not load (offline, blocked, key refused): the form still works with the other map
+      }).catch(() => { if (node.isConnected) useLeaflet().catch(failed); });
+    };
     if (google?.key) {
       node.dataset.map = "google";
-      Promise.all([googleMap(holder, point, onPick, google), googleSuggest(google.key)])
-        .then(([v, s]) => { ready(v); suggest = s; })
-        // Google did not load (offline, blocked, key refused): the form still works with the other map
-        .catch(() => useLeaflet().catch(failed));
-      document.addEventListener("cdf-google-maps-failed", () => { if (node.isConnected && node.dataset.map === "google") { view = null; centre.disabled = true; useLeaflet().catch(failed); } }, { once: true });
-    } else useLeaflet().catch(failed);
+      // Loaded when the map comes near the screen, not when the page opens: a visitor who leaves before
+      // reaching it, or who chooses pickup, costs no map load. Already loaded: used at once.
+      if (shared || !("IntersectionObserver" in window)) queueMicrotask(useGoogle);
+      else {
+        const near = new IntersectionObserver((seen) => { if (seen.some((e) => e.isIntersecting)) { near.disconnect(); useGoogle(); } }, { rootMargin: "300px" });
+        near.observe(node);
+        query.addEventListener("focus", () => { near.disconnect(); if (!shared && !view) useGoogle(); }, { once: true });
+      }
+      document.addEventListener("cdf-google-maps-failed", () => { shared = null; if (node.isConnected && node.dataset.map === "google") { view = null; centre.disabled = true; useLeaflet().catch(failed); } }, { once: true });
+    } else queueMicrotask(() => useLeaflet().catch(failed));
 
     paint();
     return {

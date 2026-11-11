@@ -63,9 +63,9 @@ const TILE = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQV
 // A stand-in for Google's Maps JavaScript API with the same shapes the form uses (Map, markers, Places
 // suggestions with session tokens). It records what it is asked in window.__gm so the tests can read it.
 const FAKE_GOOGLE = `(() => {
-  const gm = window.__gm = { requests: [], tokens: 0, fetched: [], listeners: {}, pinListeners: {}, map: null, pin: null, advanced: false, failSuggest: false };
+  const gm = window.__gm = { maps: 0, requests: [], tokens: 0, fetched: [], listeners: {}, pinListeners: {}, map: null, pin: null, advanced: false, failSuggest: false };
   const ll = (p) => ({ lat: () => p.lat, lng: () => p.lng });
-  class Map { constructor(el, o) { gm.map = this; this.o = o; this.c = { ...o.center }; this.z = o.zoom; el.dataset.google = "1"; el.textContent = "google map"; }
+  class Map { constructor(el, o) { gm.maps++; gm.map = this; this.o = o; this.c = { ...o.center }; this.z = o.zoom; el.dataset.google = "1"; el.textContent = "google map"; }
     addListener(n, f) { gm.listeners[n] = f; } getCenter() { return ll(this.c); } setCenter(c) { this.c = { ...c }; } getZoom() { return this.z; } setZoom(z) { this.z = z; } }
   class Marker { constructor(o) { gm.pin = this; this.p = o.position; this.m = o.map; this.o = o; } setPosition(p) { this.p = p; } setMap(m) { this.m = m; } getPosition() { return ll(this.p); } addListener(n, f) { gm.pinListeners[n] = f; } }
   class AdvancedMarkerElement { constructor(o) { gm.pin = this; gm.advanced = true; this.position = o.position; this.map = o.map; this.o = o; } addListener(n, f) { gm.pinListeners[n] = f; } }
@@ -248,7 +248,7 @@ await step("Results from Google are credited to Google Maps; the free search's a
 
 await step("Google Maps: suggestions while typing (one session per search), pin on the chosen place, adjust, confirm", async () => {
   const { page, state, ctx } = await open({ google: true });
-  await page.locator(".loc-map[data-google]").waitFor();
+  await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
   assert.equal(await page.locator(".loc-picker").getAttribute("data-map"), "google"); assert.equal(await page.locator(".leaflet-container").count(), 0);
   const asked = new URL(state.googleScripts[0]);
   assert.equal(asked.searchParams.get("key"), "browser-key"); assert.equal(asked.searchParams.get("region"), "PH"); assert(!state.googleScripts[0].includes("server-key"));
@@ -305,9 +305,50 @@ await step("Google Maps: suggestions while typing (one session per search), pin 
   await ctx.close();
 });
 
+await step("What Google bills is kept to a minimum: the map loads only when reached, once per page; repeated text is not asked again", async () => {
+  const { page, state, ctx } = await open({ google: true });
+  await page.locator(".po-form").waitFor();
+  await page.locator("#po-buyer_name").fill("Jose Santos"); await page.waitForTimeout(400);
+  assert.equal(state.googleScripts.length, 0, "opening the page and filling the first fields loads nothing from Google");
+  // Someone who picks up at the shop never loads the map
+  await page.locator("[data-mode=pickup]").click(); await page.locator(".po-pickup-note").scrollIntoViewIfNeeded(); await page.waitForTimeout(400);
+  assert.equal(state.googleScripts.length, 0);
+  await page.locator("[data-mode=delivery]").click();
+  await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
+  assert.equal(state.googleScripts.length, 1);
+  const count = () => page.evaluate(() => [window.__gm.maps, window.__gm.requests.length, window.__gm.fetched.length]);
+  const box = page.locator(".loc-picker input[type=search]");
+  // Type, delete back, type the same again: the repeated texts are answered without asking Google
+  await box.pressSequentially("Makati", { delay: 10 }); await page.locator(".loc-result").first().waitFor();
+  await box.fill("Mak"); await box.dispatchEvent("input"); await page.waitForTimeout(800);
+  await box.fill("Makati"); await box.dispatchEvent("input"); await page.waitForTimeout(800);
+  await box.fill("Mak"); await box.dispatchEvent("input"); await page.waitForTimeout(800);
+  assert.deepEqual(await count(), [1, 2, 0], "two different texts, two requests; no place details until one is chosen");
+  await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click();
+  assert.deepEqual(await count(), [1, 2, 1]);
+  // Drawing the form again (language, pickup and back, review and back) keeps the same map and its pin
+  await page.locator("[data-settings]").click(); await page.locator(".menu [data-lang=es]").click(); await page.locator(".menu [data-lang=en]").click(); await page.keyboard.press("Escape");
+  await page.locator("[data-mode=pickup]").click(); await page.locator("[data-mode=delivery]").click();
+  await page.locator(".loc-done", { hasText: "Location confirmed" }).waitFor();
+  await fill(page, { location: false }); // the written address changed, so the point is confirmed again
+  await page.locator(".loc-confirm").click();
+  await review(page); await page.locator(".po-review").waitFor();
+  await page.getByRole("button", { name: "Back to edit" }).click();
+  await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
+  assert.deepEqual(await count(), [1, 2, 1], "still one map load, and nothing asked again");
+  assert.equal(state.googleScripts.length, 1);
+  assert.deepEqual(await page.evaluate(() => window.__gm.pin.p), { lat: 14.5623, lng: 121.0267 });
+  // Moving the pin, panning and confirming ask Google for nothing
+  await page.evaluate(() => { window.__gm.drag(14.5624, 121.0268); window.__gm.click(14.5625, 121.0269); });
+  await page.locator(".loc-centre").click(); await page.locator(".loc-confirm").click();
+  assert.deepEqual(await count(), [1, 2, 1]);
+  assert.deepEqual(state.errors, []);
+  await ctx.close();
+});
+
 await step("Google Maps with a Map ID uses the newer marker; a failed suggestion says so and the pin can still be placed", async () => {
   const { page, ctx } = await open({ google: true, mapId: "cdf-map" });
-  await page.locator(".loc-map[data-google]").waitFor();
+  await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
   assert.equal(await page.evaluate(() => window.__gm.map.o.mapId), "cdf-map");
   await page.evaluate(() => { window.__gm.failSuggest = true; });
   await page.locator(".loc-picker input[type=search]").pressSequentially("Makati", { delay: 10 });
@@ -323,7 +364,7 @@ await step("Google Maps with a Map ID uses the newer marker; a failed suggestion
 
 await step("Google Maps keeps “Use my location”: only when pressed, centred on the device, still to be adjusted and confirmed", async () => {
   const { page, ctx } = await open({ google: true, geo: { latitude: 14.5547, longitude: 121.0244 } }); // Makati
-  await page.locator(".loc-map[data-google]").waitFor();
+  await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
   assert.equal(await page.locator(".loc-here").innerText(), "Use my location");
   assert.equal(await pinAt(page), "No pin yet."); assert.equal(await page.evaluate(() => window.__gm.pin), null);
   await page.locator(".loc-here").click();
@@ -335,7 +376,7 @@ await step("Google Maps keeps “Use my location”: only when pressed, centred 
   assert.equal(await page.locator(".loc-done").isVisible(), true);
   await ctx.close();
   const denied = await open({ google: true });
-  await denied.page.locator(".loc-map[data-google]").waitFor();
+  await denied.page.locator(".loc-picker").scrollIntoViewIfNeeded(); await denied.page.locator(".loc-map[data-google]").waitFor();
   await denied.page.locator(".loc-here").click();
   await denied.page.locator(".loc-status.err", { hasText: "Your location couldn't be used" }).waitFor();
   await denied.ctx.close();
@@ -344,7 +385,7 @@ await step("Google Maps keeps “Use my location”: only when pressed, centred 
 await step("Google unavailable (blocked, offline or key refused): the form falls back to the free map and the server's search", async () => {
   for (const google of ["blocked", "refused"]) {
     const { page, state, ctx } = await open({ google });
-    await page.locator(".loc-map.leaflet-container").waitFor();
+    await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map.leaflet-container").waitFor();
     assert.equal(await page.locator(".loc-picker").getAttribute("data-map"), "leaflet", google);
     await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click();
     assert.equal(await page.locator(".loc-done").isVisible(), true);
