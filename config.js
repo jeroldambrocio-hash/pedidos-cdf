@@ -16,7 +16,7 @@ window.CDF_CONFIG = {
   // directChats: private chats between two people. The team channel always stays.
   // publicOrder: the public order form (/pedido.html). Off: the page only says it is not open yet and
   // never calls the server. The server has its own switch too (secret PUBLIC_ORDER=on in cdf-public-order).
-  features: { tracking: false, drivers: false, orderChats: true, directChats: false, publicOrder: false },
+  features: { tracking: false, drivers: false, orderChats: true, directChats: false, publicOrder: true },
   // Public order form. turnstileSiteKey: Cloudflare Turnstile's public site key (its secret goes in the
   // function as TURNSTILE_SECRET). The form does not work without it once the server asks for the check.
   // googleMapsKey: a Google Maps *browser* key for the form's map and address suggestions. It is public by
