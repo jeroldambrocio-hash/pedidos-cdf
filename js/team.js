@@ -145,12 +145,16 @@ function renderTeam() {
   stagger(box);
 }
 $("addForm").addEventListener("submit", async (e) => {
-  e.preventDefault(); $("aErr").textContent = ""; $("aBtn").disabled = true;
+  e.preventDefault(); $("aErr").textContent = "";
   const body = { action: "add", username: $("aUsername").value.trim().toLowerCase(), name: $("aName").value.trim(), email: $("aEmail").value.trim(), role: $("aRole").value, password: $("aPass").value };
+  // Already in the team: say so here, before anything is sent (the server refuses it too)
+  const same = (S.members || []).find((m) => m.email?.toLowerCase() === body.email.toLowerCase());
+  if (same) { $("aErr").textContent = t("emailTaken", { name: same.name }); $("aEmail").focus(); return; }
+  $("aBtn").disabled = true;
   const { data, error } = await sb.functions.invoke("cdf-users", { body });
   $("aBtn").disabled = false;
   let msg = data?.error;
-  if (error && !msg) { try { msg = (await error.context.json()).error; } catch { msg = t("addFail"); } }
+  if (error && !msg) { try { const b = await error.context.json(); msg = b.code === "email_taken" ? t("emailTaken", { name: b.name }) : b.error; } catch { msg = t("addFail"); } }
   if (msg) { $("aErr").textContent = msg; return; }
   toast(t(data.existed ? "addedExisting" : "added", { name: body.name }));
   e.target.reset(); await loadMembers(); renderTeam();
