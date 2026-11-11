@@ -38,6 +38,7 @@ const I18N = {
     // Requests from the public order form (Phase 3)
     tabRequests: "Solicitudes", reqSub: "Lo que los clientes envían desde el formulario de pedido. Al aceptar una, se convierte en pedido.", reqFilterLabel: "Mostrar",
     reqF_open: "Por revisar", reqF_accepted: "Aceptadas", reqF_rejected: "Rechazadas", reqTabCount: "Solicitudes · {n} por revisar",
+    reqLinkLabel: "Enlace para clientes:", reqLinkShare: "Compartir", reqLinkShareText: "Haz tu pedido aquí",
     reqSt_received: "Nueva", reqSt_in_review: "En revisión", reqSt_accepted: "Aceptada", reqSt_rejected: "Rechazada", reqSt_expired: "Caducada", reqDatePassed: "Fecha pasada",
     reqJustNow: "ahora mismo", reqMinAgo: "hace {n} min", reqHourAgo: "hace {n} h", reqLoadFail: "No se pudieron cargar las solicitudes. Recarga la página.",
     reqNewToast: "Nueva solicitud · {ref}", reqOpenIt: "Ver", reqNoneOpen: "No hay solicitudes por revisar.", reqNone: "No hay ninguna aquí.",
@@ -394,6 +395,7 @@ const I18N = {
     // Requests from the public order form (Phase 3)
     tabRequests: "Requests", reqSub: "What customers sent from the order form. Accepting one turns it into an order.", reqFilterLabel: "Show",
     reqF_open: "To review", reqF_accepted: "Accepted", reqF_rejected: "Rejected", reqTabCount: "Requests · {n} to review",
+    reqLinkLabel: "Link for customers:", reqLinkShare: "Share", reqLinkShareText: "Order here",
     reqSt_received: "New", reqSt_in_review: "In review", reqSt_accepted: "Accepted", reqSt_rejected: "Rejected", reqSt_expired: "Expired", reqDatePassed: "Date passed",
     reqJustNow: "just now", reqMinAgo: "{n} min ago", reqHourAgo: "{n} h ago", reqLoadFail: "The requests couldn't be loaded. Reload the page.",
     reqNewToast: "New request · {ref}", reqOpenIt: "View", reqNoneOpen: "No requests to review.", reqNone: "Nothing here.",

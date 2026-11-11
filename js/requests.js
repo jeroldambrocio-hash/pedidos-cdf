@@ -55,7 +55,26 @@ function subscribeRequests() {
   }).subscribe();
 }
 
+// The form's address, to paste in WhatsApp, Instagram or the shop (shown while the form is switched on)
+function paintRequestLink() {
+  const box = $("reqLink");
+  if (!box) return;
+  box.hidden = window.CDF_CONFIG.features?.publicOrder !== true;
+  if (box.hidden || box.dataset.ready) return;
+  box.dataset.ready = "1";
+  const url = location.origin + "/pedido.html";
+  const a = $("reqLinkUrl");
+  a.href = url; a.textContent = url.replace(/^https?:\/\//, "");
+  $("reqLinkCopy").onclick = () => navigator.clipboard?.writeText(url).then(() => toast(t("copied")), () => toast(t("selectCopy"), { type: "info" }));
+  if (navigator.share) {
+    const share = $("reqLinkShare");
+    share.hidden = false;
+    share.onclick = () => navigator.share({ title: "Casa de Flores", text: t("reqLinkShareText"), url }).catch(() => {});
+  }
+}
+
 function renderRequests() {
+  paintRequestLink();
   const body = $("requestsBody");
   if (!body) return;
   const counts = { open: 0, accepted: 0, rejected: 0 };

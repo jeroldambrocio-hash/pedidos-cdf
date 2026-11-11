@@ -195,6 +195,13 @@
         <button type="button" data-f="accepted" aria-pressed="false"><span data-i18n="reqF_accepted">Accepted</span> <span class="count"></span></button>
         <button type="button" data-f="rejected" aria-pressed="false"><span data-i18n="reqF_rejected">Rejected</span> <span class="count"></span></button>
       </div></div>
+    <div class="req-link" id="reqLink" hidden>
+      <span class="req-link-label"><span data-i18n="reqLinkLabel">Link for customers</span> <a id="reqLinkUrl" class="link-out" target="_blank" rel="noopener"></a></span>
+      <span class="req-link-acts">
+        <button type="button" class="btn" id="reqLinkCopy" data-i18n="copy">Copy</button>
+        <button type="button" class="btn" id="reqLinkShare" data-i18n="reqLinkShare" hidden>Share</button>
+      </span>
+    </div>
     <div id="requestsBody"></div>
   </section>
   <section id="statsView" class="page stats" hidden>

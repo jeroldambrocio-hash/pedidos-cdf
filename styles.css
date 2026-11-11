@@ -2375,6 +2375,12 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .rail[data-expanded="false"] .rail-count:not([hidden]) { position: absolute; top: 4px; right: 4px; min-width: 18px; padding: 0 5px; font-size: .6875rem; line-height: 18px; }
 #tabRequests { position: relative; }
 .req-filter .count { min-width: 0; padding: 0 6px; margin-left: 2px; background: transparent; }
+.req-link { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
+  margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line, currentColor); border-radius: 12px; }
+.req-link[hidden] { display: none; }
+.req-link-label { color: var(--muted); font-size: 0.875rem; overflow-wrap: anywhere; }
+.req-link-acts { display: flex; gap: 8px; }
+.req-link .btn { min-height: 40px; }
 .req-list { display: grid; gap: 10px; margin: 0; padding: 0; list-style: none; }
 .req-card { display: grid; gap: 6px; width: 100%; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-card, 14px); background: var(--surface);
   color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: border-color 160ms var(--ease-out), background-color 160ms var(--ease-out); }

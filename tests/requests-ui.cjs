@@ -97,6 +97,10 @@ const server = http.createServer((req, res) => {
       assert.equal(await p.locator(".req-card.is-new").count(), 2);
       assert.match(await p.locator(".req-card").first().innerText(), /Sunflower bouquet/);
       assert.deepEqual(await p.locator("#reqFilter .count").allInnerTexts(), ["2", "1", "1"]);
+      // The form's link, ready to copy or share (shown while the form is switched on in config.js)
+      assert.equal(await p.locator("#reqLink").isVisible(), true);
+      assert.match(await p.locator("#reqLinkUrl").getAttribute("href"), /\/pedido\.html$/);
+      assert.equal(await p.locator("#reqLinkCopy").isVisible(), true);
       await p.locator('#reqFilter [data-f="rejected"]').click();
       assert.deepEqual(await p.locator(".req-card .req-ref").allInnerTexts(), ["R9"]);
       await p.locator('#reqFilter [data-f="accepted"]').click();
@@ -294,6 +298,7 @@ const server = http.createServer((req, res) => {
       await p.context().close();
     });
 
+    if (errors.length) console.log("ERRORS", [...new Set(errors)]);
     assert.deepEqual([...new Set(errors)], [], "no page errors");
   } finally {
     await browser.close(); server.close();
