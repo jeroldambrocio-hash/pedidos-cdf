@@ -134,6 +134,28 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (live.error) return no("server", 500);
       if (!live.data) return no("session", 401);
       if (!(await within("search:" + hash, LIMITS.searchesPerSession)) || !(await within("search-ip:" + ipHash, LIMITS.searchesPerIp))) return no("slow_down", 429);
+      // Google first (it knows Philippine house numbers, villages and buildings), but only up to a daily
+      // number of searches counted in the database, so the public form can never run up a bill: past the
+      // cap, without a key, or if Google fails or finds nothing, the free map search answers instead.
+      const key = d.env("GOOGLE_MAPS_KEY"), cap = Math.floor(+(d.env("PUBLIC_GOOGLE_DAILY") ?? 150));
+      if (key && cap > 0 && (await within("google-geocode", cap, 86400))) {
+        const g = new URL("https://maps.googleapis.com/maps/api/geocode/json");
+        Object.entries({ address: query, components: "country:PH", region: "ph", language: "en", bounds: "14.35,120.90|14.80,121.15", key }).forEach(([k, v]) => g.searchParams.set(k, v));
+        // deno-lint-ignore no-explicit-any
+        const found: any = await d.fetch(g, { signal: AbortSignal.timeout(6000) }).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+        if (found?.status === "OK") {
+          const seen = new Set<string>();
+          // deno-lint-ignore no-explicit-any
+          const results = (found.results || []).filter((r: any) => r.geometry?.location && !(r.types || []).some((t: string) => t === "country" || t === "administrative_area_level_1"))
+            // deno-lint-ignore no-explicit-any
+            .map((r: any) => ({ label: (String(r.formatted_address || "").replace(/,\s*Philippines$/i, "") || `${r.geometry.location.lat}, ${r.geometry.location.lng}`).slice(0, 200),
+              lat: +(+r.geometry.location.lat).toFixed(6), lng: +(+r.geometry.location.lng).toFixed(6) }))
+            .filter((r: { label: string; lat: number; lng: number }) => Number.isFinite(r.lat) && Number.isFinite(r.lng) && inPhilippines(r.lat, r.lng) && !seen.has(r.label) && seen.add(r.label))
+            .slice(0, 5);
+          // Google asks to be named where its results are shown off a Google map
+          if (results.length) return json({ results, credit: "google" });
+        }
+      }
       const u = new URL("/api/", d.env("PUBLIC_GEOCODER_URL") || "https://photon.komoot.io");
       Object.entries({ q: query, limit: "6", lat: "14.6", lon: "121.03", bbox: "116,4,127,21.5", lang: "en" }).forEach(([k, v]) => u.searchParams.set(k, v));
       const res = await d.fetch(u, { headers: { "User-Agent": "pedidos-cdf/1.0 (Casa de Flores order form; casadeflores.store)" } }).catch(() => null);

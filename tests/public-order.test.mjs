@@ -107,7 +107,7 @@ const db = new PGlite();
 await build((sql) => db.exec(sql));
 const sha = (v) => createHash("sha256").update(v).digest("hex");
 const stored = new Map();
-let clock = NOW, captchaOk = true, geocoder = null, storeFails = false, seenCaptcha = null, searches = 0;
+let clock = NOW, captchaOk = true, geocoder = null, storeFails = false, seenCaptcha = null, searches = 0, google = null, googleCalls = [];
 const env = { PUBLIC_ORDER: "on", PUBLIC_ORDER_ORIGINS: "https://casadeflores.store, https://staging.example", TURNSTILE_SECRET: "secret", PUBLIC_ORDER_SALT: "salt" };
 const deps = {
   env: (k) => env[k], now: () => clock, randomToken: () => randomBytes(32).toString("base64url"), sha256: async (v) => sha(v),
@@ -120,6 +120,7 @@ const deps = {
   unstore: async (paths) => { paths.forEach((p) => stored.delete(p)); },
   fetch: async (url, init) => {
     if (String(url).includes("turnstile")) { seenCaptcha = Object.fromEntries(init.body); return new Response(JSON.stringify({ success: captchaOk })); }
+    if (String(url).includes("maps.googleapis.com")) { googleCalls.push(new URL(url)); const answer = google?.(); return answer ? new Response(JSON.stringify(answer)) : new Response("down", { status: 500 }); }
     searches++;
     if (!geocoder) return new Response("down", { status: 503 });
     return new Response(JSON.stringify(geocoder(new URL(url))));
@@ -259,6 +260,36 @@ const jpg = fixture("gps.jpg");
   for (let i = 0; i < 62; i++) codes.push((await send({ action: "search", query: "Katipunan " + i }, { session: s, ip: "192.0.2.52" })).status);
   assert.equal(codes.filter((x) => x === 429).length, 2); assert.equal(searches - before, 60, "refused searches never reach the map provider"); }
 ok("Limits are counted in the database, per address and per session: one busy address does not block the others");
+
+{ const s = await open({ ip: "192.0.2.60" }), find = (query) => send({ action: "search", query }, { session: s, ip: "192.0.2.60" });
+  const place = (formatted_address, lat, lng, types = ["street_address"]) => ({ formatted_address, geometry: { location: { lat, lng } }, types });
+  const free = [{ label: "Katipunan Avenue, Quezon City, Metro Manila", lat: 14.6397, lng: 121.0775 }];
+  // No key: Google is never called
+  assert.deepEqual((await find("12 Mabini")).results, free); assert.equal(googleCalls.length, 0);
+  env.GOOGLE_MAPS_KEY = "server-key"; env.PUBLIC_GOOGLE_DAILY = "3";
+  google = () => ({ status: "OK", results: [place("12 Mabini St, Quezon City, Metro Manila, Philippines", 14.6501, 121.0702), place("Philippines", 12.8, 121.7, ["country"]), place("Calle Mabini, Madrid", 40.4, -3.7)] });
+  const first = await find("12 Mabini");
+  assert.deepEqual(first.results, [{ label: "12 Mabini St, Quezon City, Metro Manila", lat: 14.6501, lng: 121.0702 }]); assert.equal(first.credit, "google");
+  assert.equal(googleCalls[0].searchParams.get("components"), "country:PH"); assert.equal(googleCalls[0].searchParams.get("key"), "server-key");
+  assert(!JSON.stringify(first).includes("server-key"), "the key never reaches the visitor");
+  // Nothing found, or Google failing: the free search answers, and nothing is credited to Google
+  google = () => ({ status: "ZERO_RESULTS", results: [] });
+  const none = await find("somewhere odd"); assert.deepEqual(none.results, free); assert.equal(none.credit, undefined);
+  google = () => null;
+  assert.deepEqual((await find("12 Mabini")).results, free);
+  // The day's allowance is used up (3): Google is not called again, whoever asks
+  google = () => ({ status: "OK", results: [place("1 Ayala Ave, Makati, Philippines", 14.5547, 121.0244)] });
+  const before = googleCalls.length;
+  const other = await open({ ip: "192.0.2.61" });
+  assert.deepEqual((await find("Ayala")).results, free); assert.deepEqual((await send({ action: "search", query: "Ayala" }, { session: other, ip: "192.0.2.61" })).results, free);
+  assert.equal(googleCalls.length, before); assert.equal(before, 3);
+  // A new day: allowed again
+  await db.exec("update public.cdf_rate_limits set window_start = window_start - interval '1 day' where bucket = 'google-geocode'");
+  assert.equal((await find("Ayala")).credit, "google");
+  env.PUBLIC_GOOGLE_DAILY = "0"; const off = googleCalls.length;
+  assert.deepEqual((await find("Ayala")).results, free); assert.equal(googleCalls.length, off);
+  delete env.GOOGLE_MAPS_KEY; delete env.PUBLIC_GOOGLE_DAILY; }
+ok("Google answers address searches up to a daily number counted in the database; past it, without a key or on failure, the free search does: no bill is possible");
 
 { const tables = ["cdf_upload_sessions", "cdf_request_files", "cdf_rate_limits"];
   for (const role of ["anon", "authenticated"]) {

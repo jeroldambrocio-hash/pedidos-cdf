@@ -28,7 +28,7 @@ const db = new PGlite();
 await build((sql) => db.exec(sql));
 const sha = (v) => createHash("sha256").update(v).digest("hex");
 const stored = new Map();
-const env = { PUBLIC_ORDER: "on", TURNSTILE_SECRET: "", PUBLIC_ORDER_NO_CAPTCHA: "test-only", PUBLIC_ORDER_SALT: "salt" };
+const env = { PUBLIC_ORDER: "on", TURNSTILE_SECRET: "", PUBLIC_ORDER_NO_CAPTCHA: "test-only", PUBLIC_ORDER_SALT: "salt", GOOGLE_MAPS_KEY: "server-key", PUBLIC_GOOGLE_DAILY: "1" };
 const PLACES = [
   { geometry: { coordinates: [121.0775, 14.6397] }, properties: { name: "Katipunan Avenue", district: "Loyola Heights", city: "Quezon City", state: "Metro Manila", countrycode: "PH" } },
   { geometry: { coordinates: [121.0509, 14.6513] }, properties: { name: "Katipunan Street", city: "Quezon City", state: "Metro Manila", countrycode: "PH" } },
@@ -42,7 +42,10 @@ const deps = {
   },
   store: async (p, bytes, mime) => { stored.set(p, { bytes, mime }); return { error: null }; },
   unstore: async (paths) => { paths.forEach((p) => stored.delete(p)); },
-  fetch: async (url) => new Response(JSON.stringify({ features: /nowhere/i.test(new URL(url).searchParams.get("q")) ? [] : PLACES })),
+  // Google answers only a search for "Mabini" here; everything else goes to the free search
+  fetch: async (url) => (String(url).includes("maps.googleapis.com")
+    ? new Response(JSON.stringify(/mabini/i.test(new URL(url).searchParams.get("address")) ? { status: "OK", results: [{ formatted_address: "12 Mabini St, Quezon City, Metro Manila, Philippines", geometry: { location: { lat: 14.6501, lng: 121.0702 } }, types: ["street_address"] }] } : { status: "ZERO_RESULTS", results: [] }))
+    : new Response(JSON.stringify({ features: /nowhere/i.test(new URL(url).searchParams.get("q")) ? [] : PLACES }))),
 };
 
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".png": "image/png", ".webp": "image/webp", ".svg": "image/svg+xml" };
@@ -195,6 +198,18 @@ await step("Search, choose a result, drag the pin, confirm; any later change ask
   await review(page);
   await page.locator(".po-review").waitFor();
   assert.deepEqual(state.errors, []);
+  await ctx.close();
+});
+
+await step("Results from Google are credited to Google Maps; the free search's are not", async () => {
+  await db.exec("delete from public.cdf_rate_limits where bucket = 'google-geocode'");
+  const { page, ctx } = await open();
+  await page.locator(".loc-map.leaflet-container").waitFor();
+  await search(page, "12 Mabini");
+  assert.deepEqual(await page.locator(".loc-result").allInnerTexts(), ["12 Mabini St, Quezon City, Metro Manila"]);
+  assert.equal(await page.locator(".loc-credit").innerText(), "Results from Google Maps");
+  await search(page, "12 Mabini St"); // today's allowance (1 in this test) is spent: the free search answers
+  assert.equal(await page.locator(".loc-result").count(), 2); assert.equal(await page.locator(".loc-credit").count(), 0);
   await ctx.close();
 });
 

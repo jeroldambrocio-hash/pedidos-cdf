@@ -27,7 +27,7 @@ const CDFMap = (() => {
   const pinIcon = (L) => L.divIcon({ className: "map-pin", html: "<span></span>", iconSize: [30, 30], iconAnchor: [15, 29] });
 
   // An inline picker: search an address, choose a result, adjust the pin, then confirm.
-  //   search(query) → Promise<[{ label, lat, lng }]>   (the page decides where that goes)
+  //   search(query) → Promise<[{ label, lat, lng }]> or { results, credit }   (the page decides where that goes)
   //   onChange()      called whenever the chosen point or its confirmation changes
   // The point only counts once confirmed, and any later change (pin, result, device location, or the
   // page calling invalidate() because the written address changed) asks for confirmation again.
@@ -74,13 +74,14 @@ const CDFMap = (() => {
       if (text.length < 3) { say(t("locTypeMore"), true); query.focus(); return; }
       find.disabled = true; find.classList.add("busy"); say(t("locSearching")); results.replaceChildren();
       try {
-        const list = await search(text);
+        const found = await search(text), list = Array.isArray(found) ? found : found?.results;
         if (!list?.length) { say(t("mapNoHits"), true); return; }
         say(t("locPick", { n: list.length }));
         results.replaceChildren(...list.map((r) => make("li", {}, make("button", { type: "button", class: "loc-result", onclick: () => {
           put(r.lat, r.lng, "search", true); results.replaceChildren(); say(t("locAdjust"));
           holder.scrollIntoView({ block: "nearest", behavior: document.documentElement.dataset.motion === "reduced" ? "auto" : "smooth" });
-        } }, r.label))));
+        } }, r.label))),
+          found?.credit === "google" ? make("li", { class: "note loc-credit" }, t("locGoogle")) : null);
       } catch (e) { say(e?.message || t("locSearchFail"), true); }
       finally { find.disabled = false; find.classList.remove("busy"); }
     };

@@ -2,6 +2,8 @@
 // file only plugs in the real things: the service-role client, the private bucket and the clock.
 // Secrets: PUBLIC_ORDER=on (off otherwise), PUBLIC_ORDER_ORIGINS (sites allowed to call, comma separated),
 // TURNSTILE_SECRET (anti-abuse check), PUBLIC_ORDER_SALT (to hash addresses), PUBLIC_GEOCODER_URL (optional).
+// Address search: GOOGLE_MAPS_KEY (the same one cdf-lalamove uses) up to PUBLIC_GOOGLE_DAILY searches a day
+// (150 if unset, 0 to never use Google); beyond that, or without the key, the free map search.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { handle } from "./handler.ts";
 

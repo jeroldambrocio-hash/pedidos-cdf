@@ -2305,6 +2305,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .loc-results:empty { display: none; }
 .loc-result { width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--input); color: var(--fg); font: inherit; text-align: left; cursor: pointer; transition: background-color 160ms var(--ease-out), border-color 160ms var(--ease-out); }
 .loc-result:hover { background: var(--surface-hover); }
+.loc-credit { justify-self: end; }
 .loc-map { height: min(48vh, 360px); min-height: 240px; touch-action: pan-x pan-y; }
 .loc-tools { display: flex; flex-wrap: wrap; gap: 8px; }
 .loc-tools .btn { flex: 1 1 200px; }

@@ -216,7 +216,7 @@
     let where = null;
     if (v.mode === "delivery") {
       picker = CDFMap.picker({ start: place, onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
-        search: async (q) => { try { return (await withSession(() => post({ action: "search", query: q }))).results; } catch (e) { throw new Error(errorText(e)); } } });
+        search: async (q) => { try { return await withSession(() => post({ action: "search", query: q })); } catch (e) { throw new Error(errorText(e)); } } });
       const address = area({ rows: 3, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
       // The pin was confirmed for the address as it was written then
       address.addEventListener("change", () => picker.invalidate());
