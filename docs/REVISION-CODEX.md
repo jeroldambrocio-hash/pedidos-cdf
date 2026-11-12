@@ -1,0 +1,56 @@
+# Revisión de Codex (12/11/2026): contraste y correcciones
+
+Nada de esto está aplicado en producción ni publicado. Todo está en la rama `claude/revision-codex`, pendiente de tu revisión.
+
+## Los cuatro puntos
+
+| # | Lo que dijo Codex | ¿Es cierto? | Corrección |
+|---|---|---|---|
+| 1 | Al reintentar un pedido nuevo tras perder la respuesta, se borran los comprobantes aunque el primer intento sí se guardó | **Sí.** Se perdía la respuesta, cambiabas un dato y volvías a guardar: el servidor decía «ya guardado» y el panel borraba el comprobante que ese pago usaba. Lo reproduje con una prueba. | Antes de borrar, el panel lee el pago guardado y solo borra los archivos que no usa. Si no puede leerlo, no borra nada. |
+| 2 | Un envío completado con fila de prueba «no proporcionada» ya no se vuelve a consultar, así que una foto que llegue después se pierde | **Sí.** Además había otro fallo: la ventana de «2 días» se medía con un campo que cada consulta renueva, así que nunca se cerraba. | Un envío entregado sin foto se vuelve a consultar cada 30 minutos durante 3 días desde la reserva, hasta que haya foto guardada. Si Lalamove marca la entrega como fallida, se deja de consultar. |
+| 3 | Se acepta un PNG con estructura y CRC correctos pero datos de imagen inválidos | **Sí.** Solo se comprobaba la estructura del archivo. | Ahora se descodifica la imagen. JPEG: descodificación completa y estricta, con un tamaño que debe coincidir. PNG: los datos deben descomprimirse al tamaño exacto, con filtros válidos. WebP: se rechaza (el formulario siempre envía JPEG). Tamaño máximo: de 8000 a 4096 px por lado. |
+| 4 | La caducidad y limpieza está en `main` pero no en producción, y la función desplegada no tiene la limpieza | **Sí.** Comprobado en producción, solo lectura. | Queda preparada para aplicarla en el orden de abajo. |
+
+## Encontrado además en las pruebas en vivo
+
+- **El formulario dice «No pudimos comprobar que eres una persona»** (tu captura). Tu intento ni siquiera llegó al servidor: falló en el navegador. Cloudflare devuelve a veces un error pasajero (600010), que normalmente se resuelve reintentando. El formulario se rendía al primer error y además borraba el recuadro, así que Cloudflare no podía reintentar.
+  - **Corrección:** se deja que Cloudflare reintente y solo se da por fallido tras 3 errores o 45 segundos.
+  - Si hace falta que la persona pulse algo, el recuadro aparece abajo, visible.
+  - Probado con un Cloudflare simulado: «falla 2 veces y pasa» envía la solicitud; «falla siempre» muestra el aviso.
+
+## Pruebas nuevas (todas fallaban con el código anterior y pasan con el nuevo)
+
+- Panel: pedido con comprobante, respuesta perdida, cambio y nuevo guardado → el comprobante del pago guardado no se borra.
+- Lalamove: entregado sin foto → foto añadida más tarde sin aviso de Lalamove → se guarda. Entrega fallida y envíos antiguos → no se consultan.
+- Imágenes:
+  - PNG con chunks y CRC correctos pero datos basura, o con datos de menos o de más, filtro inválido o combinación imposible de color y profundidad → rechazado.
+  - JPEG cortado, o con los datos de imagen sobrescritos → rechazado.
+  - WebP → rechazado.
+- Formulario: el control antibots se reintenta y, si sigue fallando, muestra el aviso.
+
+Todas las demás pruebas siguen en verde: panel 73, formulario 21 en el navegador y 16 en el servidor, Lalamove 24, solicitudes, paridad con producción y vuelta atrás.
+
+## Para poner producción al día (cuando lo apruebes, en este orden)
+
+1. **Desplegar `cdf-public-order`:** limpieza diaria y descodificación de imágenes.
+2. **Desplegar `cdf-push`:** aviso «solicitud caducada».
+3. **Aplicar la migración `20261112090000_cdf_request_expiry`:** caducidad, borrado y tarea diaria a las 00:05 de Manila.
+4. **Aplicar la migración `20261112100000_cdf_lalamove_reconcile_fix`:** el punto 2.
+5. **Publicar en Netlify:** el arreglo del control antibots y la corrección del punto 1, junto con las PR #15 (enlace del formulario) y #16 (correo repetido) si las apruebas. La #16 también despliega `cdf-users`.
+
+Después compruebo que la tarea diaria existe, que la limpieza responde y que el formulario pasa el control antibots.
+
+## Política de retención que necesita tu aprobación expresa
+
+Con el paso 3, todo esto pasa a ser automático:
+
+| Qué | Cuándo | Qué se borra |
+|---|---|---|
+| Solicitud **sin responder** cuyo día de entrega ya pasó | A las 00:05 de Manila del día siguiente | Nada: pasa a «Caducada» y llega un aviso al móvil de los admins, sin datos del cliente |
+| Solicitud **rechazada** o **caducada** | 90 días después de cerrarse | La solicitud, su historial, sus fotos y su comprobante de pago |
+| Fotos de un formulario **que no se llegó a enviar** | 1 día después de que caduque la sesión (2 h) | Las fotos y la sesión |
+| Solicitud **aceptada** | Nunca | Nada: ya es un pedido. Sus fotos de referencia y su comprobante se quedan con él |
+
+Dos cosas que conviene que decidas tú:
+- **¿90 días te parece bien para las rechazadas y caducadas?** Ya lo dijiste en el chat, pero conviene confirmarlo ahora que está escrito.
+- **¿El comprobante de pago de una solicitud aceptada se guarda para siempre?** Ahora sí, igual que los comprobantes de los pedidos.

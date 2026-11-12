@@ -6,6 +6,7 @@
 // (150 if unset, 0 to never use Google); beyond that, or without the key, the free map search.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { cleanup, handle } from "./handler.ts";
+import jpeg from "npm:jpeg-js@0.4.4";
 
 const BUCKET = "cdf-solicitudes";
 const hex = (buf: ArrayBuffer) => [...new Uint8Array(buf)].map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -29,5 +30,7 @@ Deno.serve(async (req) => {
     store: (path, bytes, mime) => service.storage.from(BUCKET).upload(path, bytes, { contentType: mime, upsert: false }),
     unstore: (paths) => service.storage.from(BUCKET).remove(paths),
     fetch,
+    // Strict: a corrupt file throws instead of coming back half grey. Bounded in size and memory.
+    decodeJpeg: (bytes) => { const img = jpeg.decode(bytes, { useTArray: true, tolerantDecoding: false, maxResolutionInMP: 17, maxMemoryUsageInMB: 160 }); return { width: img.width, height: img.height }; },
   });
 });

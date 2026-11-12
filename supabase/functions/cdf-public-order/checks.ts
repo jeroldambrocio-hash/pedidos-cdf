@@ -15,7 +15,8 @@ export class CheckError extends Error {
 // This checks the structure of the file; it does not decode the pixels.
 
 export const IMAGE_MAX_BYTES = 3 * 1024 * 1024;
-const MAX_SIDE = 8000, MIN_SIDE = 16, MAX_PIXELS = 40_000_000;
+// The form sends JPEGs of at most 1600 px; the limits leave room without letting a decode get expensive.
+const MAX_SIDE = 4096, MIN_SIDE = 16, MAX_PIXELS = 16_800_000;
 
 export type CleanImage = { mime: "image/jpeg" | "image/png" | "image/webp"; ext: "jpg" | "png" | "webp"; width: number; height: number; bytes: Uint8Array };
 
@@ -163,6 +164,70 @@ export function cleanImage(input: Uint8Array): CleanImage {
   const { width, height } = image;
   if (!(width >= MIN_SIDE && height >= MIN_SIDE && width <= MAX_SIDE && height <= MAX_SIDE && width * height <= MAX_PIXELS)) throw new CheckError("bad_dimensions");
   return image;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The pixels. The structure check above can be fooled by a file whose parts are well formed but whose
+// picture data is garbage (a PNG with valid chunks and checksums around a broken IDAT). So the pixel data
+// is decoded too before anything is stored:
+//   JPEG  decoded in full (jpeg-js, strict) and its size must match its header
+//   PNG   the compressed data must inflate, to exactly the size its header promises, with valid row filters
+//   WebP  refused here: nothing on the server decodes it, and the form never sends one (it sends JPEG)
+export type DecodeJpeg = (bytes: Uint8Array) => { width: number; height: number } | Promise<{ width: number; height: number }>;
+
+const PNG_CHANNELS: Record<number, number> = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 };
+const PNG_DEPTHS: Record<number, number[]> = { 0: [1, 2, 4, 8, 16], 2: [8, 16], 3: [1, 2, 4, 8], 4: [8, 16], 6: [8, 16] };
+const ADAM7 = [[0, 0, 8, 8], [4, 0, 8, 8], [0, 4, 4, 8], [2, 0, 4, 4], [0, 2, 2, 4], [1, 0, 2, 2], [0, 1, 1, 2]];
+
+async function inflate(data: Uint8Array, max: number): Promise<Uint8Array> {
+  const reader = new Blob([data as BlobPart]).stream().pipeThrough(new DecompressionStream("deflate")).getReader();
+  const parts: Uint8Array[] = [];
+  let n = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    n += value.length;
+    if (n > max) { await reader.cancel().catch(() => {}); bad(); }
+    parts.push(value);
+  }
+  return join(parts);
+}
+
+async function verifyPng(b: Uint8Array, width: number, height: number) {
+  const depth = b[24], color = b[25], interlace = b[28];
+  if (!PNG_DEPTHS[color]?.includes(depth) || b[26] !== 0 || b[27] !== 0 || interlace > 1) bad();
+  const bits = PNG_CHANNELS[color] * depth, row = (w: number) => Math.ceil((w * bits) / 8);
+  const passes = interlace ? ADAM7.map(([x, y, dx, dy]) => [Math.ceil(Math.max(0, width - x) / dx), Math.ceil(Math.max(0, height - y) / dy)]) : [[width, height]];
+  const expected = passes.reduce((n, [w, h]) => n + (w && h ? h * (1 + row(w)) : 0), 0);
+  const idat: Uint8Array[] = [];
+  for (let at = 8; at + 12 <= b.length;) {
+    const len = be32(b, at), type = ascii(b, at + 4, 4);
+    if (type === "IDAT") idat.push(b.subarray(at + 8, at + 8 + len));
+    at += 12 + len;
+  }
+  let pixels: Uint8Array;
+  try { pixels = await inflate(join(idat), expected); } catch { return bad(); }
+  if (pixels.length !== expected) bad();
+  // Every scanline starts with its filter type: 0 to 4
+  let at = 0;
+  for (const [w, h] of passes) {
+    if (!w || !h) continue;
+    for (let y = 0; y < h; y++) { if (pixels[at] > 4) bad(); at += 1 + row(w); }
+  }
+}
+
+export async function verifyPixels(image: CleanImage, decodeJpeg: DecodeJpeg) {
+  try {
+    if (image.mime === "image/png") return await verifyPng(image.bytes, image.width, image.height);
+    if (image.mime === "image/jpeg") {
+      const d = await decodeJpeg(image.bytes);
+      if (d?.width !== image.width || d?.height !== image.height) bad();
+      return;
+    }
+    bad();
+  } catch (e) {
+    throw e instanceof CheckError ? e : new CheckError("not_an_image");
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------

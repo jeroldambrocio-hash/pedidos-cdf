@@ -2363,7 +2363,8 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .po-done p { margin: 0; text-wrap: pretty; }
 .po-ref { font-variant-numeric: tabular-nums; }
 .po-ref b { font-size: 1.15rem; letter-spacing: .02em; }
-.po-captcha { display: grid; place-items: center; }
+.po-captcha { position: fixed; z-index: 60; left: 50%; bottom: max(16px, env(safe-area-inset-bottom)); transform: translateX(-50%); display: grid; place-items: center; }
+.po-captcha:empty { display: none; }
 @media (max-width: 559px) {
   .po-section .row2 { grid-template-columns: 1fr; }
   .po-section { padding: 16px 14px; }

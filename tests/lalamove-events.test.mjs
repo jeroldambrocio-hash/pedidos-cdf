@@ -27,6 +27,7 @@ await db.exec(`insert into public.cdf_orders(id,num,date,slot,channel,customer_n
   insert into public.cdf_lalamove(order_id, env, ll_order_id, status, booked_at) values ('${ORDER}','production','3626117933572534460','COMPLETED', now() - interval '1 hour');`);
 const before = await one("select to_jsonb(l) - 'updated_at' r from public.cdf_lalamove l");
 await db.exec(migration("cdf_lalamove_events"));
+await db.exec(migration("cdf_lalamove_reconcile_fix"));
 assert.deepEqual((await one("select to_jsonb(l) - 'updated_at' r from public.cdf_lalamove l")).r, before.r);
 assert.deepEqual(await one("select order_id, env, status from public.cdf_lalamove_shipments where ll_order_id = '3626117933572534460'"),
   { order_id: ORDER, env: "production", status: "COMPLETED" });
@@ -326,6 +327,34 @@ web["https://pod.lalamove.com/a.jpg"] = () => new Response(JPEG, { headers: { "c
   assert.equal((await one(`select status from public.cdf_lalamove where order_id = '${ORDER2}'`)).status, "PICKED_UP");
   assert.equal((await work(d)).reconciled, 0, "not again within four minutes");
   ok("Running bookings are read back from Lalamove every few minutes even if no webhook comes");
+}
+
+{ // Delivered with no photo yet: read back every 30 minutes (no webhook needed) until the photo appears
+  await db.exec(`update public.cdf_lalamove set ll_order_id = '7000000002', status = 'COMPLETED', booked_at = now() - interval '2 hours' where order_id = '${ORDER2}'`);
+  lalamove.set("7000000002", { orderId: "7000000002", status: "COMPLETED", stops: [{}, { stopId: "Z1", POD: { status: "DELIVERED" } }] });
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() where ll_order_id <> '7000000002'");
+  await work(d);
+  const proofZ = async () => one("select state from public.cdf_lalamove_proofs where ll_order_id = '7000000002'");
+  assert.equal((await proofZ()).state, "not_provided");
+  assert.equal((await work(d)).reconciled, 0, "not again within 30 minutes");
+  // Lalamove adds the photo later; no webhook comes
+  lalamove.get("7000000002").stops[1].POD.image = "https://pod.lalamove.com/late.jpg";
+  web["https://pod.lalamove.com/late.jpg"] = () => new Response(JPEG);
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() - interval '31 minutes' where ll_order_id = '7000000002'");
+  assert.equal((await work(d)).reconciled, 1);
+  assert.equal((await proofZ()).state, "available");
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() - interval '31 minutes' where ll_order_id = '7000000002'");
+  assert.equal((await work(d)).reconciled, 0, "a kept photo ends the checks");
+  // A failed delivery is not checked again; nor is anything booked more than 3 days ago
+  await db.exec(`update public.cdf_lalamove set ll_order_id = '7000000003', status = 'COMPLETED', booked_at = now() - interval '2 hours' where order_id = '${ORDER2}'`);
+  lalamove.set("7000000003", { orderId: "7000000003", status: "COMPLETED", stops: [{}, { stopId: "F", POD: { status: "FAILED" } }] });
+  await work(d);
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() - interval '31 minutes' where ll_order_id = '7000000003'");
+  assert.equal((await work(d)).reconciled, 0);
+  await db.exec(`update public.cdf_lalamove_shipments set booked_at = now() - interval '4 days', last_checked_at = null where ll_order_id = '7000000002'`);
+  await db.exec(`update public.cdf_lalamove_proofs set state = 'not_provided' where ll_order_id = '7000000002'`);
+  assert.equal((await work(d)).reconciled, 0, "the 3-day window closes even though each check moves updated_at");
+  ok("Delivered without a photo: re-read every 30 minutes for 3 days, so a photo added later is kept without a webhook; failed deliveries and old ones are left alone");
 }
 
 // ---------- who sees what ----------

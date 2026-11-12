@@ -37,12 +37,21 @@
   };
   const post = (body) => call(API, { method: "POST", headers: headers({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
   // The anti-abuse check (Cloudflare Turnstile) runs once, the first time the server is needed
+  // Shown only when Cloudflare needs the person to tap (fixed at the bottom, so it is seen wherever they are).
+  // A first error is often passing (Cloudflare's 600010): the widget retries on its own, and only after
+  // three errors, or 45 s without an answer, does the form give up and say so.
   const captcha = () => new Promise((ok, fail) => {
     if (!PO.turnstileSiteKey) return ok(undefined);
     const run = () => {
-      const slot = h("div", { class: "po-captcha" });
-      document.querySelector(".order-request").append(slot);
-      window.turnstile.render(slot, { sitekey: PO.turnstileSiteKey, callback: (token) => { slot.remove(); ok(token); }, "error-callback": () => { slot.remove(); fail(new ApiError("captcha")); } });
+      const slot = h("div", { class: "po-captcha", role: "region", "aria-label": t("poCaptchaLabel") });
+      document.body.append(slot);
+      let id = null, errors = 0, done = false;
+      const end = (fn) => { if (done) return; done = true; clearTimeout(timer); try { if (id != null) window.turnstile.remove(id); } catch {} slot.remove(); fn(); };
+      const timer = setTimeout(() => end(() => fail(new ApiError("captcha"))), 45000);
+      id = window.turnstile.render(slot, { sitekey: PO.turnstileSiteKey, action: "order_form", appearance: "interaction-only", retry: "auto", "retry-interval": 2000,
+        callback: (token) => end(() => ok(token)),
+        "error-callback": () => { if (++errors >= 3) end(() => fail(new ApiError("captcha"))); return true; },
+        "expired-callback": () => { try { window.turnstile.reset(id); } catch {} } });
     };
     if (window.turnstile) return run();
     const sc = h("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", async: true });

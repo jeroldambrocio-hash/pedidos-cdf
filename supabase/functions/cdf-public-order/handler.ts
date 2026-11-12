@@ -8,7 +8,7 @@
 //   remove   take back a photo sent in this session
 //   submit   the request is checked in full and stored once (Phase 3), for the team to review
 // It is off unless the secret PUBLIC_ORDER=on, and answers only the sites listed in PUBLIC_ORDER_ORIGINS.
-import { CheckError, checkRequest, cleanImage, IMAGE_MAX_BYTES, inPhilippines } from "./checks.ts";
+import { CheckError, checkRequest, cleanImage, type DecodeJpeg, IMAGE_MAX_BYTES, inPhilippines, verifyPixels } from "./checks.ts";
 
 export type Deps = {
   env: (name: string) => string | undefined;
@@ -19,6 +19,7 @@ export type Deps = {
   store: (path: string, bytes: Uint8Array, mime: string) => Promise<{ error: unknown }>;
   unstore: (paths: string[]) => Promise<unknown>;
   fetch: typeof fetch;
+  decodeJpeg: DecodeJpeg;              // a full, strict JPEG decoder (jpeg-js in the function)
 };
 
 // Per hour unless said otherwise. Generous on purpose where many customers may share one address
@@ -81,7 +82,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       const raw = new Uint8Array(size);
       parts.reduce((at, p) => (raw.set(p, at), at + p.length), 0);
       let image;
-      try { image = cleanImage(raw); }
+      try { image = cleanImage(raw); await verifyPixels(image, d.decodeJpeg); }
       catch (e) { return no(e instanceof CheckError ? e.message : "not_an_image", e instanceof CheckError && e.message === "file_too_big" ? 413 : 415); }
       const claim = await d.rpc("cdf_upload_claim", { p_token_hash: hash, p_kind: kind, p_ext: image.ext });
       if (claim.error) return dbError(claim.error)!;
