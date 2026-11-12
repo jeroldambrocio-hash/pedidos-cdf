@@ -33,3 +33,7 @@ verify_jwt = false
 [functions.cdf-users]
 # Admin-only team management: needs a signed-in session.
 verify_jwt = true
+
+[functions.cdf-order-purge]
+# The owner's sign-in is checked by Supabase and again by the database (cdf_order_purge)
+verify_jwt = true

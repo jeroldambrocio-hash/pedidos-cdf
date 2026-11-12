@@ -79,7 +79,7 @@ const server = http.createServer((req, res) => {
       assert.match(await c.locator(".o-addr").getAttribute("href"), /Visayas/);
       assert.deepEqual(await c.locator(".steps .step .t").allInnerTexts(), ["Preparing", "Ready for pickup", "Collected"]);
       const opts = await c.locator(".badge-sel select option").allInnerTexts();
-      assert(!opts.some((x) => /on the way/i.test(x)), "no On the way: " + opts); assert(opts.includes("Not collected"));
+      assert(!opts.some((x) => /in transit|on the way/i.test(x)), "no In transit: " + opts); assert(opts.includes("Not collected"));
       assert.equal(await c.locator(".actions").getByRole("button", { name: "Collected", exact: true }).count(), 1);
       assert.equal(await c.locator(".actions").getByRole("button", { name: "Not collected" }).count(), 1);
       await c.scrollIntoViewIfNeeded(); await c.screenshot({ path: path.join(out, "pickup-1-card.png") });

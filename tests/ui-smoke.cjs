@@ -61,7 +61,7 @@ window.__pushSubs = [];
 const directThreads = [], directMessages = [];
 const tables = () => ({ cdf_direct_threads: directThreads, cdf_direct_messages: directMessages, cdf_message_reactions: window.__reactions, cdf_push_subs: window.__pushSubs, cdf_messages: window.__messages, cdf_message_reads: window.__reads, cdf_orders: window.__orders, cdf_members: members, cdf_notifications: window.__notifications, cdf_order_events: window.__events, cdf_order_prices: window.__role === "admin" || !window.__role ? window.__prices : [],
   // Phase 3: requests from the public form; only admins read them (RLS)
-  cdf_order_requests: window.__role === "admin" || !window.__role ? (window.__requests ||= []) : [], cdf_request_files: window.__role === "admin" || !window.__role ? (window.__requestFiles ||= []) : [],
+  cdf_order_requests: window.__role === "admin" || !window.__role ? (window.__requests ||= []) : [], cdf_storage_deletions: (window.__storageDeletions ||= []), cdf_request_files: window.__role === "admin" || !window.__role ? (window.__requestFiles ||= []) : [],
   cdf_request_events: window.__role === "admin" || !window.__role ? (window.__requestEvents ||= []) : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
@@ -137,7 +137,14 @@ window.supabase = { createClient: () => ({
     upload: async (p) => { window.__calls.push({ upload: b, path: p }); return { error: null }; },
     remove: async (p) => { window.__calls.push({ remove: b, paths: p }); return { error: null }; } }) },
   channel: () => ({ on(_a, config, cb) { if(config.table==="cdf_order_prices")window.__realtimePrice=cb;else if(config.table==="cdf_messages"&&config.event==="INSERT")window.__realtimeMsg=cb;else if(config.table==="cdf_messages"&&config.event==="UPDATE")window.__realtimeEdit=cb;else if(config.table==="cdf_message_reactions")window.__realtimeReact=cb;else if(_a==="broadcast")window.__typingCb=cb;else if(config.table==="cdf_orders")window.__realtime=cb;else if(config.table==="cdf_order_requests")window.__realtimeRequest=cb; return this; }, subscribe() { return this; }, send(m) { (window.__calls ||= []).push({ broadcast: m.event, payload: m.payload }); return Promise.resolve("ok"); } }), removeChannel() {},
-  functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args }); return { data: { ok: true }, error: null }; } },
+  functions: { invoke: async (name, args) => { window.__calls.push({ function: name, args });
+    // cdf-order-purge: the database's purge (same rules), then the files "removed"
+    if (name === "cdf-order-purge") {
+      if (args.body.action === "retry") return { data: { files: { removed: 0, failed: 0 } }, error: null };
+      const r = await sb.rpc("cdf_order_purge", { p_id: args.body.order_id, p_reason: args.body.reason });
+      return r.error ? { data: null, error: { message: r.error.message, context: { json: async () => ({ error: r.error.message }) } } } : { data: { purged: r.data, files: { removed: 3, failed: 0 } }, error: null };
+    }
+    return { data: { ok: true }, error: null }; } },
   rpc: (name, args) => {
     if (name === "cdf_open_direct") return { single: async () => {
       const [member_a, member_b] = [email[window.__role] || "admin@example.com", args.peer].sort();
@@ -592,9 +599,9 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert(await p.locator(".dialog").innerText().then((s) => s.includes("no email will be sent")));
       await p.locator(".dialog").getByRole("button", { name: "Cancel" }).click();
       assert(!(await calls(p)).some((c) => c.action === "update"));
-      await p.locator(".order", { hasText: "#0124" }).getByRole("button", { name: "On the way" }).click();
+      await p.locator(".order", { hasText: "#0124" }).getByRole("button", { name: "In transit" }).click();
       assert(await p.locator(".dialog").innerText().then((s) => s.includes("buyer@example.com")));
-      await p.locator(".dialog").getByRole("button", { name: "Yes, on the way" }).click();
+      await p.locator(".dialog").getByRole("button", { name: "Yes, in transit" }).click();
       await p.waitForTimeout(650);
       assert((await calls(p)).some((c) => c.action === "update" && c.row.delivery === "In transit"));
     });
@@ -1070,7 +1077,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(await q.locator("#sheetRoot .scrim").count(), 0, "Ready opened a dialog");
       assert((await calls(q)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "ready"));
       await q.getByRole("button", { name: "Head out", exact: true }).first().click();
-      await q.locator(".dialog").getByRole("button", { name: "Yes, on the way" }).click();
+      await q.locator(".dialog").getByRole("button", { name: "Yes, in transit" }).click();
       await q.waitForTimeout(650);
       assert((await calls(q)).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "transit"));
       await q.locator("#q").fill("Maria"); assert(await q.locator(".work").count() >= 1);
@@ -1092,7 +1099,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
           const row = window.__orders.find(o => o.num === "0127");
           window.__realtime({ eventType: "UPDATE", new: { ...row, carrier_email: "driver@example.com", delivery: "In transit" } });
         });
-        await driver.filter({ hasText: "On the way" }).waitFor();
+        await driver.filter({ hasText: "In transit" }).waitFor();
       } finally { await q.close(); }
     });
     await step("Driver: nobody home reschedules, delivered confirms (RPCs)", async () => {

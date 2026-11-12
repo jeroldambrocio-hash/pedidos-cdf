@@ -44,20 +44,30 @@ async function restoreFromTrash(o) {
   return true;
 }
 
-// The owner only: asks why, says what stays (the log, and the files in storage) and what goes
+// The owner only. Everything goes (the order, payments, history and every file of it): said plainly, with
+// the order's number typed to confirm. The server does it (cdf-order-purge) and keeps who, when and why.
+const purgeCall = async (body) => {
+  const { data, error } = await sb.functions.invoke("cdf-order-purge", { body });
+  if (error) { let m = error.message; try { m = (await error.context?.json())?.error || m; } catch {} return { error: { message: m } }; }
+  return { data };
+};
 function purgeDialog(o, after) {
   const reason = el("textarea", { rows: 2, maxlength: 500, placeholder: t("trashReasonPh") });
+  const typed = el("input", { inputmode: "numeric", autocomplete: "off", placeholder: o.num });
   miniSheet(t("purgeTitle", { num: o.num }), [
-    el("p", { class: "err", style: "margin:0" }, icon("alert"), " " + t("purgeWarn")),
+    el("div", { class: "sheet-note cancel-note purge-warn", role: "alert" }, icon("alert"), el("span", {}, el("b", {}, t("purgeWarn")), " " + t("purgeAll"))),
     el("p", { class: "note", style: "margin:0" }, t("purgeKeeps")),
-    reqField(t("trashReason"), reason)], t("purgeDo"), async () => {
+    reqField(t("trashReason"), reason),
+    reqField(t("purgeTypeNum", { num: o.num }), typed)], t("purgeDo"), async () => {
     if (reason.value.trim().length < 3) { reason.closest(".field").classList.add("invalid"); reason.focus(); return t("trashReasonShort"); }
-    const { error } = await sb.rpc("cdf_order_purge", { p_id: o.id, p_reason: reason.value.trim() });
+    if (typed.value.trim().replace(/^#/, "") !== String(o.num)) { typed.closest(".field").classList.add("invalid"); typed.focus(); return t("purgeTypeWrong", { num: o.num }); }
+    const { data, error } = await purgeCall({ order_id: o.id, reason: reason.value.trim() });
     if (error) return trashError(error);
     await closeSheet(true);
-    toast(t("purgedOne", { num: o.num }));
+    const f = data?.files || {};
+    toast(f.failed ? t("purgedFilesLeft", { num: o.num }) : t("purgedOne", { num: o.num }), f.failed ? { type: "error", ms: 8000 } : {});
     after?.();
-  }, { dirty: () => !!reason.value.trim() });
+  }, { dirty: () => !!reason.value.trim() || !!typed.value.trim() });
 }
 
 async function openTrash() {
@@ -65,6 +75,9 @@ async function openTrash() {
   const { data, error } = await sb.from("cdf_orders").select("*").not("deleted_at", "is", null).order("deleted_at", { ascending: false });
   if (error) { toast(t("loadFail"), { type: "error" }); return; }
   const list = (data || []).filter((o) => o.deleted_at);
+  // Files of orders already deleted that storage could not remove yet (they are retried on every delete)
+  let pending = 0;
+  if (S.cap.owner) { try { pending = ((await sb.from("cdf_storage_deletions").select("id").is("done_at", null)).data || []).length; } catch { /* only a hint */ } }
   const row = (o) => {
     const left = daysLeft(o), canRestore = left > 0 || S.cap.owner;
     return el("li", { class: "trash-item", "data-id": o.id },
@@ -81,6 +94,8 @@ async function openTrash() {
     el("div", { class: "sheet-head" }, el("h2", {}, t("trashTitleList")), el("span", { class: "tag muted" }, String(list.length)), el("span", { class: "spacer" }), closeBtn()),
     el("div", { class: "sheet-body" },
       el("p", { class: "note" }, t("trashListHint", { days: TRASH_DAYS }), " ", S.cap.owner ? t("trashOwnerYou") : t("trashOwnerOther")),
+      pending ? el("div", { class: "sheet-note warn" }, icon("alert"), el("span", {}, t("purgeFilesPending", { n: pending }), " "),
+        el("button", { class: "linkish", type: "button", onclick: async () => { const r = await purgeCall({ action: "retry" }); toast(r.error ? trashError(r.error) : t("purgeFilesRetried", { n: r.data?.files?.removed || 0 })); await closeSheet(true); openTrash(); } }, t("retry"))) : null,
       list.length ? el("ul", { class: "trash-list" }, list.map(row)) : el("div", { class: "empty" }, icon("trash"), el("p", {}, t("trashEmpty")))));
   openLayer(node);
 }

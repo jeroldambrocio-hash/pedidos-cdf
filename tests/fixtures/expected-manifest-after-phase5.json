@@ -632,6 +632,18 @@
    "config": "search_path=\"\"",
    "definer": false
   },
+  "cdf_storage_deletions_due(p_limit integer)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_storage_deletions_result(p_done bigint[], p_failed bigint[], p_error text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_team_directory()": {
    "anon": false,
    "authenticated": true,
@@ -717,6 +729,7 @@
   "public.cdf_push_subs.cdf_push_subs_own": "ALL authenticated",
   "public.cdf_request_events.cdf_request_events_admin_read": "SELECT authenticated",
   "public.cdf_request_files.cdf_request_files_admin_read": "SELECT authenticated",
+  "public.cdf_storage_deletions.cdf_storage_deletions_admin_read": "SELECT authenticated",
   "storage.objects.cdf_avatars_own_delete": "DELETE authenticated",
   "storage.objects.cdf_avatars_own_update": "UPDATE authenticated",
   "storage.objects.cdf_avatars_own_write": "INSERT authenticated",
@@ -765,7 +778,8 @@
   "cdf_orders:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
   "cdf_push_subs:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
   "cdf_request_events:authenticated": "SELECT",
-  "cdf_request_files:authenticated": "SELECT"
+  "cdf_request_files:authenticated": "SELECT",
+  "cdf_storage_deletions:authenticated": "SELECT"
  },
  "tables": {
   "cdf_direct_messages": {
@@ -1153,6 +1167,20 @@
     "sha256:text",
     "status:text!",
     "width:integer"
+   ],
+   "rls": true
+  },
+  "cdf_storage_deletions": {
+   "cols": [
+    "attempts:integer!",
+    "bucket:text!",
+    "done_at:timestamp with time zone",
+    "id:bigint!",
+    "last_error:text",
+    "order_id:uuid!",
+    "order_num:text",
+    "path:text!",
+    "queued_at:timestamp with time zone!"
    ],
    "rls": true
   },

@@ -135,10 +135,18 @@ const server = http.createServer((req, res) => {
       assert.match(await p.locator(".trash-sheet").innerText(), /As the owner/);
       await item.getByRole("button", { name: "Delete for good" }).click();
       const sheet = p.locator(".sheet", { hasText: "for good" });
-      assert.match(await sheet.innerText(), /can't be undone/); assert.match(await sheet.innerText(), /A record stays/);
+      const txt = await sheet.innerText();
+      assert.match(txt, /can't be undone/); assert.match(txt, /payment proofs and Lalamove proofs/); assert.match(txt, /Only a record stays/);
       await sheet.locator("textarea").fill("Never needed");
+      await sheet.locator("input[inputmode=numeric]").fill("9999");
+      await sheet.locator("button[type=submit]").click();
+      await sheet.getByText("The number doesn't match").waitFor();
+      assert.equal(await p.evaluate((id) => window.__orders.some((x) => x.id === id), o.id), true, "nothing deleted on a wrong number");
+      await shot(p, "5-purge");
+      await sheet.locator("input[inputmode=numeric]").fill(o.num);
       await sheet.locator("button[type=submit]").click();
       await p.locator(".toast", { hasText: `Order #${o.num} deleted for good` }).waitFor();
+      assert(await p.evaluate(() => window.__calls.some((c) => c.function === "cdf-order-purge" && c.args.body.reason === "Never needed")), "through the server function");
       assert.equal(await p.evaluate((id) => window.__orders.some((x) => x.id === id), o.id), false);
       await toRequests(p);
       await p.evaluate(() => loadRequests());   // in the app, Realtime brings the request's change

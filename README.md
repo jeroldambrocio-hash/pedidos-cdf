@@ -140,6 +140,7 @@ NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order-ui.mjs     # el formulario en el navegador, móvil y escritorio
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/lalamove-booking.test.mjs   # auditoría F01/F02: una reserva a la vez, resultado incierto, borrado con rider
 NODE_PATH=.test-tools/node_modules node tests/trash-db.cjs                  # papelera, propietario, registro, R2 → #0007, recuentos por tipo
+NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/order-purge.test.mjs   # borrado definitivo: todo fuera, archivos incluidos, reintentos
 NODE_PATH=.test-tools/node_modules node tests/trash-ui.cjs                  # papelera en el panel y Solicitudes por estado + tipo
 NODE_PATH=.test-tools/node_modules node tests/pickup-db.cjs                 # recogida: tiendas, tienda elegida, pasos sin «En camino»
 NODE_PATH=.test-tools/node_modules node tests/pickup-ui.cjs                 # recogida en el panel: tarjeta, pasos, formulario, florista, solicitud

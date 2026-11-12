@@ -130,12 +130,15 @@ const { build, migration, TEAM, claims } = require('./lib/fresh-db.cjs');
   const log = (await db.query('select action, by_email, reason, snapshot from public.cdf_order_audit where order_id = $1 order by id', [id])).rows;
   assert.deepEqual(log.map((l) => [l.action, l.by_email]), [['trashed', 'admin2@t'], ['restored', 'admin@t'], ['trashed', 'admin2@t'], ['purged', 'admin@t']]);
   const snap = log.at(-1).snapshot;
-  assert.equal(snap.order.num, '0100'); assert.equal(snap.price.payment_history[0].proofs[0], PROOF);
-  assert.equal(await count('storage.objects', `name = '${PROOF}'`), 1, 'the proof file stays in storage'); assert.equal(snap.request.id, R4);
+  assert.equal(snap.num, '0100'); assert.equal(snap.payments, 1); assert.equal(+snap.paid, 500); assert.equal(snap.request.id, R4);
+  assert(!JSON.stringify(snap).includes('Ana') && !JSON.stringify(snap).includes(PROOF), 'no personal data or file paths in the log');
+  // Its files are queued for removal from storage, in the same transaction (cdf-order-purge removes them)
+  const queued = (await db.query('select bucket, path from public.cdf_storage_deletions where order_id = $1 order by bucket, path', [id])).rows;
+  assert.deepEqual(queued, [{ bucket: 'cdf-pagos', path: PROOF }]);
   const gone = (await rpc('admin@t', 'select public.cdf_request_order($1) r', [R4])).r;
   assert.deepEqual({ state: gone.state, num: gone.num, by: gone.by, reason: gone.reason, logged: gone.logged }, { state: 'deleted', num: '0100', by: 'admin@t', reason: 'Customer cancelled for good', logged: true });
   assert.equal((await one('select accepted_order_num n, accepted_order_id i from public.cdf_order_requests where id = $1', [R4])).n, '0100');
-  ok('Deleted for good: the log keeps who, when, why and a snapshot (order, payments with proof paths, request) after the rows are gone; the request still names #0100');
+  ok('Deleted for good: everything goes, its files queued for storage; the log keeps who, when, why and a summary without personal data; the request still names #0100');
 
   // Who reads the log
   await as('flo@t'); assert.equal((await db.query('select * from public.cdf_order_audit')).rows.length, 0);

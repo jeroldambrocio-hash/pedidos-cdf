@@ -19,7 +19,9 @@ Nada de esto está aplicado en producción. Rama: `papelera-y-tipo-pedido` (incl
    ```
    El permiso solo vale en cuentas admin: si alguna de las dos no sale como admin, preguntar antes de cambiarle el rol.
    Sin este paso nadie puede borrar definitivamente (la papelera funciona igual).
-3. Funciones: `cdf-public-order` (tiendas para recoger) y `cdf-lalamove` (reserva protegida, `booking.ts`, enlace por webhook).
+3. Funciones: `cdf-public-order` (tiendas para recoger), `cdf-lalamove` (reserva protegida, `booking.ts`, enlace por
+   webhook) y la nueva `cdf-order-purge` (borrado definitivo: borra el pedido y quita sus archivos del almacenamiento;
+   `verify_jwt = true`, usa `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`, que Supabase ya pone).
 4. Web (Netlify).
 
 El formulario publicado hoy sigue funcionando entre los pasos 1 y 4 (la base de datos acepta recogidas sin tienda).
@@ -30,6 +32,8 @@ El formulario publicado hoy sigue funcionando entre los pasos 1 y 4 (la base de 
 - La solicitud R2 muestra «Pedido #0007 eliminado».
 - `select public.cdf_request_counts();` como admin devuelve recuentos.
 - Un pedido con rider activo no se puede mover a la papelera.
+- Decisiones del dueño (12/11/2026): Delivery se llama «In transit» (antes «On the way»); el borrado definitivo
+  borra todo, archivos incluidos, con aviso y escribiendo el número; las floristas no necesitan más bloqueo de lectura.
 
 ## Vuelta atrás
 

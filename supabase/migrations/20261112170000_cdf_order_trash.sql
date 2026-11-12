@@ -13,10 +13,13 @@
 -- 2) Deleting for good: only the owner (cdf_members.is_owner, which nobody can set from the app: only the
 --    database itself, as written in the deploy notes), only from the trash, never with a rider on it
 --    (20261112160000's guard), and through cdf_order_purge only: a plain DELETE is refused, whoever sends it.
---    Storage files (photos, payment and Lalamove proofs) are left in place: deleting them is a separate,
---    explicit decision (audit F06).
--- 3) A log that outlives the order (cdf_order_audit): who trashed, restored or deleted it, when and why, with
---    a snapshot of the order and its payments taken before a delete.
+--    Everything goes (decided by the owner 12/11/2026, audit F06): the order, its payments and history, and
+--    its files in storage (photos, delivery photos, payment proofs, Lalamove proofs). The files are queued in
+--    the same transaction (cdf_storage_deletions) and removed by the cdf-order-purge function, which retries
+--    what storage could not remove. The customer's own photos sent with a request stay with that request
+--    (the approved retention policy for requests).
+-- 3) A log that outlives the order (cdf_order_audit): who trashed, restored or deleted it, when and why. A
+--    delete keeps only a summary (number, date, total, paid, how many payments and files): no personal data.
 -- 4) Requests keep the number of the order they became (accepted_order_num), so a request whose order is in
 --    the trash or was deleted still says which one, and what happened to it (cdf_request_order).
 -- 5) Type: orders accepted from a pickup request become pickups (only from that record, never because an
@@ -111,6 +114,42 @@ revoke all on function public.cdf_guard_trash() from public, anon, authenticated
 create trigger cdf_orders_trash_guard before insert or update on public.cdf_orders
   for each row execute function public.cdf_guard_trash();
 
+-- Files of orders deleted for good, waiting to be removed from storage (cdf-order-purge does it, and retries)
+create table public.cdf_storage_deletions (
+  id bigint generated always as identity primary key,
+  bucket text not null check (bucket in ('cdf-fotos', 'cdf-entregas', 'cdf-pagos', 'cdf-lalamove-proofs')),
+  path text not null,
+  order_id uuid not null,
+  order_num text,
+  queued_at timestamptz not null default now(),
+  attempts integer not null default 0,
+  last_error text,
+  done_at timestamptz,
+  unique (bucket, path)
+);
+create index cdf_storage_deletions_pending on public.cdf_storage_deletions (queued_at) where done_at is null;
+alter table public.cdf_storage_deletions enable row level security;
+revoke all on public.cdf_storage_deletions from public, anon, authenticated;
+grant select on public.cdf_storage_deletions to authenticated;
+grant all on public.cdf_storage_deletions to service_role;
+create policy cdf_storage_deletions_admin_read on public.cdf_storage_deletions for select to authenticated using ((select public.cdf_is_admin()));
+
+-- The function's side: what is pending (a batch), and what happened to each
+create function public.cdf_storage_deletions_due(p_limit integer) returns setof public.cdf_storage_deletions
+language sql security definer set search_path = '' as $$
+  update public.cdf_storage_deletions d set attempts = attempts + 1
+  where d.id in (select id from public.cdf_storage_deletions where done_at is null
+    order by attempts, queued_at limit greatest(1, least(coalesce(p_limit, 200), 1000)) for update skip locked)
+  returning d.*
+$$;
+create function public.cdf_storage_deletions_result(p_done bigint[], p_failed bigint[], p_error text) returns void
+language sql security definer set search_path = '' as $$
+  update public.cdf_storage_deletions set done_at = now(), last_error = null where id = any (coalesce(p_done, '{}'));
+  update public.cdf_storage_deletions set last_error = left(p_error, 500) where id = any (coalesce(p_failed, '{}'));
+$$;
+revoke all on function public.cdf_storage_deletions_due(integer), public.cdf_storage_deletions_result(bigint[], bigint[], text) from public, anon, authenticated;
+grant execute on function public.cdf_storage_deletions_due(integer), public.cdf_storage_deletions_result(bigint[], bigint[], text) to service_role;
+
 -- No DELETE except cdf_order_purge (and the database's own owner, e.g. a migration or the SQL editor)
 create function public.cdf_guard_hard_delete() returns trigger
 language plpgsql set search_path = '' as $$
@@ -178,13 +217,27 @@ begin
   if not found then raise exception 'order not found' using errcode = 'P0002'; end if;
   if r.deleted_at is null then raise exception 'cdf_purge_not_in_trash' using errcode = '22023'; end if;
   if public.cdf_order_rider_on(p_id) then raise exception 'cdf_order_has_rider' using errcode = 'P0001'; end if;
-  -- What is lost with the rows, kept in the log: the order, its price and payments (with the proofs' paths,
-  -- whose files stay in storage), its Lalamove bookings and the request it came from
-  v_snap := jsonb_build_object(
-    'order', to_jsonb(r),
-    'price', (select to_jsonb(p) from public.cdf_order_prices p where p.order_id = p_id),
-    'lalamove', (select coalesce(jsonb_agg(jsonb_build_object('ll_order_id', s.ll_order_id, 'status', s.status, 'booked_at', s.booked_at)), '[]'::jsonb)
-                 from public.cdf_lalamove_shipments s where s.order_id = p_id),
+  -- Its files, queued in this same transaction: the ones the order points to, and anything else stored in
+  -- the order's own folder (a proof uploaded for a payment that was never saved, for example)
+  insert into public.cdf_storage_deletions (bucket, path, order_id, order_num)
+  select distinct f.bucket, f.path, r.id, r.num from (
+    select 'cdf-fotos' as bucket, r.photo_path as path
+    union all select 'cdf-entregas', unnest(array[r.proof_path, r.bouquet_path] || coalesce(r.extra_photos, '{}'))
+    union all select 'cdf-pagos', unnest(coalesce(p.pay_proofs, '{}')) from public.cdf_order_prices p where p.order_id = p_id
+    union all select 'cdf-pagos', jsonb_array_elements_text(coalesce(m->'proofs', '[]'::jsonb))
+      from public.cdf_order_prices p, jsonb_array_elements(p.payment_history) m where p.order_id = p_id
+    union all select 'cdf-lalamove-proofs', x.storage_path from public.cdf_lalamove_proofs x where x.order_id = p_id
+    union all select o.bucket_id, o.name from storage.objects o
+      where o.bucket_id in ('cdf-fotos', 'cdf-entregas', 'cdf-pagos', 'cdf-lalamove-proofs') and o.name like p_id::text || '/%'
+  ) f where coalesce(f.path, '') <> ''
+  on conflict (bucket, path) do nothing;
+  -- The log keeps who, when and why, and a summary without personal data
+  v_snap := jsonb_build_object('num', r.num, 'date', r.date, 'pickup', r.pickup, 'cancelled', r.cancelled_at is not null,
+    'total', (select p.amount from public.cdf_order_prices p where p.order_id = p_id),
+    'paid', (select p.paid from public.cdf_order_prices p where p.order_id = p_id),
+    'payments', (select jsonb_array_length(p.payment_history) from public.cdf_order_prices p where p.order_id = p_id),
+    'lalamove_bookings', (select count(*) from public.cdf_lalamove_shipments s where s.order_id = p_id),
+    'files', (select count(*) from public.cdf_storage_deletions d where d.order_id = p_id),
     'request', (select jsonb_build_object('id', q.id, 'ref', q.ref) from public.cdf_order_requests q where q.accepted_order_id = p_id));
   insert into public.cdf_order_audit (order_id, order_num, action, by_email, reason, snapshot)
   values (r.id, r.num, 'purged', v_by, btrim(p_reason), v_snap);
