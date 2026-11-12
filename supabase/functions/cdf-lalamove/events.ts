@@ -13,7 +13,7 @@
 // signature and POP fields are not documented in text, so: every payload is kept as received; the
 // signature is checked against the formula Lalamove uses for API calls and only recorded ("observe")
 // until real events show it matches — LALAMOVE_WEBHOOK_SIGNATURE=enforce then rejects the rest; and the
-// pickup photo is looked for under any "image"/"photo" key of a POP event, marked as such in the report.
+// proof links inside events are read where real events put them (eventProofs).
 
 export type Deps = {
   env: "sandbox" | "production";
@@ -104,16 +104,75 @@ export async function receive(d: Deps, raw: string, url: URL, mode: string): Pro
 
 // ---------- working ----------
 
-// The image of a POP event: any https link under a key with "image" or "photo" in its name (not documented).
-export function popImages(data: unknown): { stop: string; url: string; status: string | null }[] {
+// A proof link as Lalamove sends it, made safe to fetch (diagnosis of 12/11/2026: real links come as
+// http://sg-oimg.lalamove.com/… and answer the same over https). https stays as it is (the download still
+// checks the host, also after redirects); http is upgraded to https only for the accepted proof hosts and the
+// default port; anything else is dropped. Never fetched over plain http.
+export function proofUrl(raw: unknown, hosts: string[]): string | null {
+  if (typeof raw !== "string") return null;
+  const s = raw.trim();
+  if (!s || s.length > 2000 || /\s/.test(s)) return null;
+  let u: URL;
+  try { u = new URL(s); } catch { return null; }
+  if (u.username || u.password) return null;
+  if (u.protocol === "https:") return s;
+  if (u.protocol === "http:" && !u.port && hostAllowed(u.hostname, hosts) && /^http:\/\//i.test(s)) return "https://" + s.slice(7);
+  return null;
+}
+
+const images = (v: unknown): unknown[] => Array.isArray(v) ? v.slice(0, 5) : v == null ? [] : [v];
+export type EventProof = { kind: "pod" | "pop"; stop: string; url: string; status: string | null };
+
+// The proofs inside an event, read by where Lalamove puts them (seen in real events, 12/11/2026):
+//   data.order.stops[0].POP.imageUrls[]  pickup photos (POP_STATUS_CHANGED)
+//   data.order.stops[i].POD.image        delivery photo or signature (POD_STATUS_CHANGED), i ≥ 1
+// Each keeps its kind and stop (the same stop key as syncPod). Several pickup photos of one stop are kept
+// as stop, stop#2, stop#3… (one row per photo). A POP event without that shape falls back to the older
+// guess (an image/photo key), never under a POD key, so a delivery photo is never taken for a pickup one.
+export function eventProofs(data: any, hosts: string[], eventType: string): EventProof[] {
+  const out: EventProof[] = [];
+  const add = (kind: "pod" | "pop", stop: string, raw: unknown[], status: unknown) => {
+    let n = 0;
+    for (const x of raw) {
+      const url = proofUrl(x, hosts);
+      if (!url) continue;
+      n++;
+      out.push({ kind, stop: n === 1 ? stop : `${stop}#${n}`, url, status: typeof status === "string" ? status : null });
+    }
+  };
+  const stops = Array.isArray(data?.order?.stops) ? data.order.stops : null;
+  if (stops) {
+    stops.forEach((st: any, i: number) => {
+      if (!st || typeof st !== "object") return;
+      const key = String(st.stopId ?? "#" + i);
+      if (st.POP && typeof st.POP === "object") add("pop", key, [...images(st.POP.imageUrls), ...images(st.POP.image)], st.POP.status);
+      if (i >= 1 && st.POD && typeof st.POD === "object") add("pod", key, images(st.POD.image), st.POD.status);
+    });
+  }
+  if (!out.some((p) => p.kind === "pop") && eventType === "POP_STATUS_CHANGED") {
+    for (const p of popImages(data, hosts)) out.push({ kind: "pop", ...p });
+  }
+  return out.slice(0, 10);
+}
+
+// Older guess for a POP event whose shape is unknown: links under a key with "image" or "photo" in its name
+// (strings or lists of them), skipping anything under a POD key.
+export function popImages(data: unknown, hosts: string[] = []): { stop: string; url: string; status: string | null }[] {
   const out: { stop: string; url: string; status: string | null }[] = [];
   const walk = (v: any, stop: string | null, depth: number) => {
     if (!v || typeof v !== "object" || depth > 6) return;
     const here = typeof v.stopId === "string" || typeof v.stopId === "number" ? String(v.stopId) : stop;
     for (const [k, x] of Object.entries(v)) {
-      if (typeof x === "string" && /image|photo/i.test(k) && /^https:\/\//i.test(x))
-        out.push({ stop: here || "pickup", url: x, status: typeof v.status === "string" ? v.status : null });
-      else if (x && typeof x === "object") walk(x, here, depth + 1);
+      if (/^pod$/i.test(k)) continue;
+      if (/image|photo/i.test(k) && (typeof x === "string" || Array.isArray(x))) {
+        let n = 0;
+        for (const y of images(x)) {
+          const url = proofUrl(y, hosts);
+          if (!url) continue;
+          n++;
+          out.push({ stop: n === 1 ? here || "pickup" : `${here || "pickup"}#${n}`, url, status: typeof v.status === "string" ? v.status : null });
+        }
+      } else if (x && typeof x === "object") walk(x, here, depth + 1);
     }
   };
   walk(data, null, 0);
@@ -131,7 +190,7 @@ export async function syncPod(d: Deps, llId: string, order: any): Promise<number
     const r = await rpcData(d, "cdf_ll_proof_note", {
       p_ll: llId, p_kind: "pod", p_stop: String(stops[i].stopId ?? "#" + i),
       p_status: typeof pod.status === "string" ? pod.status : null,
-      p_at: eventTime(pod.deliveredAt), p_url: typeof pod.image === "string" ? pod.image : null,
+      p_at: eventTime(pod.deliveredAt), p_url: proofUrl(Array.isArray(pod.image) ? pod.image[0] : pod.image, d.proofHosts),
     });
     if (r.fetch) due.push(r.id);
   }
@@ -158,9 +217,11 @@ export async function processEvent(d: Deps, ev: any): Promise<string> {
       }
       if (ship) {
         if (ev.event_type === "ORDER_REPLACED") await rpcData(d, "cdf_ll_replace_noticed", { p_ll: id });
-        if (ev.event_type === "POP_STATUS_CHANGED") {
-          for (const p of popImages(ev.payload?.data)) {
-            const r = await rpcData(d, "cdf_ll_proof_note", { p_ll: id, p_kind: "pop", p_stop: p.stop, p_status: p.status,
+        // Links that came in the event itself are noted first: reading the booking back afterwards may not
+        // repeat the picture, and a link already noted is kept (cdf_ll_proof_note)
+        if (ev.event_type === "POP_STATUS_CHANGED" || ev.event_type === "POD_STATUS_CHANGED") {
+          for (const p of eventProofs(ev.payload?.data, d.proofHosts, ev.event_type)) {
+            const r = await rpcData(d, "cdf_ll_proof_note", { p_ll: id, p_kind: p.kind, p_stop: p.stop, p_status: p.status,
               p_at: eventTime(ev.payload?.data?.updatedAt), p_url: p.url });
             if (r.fetch) due.push(r.id);
           }
