@@ -92,6 +92,12 @@
    "config": "search_path=\"\"",
    "definer": false
   },
+  "cdf_guard_sees_stats()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_hook_ok(p_secret text)": {
    "anon": false,
    "authenticated": false,
@@ -754,6 +760,7 @@
     "pickup_lat:numeric(9,6)",
     "pickup_lng:numeric(9,6)",
     "role:text!",
+    "sees_stats:boolean!",
     "username:text"
    ],
    "rls": true
@@ -996,6 +1003,7 @@
   "cdf_lalamove.cdf_lalamove_track",
   "cdf_lalamove_proofs.cdf_lalamove_proofs_touch",
   "cdf_lalamove_shipments.cdf_lalamove_shipments_touch",
+  "cdf_members.cdf_members_sees_stats",
   "cdf_messages.cdf_message_edited",
   "cdf_messages.cdf_messages_push",
   "cdf_order_prices.cdf_price_against_paid",

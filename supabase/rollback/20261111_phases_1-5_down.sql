@@ -25,6 +25,9 @@ drop trigger if exists cdf_lalamove_track on public.cdf_lalamove;
 
 -- 12/11/2026 additions (request expiry and clean-up). pg_cron itself is left installed: it is harmless
 -- and other jobs may use it by then.
+drop trigger if exists cdf_members_sees_stats on public.cdf_members;
+drop function if exists public.cdf_guard_sees_stats();
+alter table public.cdf_members drop column if exists sees_stats;
 drop function if exists public.cdf_requests_cleanup_hook();
 drop function if exists public.cdf_requests_purge(text[]);
 drop function if exists public.cdf_requests_purge_list(integer);

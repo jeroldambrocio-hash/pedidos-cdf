@@ -90,7 +90,8 @@ async function start(user) {
   S.me = data; S.uid = user.id; // the avatar folder is the auth user id
   invalidateStats();
   document.body.dataset.role = data.role;
-  $("tabStats").hidden = $("tabTeam").hidden = !isAdmin();
+  $("tabTeam").hidden = !isAdmin();
+  $("tabStats").hidden = !seesStats();
   $("newBtn").hidden = !isStaff();
   $("selectBtn").hidden = !isStaff();
   $("viewControls").hidden = !isStaff();
@@ -136,6 +137,7 @@ function renderSub() {
 
 // ---------- sections ----------
 function setTab(tab) {
+  if (tab === "stats" && !seesStats()) tab = "orders";
   S.tab = tab;
   for (const [id, v] of [["tabOrders", "orders"], ["tabStats", "stats"], ["tabTeam", "team"], ["tabChat", "chat"], ["tabRequests", "requests"]]) $(id).setAttribute("aria-current", tab === v ? "page" : "false");
   show({ orders: "ordersView", team: "teamView", stats: "statsView", chat: "chatView", requests: "requestsView" }[tab]);

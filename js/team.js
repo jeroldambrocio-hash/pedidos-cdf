@@ -31,6 +31,11 @@ function editMember(m) {
   // Availability: florists only; the admin can set anyone's (the server checks it too)
   const avail = S.cap.profiles && m.role === "vendor" ? availabilityFields(m) : null;
   // Branch of the shop this person works for (any role; shown on the profile and in Team)
+  // Statistics: chosen per admin, by an admin who sees them; nobody changes their own (the database checks it too)
+  const iStats = m.sees_stats !== undefined && seesStats() ? el("input", { type: "checkbox", id: "eStats", checked: m.sees_stats !== false, disabled: self }) : null;
+  const statsRow = iStats ? checkRow(iStats, t("seesStats")) : null;
+  if (statsRow) { statsRow.id = "eStatsRow"; statsRow.hidden = m.role !== "admin"; }
+  iRole.addEventListener("change", () => { if (statsRow) statsRow.hidden = iRole.value !== "admin"; });
   const iBranch = S.cap.branch ? el("input", { id: "eBranch", value: m.branch || "", maxlength: 60, autocomplete: "off", placeholder: t("branchPh") }) : null;
   // Lalamove: where riders pick up this florist's orders (her shop)
   const pick = S.cap.pickup && m.role === "vendor" ? {
@@ -66,11 +71,12 @@ function editMember(m) {
         pickup = { pickup_address: addr, pickup_lat: pt?.lat ?? null, pickup_lng: pt?.lng ?? null };
     }
     const branch = iBranch ? iBranch.value.trim() || null : m.branch ?? null, branchChanged = !!iBranch && branch !== (m.branch || null);
-    const basics = name !== m.name || role !== m.role || username !== (m.username || null) || !!pickup || branchChanged, away = !!avail?.changed();
+    const stats = iStats && !self && iStats.checked !== (m.sees_stats !== false) ? { sees_stats: iStats.checked } : null;
+    const basics = name !== m.name || role !== m.role || username !== (m.username || null) || !!pickup || branchChanged || !!stats, away = !!avail?.changed();
     if (!basics && !away) { close(); return; }
     save.disabled = true;
     try {
-      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : "editFail")); }
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}), ...(stats || {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : /cdf_stats_/.test(error.message || "") ? "statsForbidden" : "editFail")); }
       if (away) await saveAvailability(m.email, avail.value());
     } catch (x) { save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;
@@ -84,6 +90,7 @@ function editMember(m) {
       field(t("username"), iUsername), el("p", { class: "hint" }, t("usernameHint")),
       el("label", { class: "field" }, el("span", {}, t("role")), iRole),
       iBranch ? field(t("branch"), iBranch) : null,
+      statsRow,
       el("div", { class: "hint" }, self ? t("ownRoleHint") : m.email),
       avail ? el("h3", { class: "grp" }, t("availability")) : null, avail?.node,
       pick ? el("h3", { class: "grp" }, t("pickupTitle")) : null,
@@ -126,6 +133,7 @@ function renderTeam() {
         florist && S.cap.profiles ? awayBadge(m) : null,
         m.role === "vendor" || m.role === "carrier" ? el("small", { class: "load" }, t("openLoad", { n: load })) : null,
         m.role === "vendor" ? doneLine(m.email) : null,
+        m.role === "admin" && m.sees_stats === false ? el("small", { class: "note no-stats" }, t("noStats")) : null,
         // Phase 4: a florist without a shop location or branch never appears in the nearest-shop suggestion
         florist && S.cap.ranking && (m.pickup_lat == null || !(m.branch || "").trim())
           ? el("small", { class: "shop-gap" }, icon("alert"), t("shopGapTeam", { what: [m.pickup_lat == null ? t("shopMiss_point") : null, !(m.branch || "").trim() ? t("shopMiss_branch") : null].filter(Boolean).join(", ") })) : null),
