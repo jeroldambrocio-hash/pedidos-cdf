@@ -61,3 +61,14 @@ Con el paso 3, todo esto pasa a ser automático:
 Dos cosas que conviene que decidas tú:
 - **¿90 días te parece bien para las rechazadas y caducadas?** Ya lo dijiste en el chat, pero conviene confirmarlo ahora que está escrito.
 - **¿El comprobante de pago de una solicitud aceptada se guarda para siempre?** Ahora sí, igual que los comprobantes de los pedidos.
+
+## Tercera revisión (PR #18, Estadísticas) — 12/11/2026
+
+1. **Dar Estadísticas al crear o ascender un admin.** Confirmado. El trigger ahora también vigila altas, cambios de rol y bajas. Si quien crea o asciende a un admin no tiene Estadísticas, el nuevo admin empieza sin ellas. Un admin sin Estadísticas no puede degradar a uno que las tiene. La función `cdf-users` (que escribe con la identidad de servicio) aplica la misma regla en `stats.ts`: da de alta sin Estadísticas y no deja quitar a un admin que las tiene.
+2. **Dos admins se quitan el acceso a la vez.** Confirmado. Los cambios que dan o quitan Estadísticas esperan su turno (un bloqueo de transacción) y siempre queda al menos un admin con acceso: quitar, degradar o borrar al último se rechaza (`cdf_stats_last`), también desde la propia base de datos.
+
+Pruebas: `stats-access-db.cjs` (9, cuatro nuevas), `stats-access-concurrency.cjs` (PostgreSQL real, 3 carreras), `cdf-users-stats.test.mjs` (3). Con la migración anterior, la prueba de altas y la de concurrencia fallan.
+
+Alcance: ocultar Estadísticas no oculta los precios de cada pedido; no es una barrera de confidencialidad de los datos financieros.
+
+Orden de publicación: `cdf-users` lee la fila completa (`select("*")`), así que funciona antes y después de la migración.

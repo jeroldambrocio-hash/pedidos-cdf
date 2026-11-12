@@ -76,7 +76,7 @@ function editMember(m) {
     if (!basics && !away) { close(); return; }
     save.disabled = true;
     try {
-      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}), ...(stats || {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : /cdf_stats_/.test(error.message || "") ? "statsForbidden" : "editFail")); }
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}), ...(stats || {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : /cdf_stats_last/.test(error.message || "") ? "statsLastAdmin" : /cdf_stats_/.test(error.message || "") ? "statsForbidden" : "editFail")); }
       if (away) await saveAvailability(m.email, avail.value());
     } catch (x) { save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;

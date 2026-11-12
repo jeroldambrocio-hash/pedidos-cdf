@@ -34,4 +34,34 @@ const ok = (n) => console.log('ok ' + n);
   await db.exec('reset role'); await db.query("select set_config('request.jwt.claims','',false)"); await set('admin2@t', true);
   assert.equal(await sees('admin2@t'), true);
   ok('The database itself (no session) is not limited');
+
+  // Second review of PR #18: giving Statistics by adding or promoting an admin
+  const run = (sql, args) => db.query(sql, args);
+  await as('admin@t'); await set('admin2@t', false);
+  await as('admin2@t'); await run("insert into public.cdf_members(email,name,role) values ('new1@t','New One','admin')");
+  await as('admin2@t'); await run("insert into public.cdf_members(email,name,role,sees_stats) values ('new2@t','New Two','admin',true)");
+  await as('admin2@t'); await run("update public.cdf_members set role = 'admin' where email = 'flo@t'");
+  assert.equal(await sees('new1@t'), false); assert.equal(await sees('new2@t'), false); assert.equal(await sees('flo@t'), false);
+  ok('An admin without Statistics adds or promotes admins, and they start without Statistics');
+
+  await as('admin2@t'); await assert.rejects(run("update public.cdf_members set role = 'vendor' where email = 'admin3@t'"), /cdf_stats_forbidden/);
+  assert.equal(await sees('admin3@t'), true);
+  ok('An admin without Statistics cannot demote one who has them');
+
+  await as('admin@t'); await run("update public.cdf_members set role = 'admin' where email = 'dri@t'");
+  await as('admin@t'); await run("insert into public.cdf_members(email,name,role) values ('new3@t','New Three','admin')");
+  assert.equal(await sees('dri@t'), true); assert.equal(await sees('new3@t'), true);
+  ok('An admin with Statistics adds or promotes admins who keep the default (Statistics on)');
+
+  // Always one admin with Statistics left
+  await db.exec('reset role'); await db.query("select set_config('request.jwt.claims','',false)");
+  await run("update public.cdf_members set sees_stats = false where email <> 'admin@t' and role = 'admin'");
+  for (const sql of ["update public.cdf_members set sees_stats = false where email = 'admin@t'",
+    "update public.cdf_members set role = 'vendor' where email = 'admin@t'",
+    "delete from public.cdf_members where email = 'admin@t'"]) await assert.rejects(run(sql), /cdf_stats_last/);
+  assert.equal(await sees('admin@t'), true);
+  await run("update public.cdf_members set sees_stats = true where email = 'admin3@t'");
+  await run("delete from public.cdf_members where email = 'admin3@t'");
+  assert.equal(await sees('admin@t'), true);
+  ok('The last admin with Statistics cannot be switched off, demoted or removed (not even by the database); with two, one can go');
 })().catch((e) => { console.error(e); process.exit(1); });
