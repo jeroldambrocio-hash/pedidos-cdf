@@ -8,8 +8,15 @@ Nada de esto está aplicado en producción ni publicado. Todo está en la rama `
 |---|---|---|---|
 | 1 | Al reintentar un pedido nuevo tras perder la respuesta, se borran los comprobantes aunque el primer intento sí se guardó | **Sí.** Se perdía la respuesta, cambiabas un dato y volvías a guardar: el servidor decía «ya guardado» y el panel borraba el comprobante que ese pago usaba. Lo reproduje con una prueba. | Antes de borrar, el panel lee el pago guardado y solo borra los archivos que no usa. Si no puede leerlo, no borra nada. |
 | 2 | Un envío completado con fila de prueba «no proporcionada» ya no se vuelve a consultar, así que una foto que llegue después se pierde | **Sí.** Además había otro fallo: la ventana de «2 días» se medía con un campo que cada consulta renueva, así que nunca se cerraba. | Un envío entregado sin foto se vuelve a consultar cada 30 minutos durante 3 días desde la reserva, hasta que haya foto guardada. Si Lalamove marca la entrega como fallida, se deja de consultar. |
-| 3 | Se acepta un PNG con estructura y CRC correctos pero datos de imagen inválidos | **Sí.** Solo se comprobaba la estructura del archivo. | Ahora se descodifica la imagen. JPEG: descodificación completa y estricta, con un tamaño que debe coincidir. PNG: los datos deben descomprimirse al tamaño exacto, con filtros válidos. WebP: se rechaza (el formulario siempre envía JPEG). Tamaño máximo: de 8000 a 4096 px por lado. |
+| 3 | Se acepta un PNG con estructura y CRC correctos pero datos de imagen inválidos | **Sí.** Solo se comprobaba la estructura del archivo. | El servidor solo acepta JPEG, que es lo único que envía el formulario (reduce cada foto en el navegador). Ese JPEG se descodifica completo y de forma estricta, con límites de tamaño y memoria, y su tamaño debe coincidir con la cabecera. PNG y WebP se rechazan. Tamaño máximo: de 8000 a 4096 px por lado. |
 | 4 | La caducidad y limpieza está en `main` pero no en producción, y la función desplegada no tiene la limpieza | **Sí.** Comprobado en producción, solo lectura. | Queda preparada para aplicarla en el orden de abajo. |
+
+## Segunda revisión independiente (12/11/2026, commit `1fa4487`)
+
+| Hallazgo | ¿Es cierto? | Corrección |
+|---|---|---|
+| El control antibots puede dejar el formulario bloqueado si el script de Cloudflare no termina de descargarse: el plazo de 45 s solo empezaba al cargar el script | **Sí.** Con la descarga colgada, el botón se quedaba en «Sending…» para siempre. | El plazo de 45 s cubre ahora todo, también la descarga. Al vencer, se limpia el script colgado y el recuadro, el formulario lo dice y el botón vuelve a funcionar. Pulsar otra vez empieza una descarga nueva. La promesa se resuelve una sola vez. Prueba: descarga que no termina y reloj adelantado 46 s. |
+| La validación PNG aún aceptaba PNG no descodificables (indexado sin paleta) | **Sí.** Descomprimir y comprobar los filtros no es descodificar. | Se rechazan todos los PNG en el servidor (ver punto 3), porque el formulario nunca los envía. Regresión: PNG indexado sin paleta, PNG con datos basura, PNG correcto y la muestra existente, todos rechazados; los dos JPEG de muestra (normal y progresivo) aceptados. |
 
 ## Encontrado además en las pruebas en vivo
 
@@ -23,12 +30,12 @@ Nada de esto está aplicado en producción ni publicado. Todo está en la rama `
 - Panel: pedido con comprobante, respuesta perdida, cambio y nuevo guardado → el comprobante del pago guardado no se borra.
 - Lalamove: entregado sin foto → foto añadida más tarde sin aviso de Lalamove → se guarda. Entrega fallida y envíos antiguos → no se consultan.
 - Imágenes:
-  - PNG con chunks y CRC correctos pero datos basura, o con datos de menos o de más, filtro inválido o combinación imposible de color y profundidad → rechazado.
+  - Cualquier PNG (incluido el indexado sin paleta y el que tiene datos basura) → rechazado.
   - JPEG cortado, o con los datos de imagen sobrescritos → rechazado.
   - WebP → rechazado.
-- Formulario: el control antibots se reintenta y, si sigue fallando, muestra el aviso.
+- Formulario: el control antibots se reintenta y, si sigue fallando, muestra el aviso. Si el script de Cloudflare no llega a descargarse, el formulario se recupera a los 45 s.
 
-Todas las demás pruebas siguen en verde: panel 73, formulario 21 en el navegador y 16 en el servidor, Lalamove 24, solicitudes, paridad con producción y vuelta atrás.
+Todas las demás pruebas siguen en verde: panel 73, formulario 23 en el navegador y 16 en el servidor, Lalamove 24, solicitudes, paridad con producción y vuelta atrás.
 
 ## Para poner producción al día (cuando lo apruebes, en este orden)
 

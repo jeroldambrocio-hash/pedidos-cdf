@@ -91,7 +91,7 @@ const FAKE_GOOGLE = `(() => {
 const storedRequest = async (key) => { const r = (await db.query("select mode, address, lat from public.cdf_order_requests where request_key = $1", [key])).rows[0]; return r && { ...r, lat: r.lat == null ? null : Number(r.lat) }; };
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 // Everything the page asks for is answered here or refused: a request to any other host fails the test.
-async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "", turnstile = null } = {}) {
+async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "", turnstile = null, clock = false } = {}) {
   const ctx = await browser.newContext({ viewport, locale: "en-PH", timezoneId: "Europe/Madrid", ...(geo ? { geolocation: geo, permissions: ["geolocation"] } : {}) });
   const page = await ctx.newPage();
   const state = { calls: [], strangers: [], failUploads: 0, accept, errors: [], googleScripts: [] };
@@ -108,6 +108,7 @@ async function open({ feature = true, viewport = { width: 390, height: 844 }, ge
       return route.fulfill({ contentType: "text/javascript", body: google === "refused" ? FAKE_GOOGLE + ";setTimeout(() => window.gm_authFailure(), 50);" : FAKE_GOOGLE });
     }
     // Cloudflare Turnstile stand-in: "flaky" fails twice (like its passing 600010) then passes; "broken" never passes
+    if (url.startsWith("https://challenges.cloudflare.com/turnstile/") && turnstile === "hang") { state.turnstileLoads = (state.turnstileLoads || 0) + 1; return; } // the download never ends
     if (url.startsWith("https://challenges.cloudflare.com/turnstile/")) return route.fulfill({ contentType: "text/javascript", body: `
       window.turnstile = { n: 0, render(el, o) { window.__ts = { el, o, removed: false }; const fails = ${JSON.stringify(turnstile)} === "broken" ? 3 : 2;
         let i = 0; const tick = () => { if (window.__ts.removed) return; if (i < fails) { i++; o["error-callback"]("600010"); setTimeout(tick, 30); } else o.callback("token-ok"); };
@@ -123,6 +124,7 @@ async function open({ feature = true, viewport = { width: 390, height: 844 }, ge
     let status = res.status, body = await res.text();
     return route.fulfill({ status, headers: Object.fromEntries(res.headers), body });
   });
+  if (clock) await page.clock.install();
   await page.goto(ORIGIN + "/pedido.html");
   return { page, state, ctx };
 }
@@ -501,6 +503,26 @@ await step("Anti-bot check: a passing error is retried and the request goes thro
     assert.deepEqual(state.errors, []);
     await ctx.close();
   }
+});
+
+await step("Anti-bot script that never finishes downloading: after 45 s the form says so, the button works again, and a retry starts afresh", async () => {
+  const { page, state, ctx } = await open({ turnstile: "hang", clock: true });
+  await fill(page, { pickup: true });
+  await review(page);
+  await page.locator(".po-review").waitFor();
+  const send = page.getByRole("button", { name: /Send request|Sending/ });
+  await send.click();
+  await page.waitForFunction(() => document.querySelectorAll('script[src*="challenges.cloudflare.com"]').length === 1);
+  await page.clock.fastForward(46_000);
+  await page.getByText("We couldn't check that you're a person").waitFor();
+  assert.equal(await send.isDisabled(), false, "the button is usable again");
+  assert.match(await send.innerText(), /Send request/);
+  assert.equal(await page.evaluate(() => document.querySelectorAll('script[src*="challenges.cloudflare.com"], .po-captcha').length), 0, "the stuck download and the slot are cleaned up");
+  assert.equal(state.calls.filter((c) => c.action === "session").length, 0);
+  await send.click();
+  await page.waitForFunction(() => document.querySelectorAll('script[src*="challenges.cloudflare.com"]').length === 1);
+  assert.deepEqual(state.errors, []);
+  await ctx.close();
 });
 
 await step("Several photos: sent as they are added, cleaned on the server, private; limits and removal", async () => {
