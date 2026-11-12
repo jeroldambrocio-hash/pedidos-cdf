@@ -106,7 +106,7 @@ const llCanBook = (o) => !!o?.id && (isAdmin() || (S.me?.role === "vendor" && o.
 // the order by hand. The order then follows the rider (in production). Returns false when Lalamove isn't
 // available here, so the caller falls back to the manual "On the way".
 async function llHeadOut(o) {
-  if (!llCanBook(o) || (await llDetect().catch(() => false)) !== "ready") return false;
+  if (isPickup(o) || !llCanBook(o) || (await llDetect().catch(() => false)) !== "ready") return false;
   await openOrder(o);
   for (let i = 0; i < 40; i++) {
     const s = document.getElementById("lalamoveSection");

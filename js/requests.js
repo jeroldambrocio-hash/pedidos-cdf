@@ -90,7 +90,7 @@ function renderRequests() {
   fill(body, el("ul", { class: "req-list" }, shown.map((r) => el("li", {},
     el("button", { class: "req-card" + (r.status === "received" ? " is-new" : ""), type: "button", "data-id": r.id, onclick: () => openRequest(r) },
       el("span", { class: "req-top" }, el("b", { class: "req-ref" }, reqRef(r)), reqStatusTag(r), el("span", { class: "spacer" }), el("small", { class: "note" }, reqAgo(r.created_at))),
-      el("span", { class: "req-when" }, icon(r.mode === "pickup" ? "box" : "truck"), " ", reqWhen(r)),
+      el("span", { class: "req-when" }, icon(r.mode === "pickup" ? "box" : "truck"), " ", reqWhen(r), r.pickup_branch ? " · " + t("pickupAt", { shop: r.pickup_branch }) : null),
       el("span", { class: "req-who" }, r.buyer_name, r.receiver_name !== r.buyer_name ? " → " + r.receiver_name : null),
       el("span", { class: "req-what note" }, r.description))))));
 }
@@ -145,7 +145,7 @@ async function openRequest(r) {
         el("dt", {}, t("buyerH")), el("dd", {}, r.buyer_name, " · ", tel(r.buyer_phone)),
         el("dt", {}, t("recipientH")), r.receiver_name === r.buyer_name && r.receiver_phone === r.buyer_phone ? el("dd", {}, t("reqSameAsBuyer")) : el("dd", {}, r.receiver_name, " · ", tel(r.receiver_phone)),
         el("dt", {}, t(r.mode === "pickup" ? "reqPickup" : "address")),
-        r.mode === "pickup" ? el("dd", {}, t("reqPickupDd")) : el("dd", {}, r.address,
+        r.mode === "pickup" ? el("dd", {}, r.pickup_branch ? reqShop(r) : t("reqPickupDd")) : el("dd", {}, r.address,
           pinUrl ? el("br") : null, pinUrl ? el("a", { class: "link-out", href: pinUrl, target: "_blank", rel: "noopener" }, icon("map"), " ", t("reqPinMap")) : null,
           r.location_source ? el("small", { class: "note req-pin-src" }, t("reqPinSrc_" + r.location_source)) : null),
         el("dt", {}, t("reqWhat")), el("dd", { class: "msg" }, r.description),
@@ -194,13 +194,24 @@ function reqError(e) {
   return t("saveFail", { msg: m });
 }
 
-// What the editor opens with: the request's details where the order keeps them, and the rest in the notes
+// The shop a pickup request chose, with its address (from Team), and its florists
+const shopFlorists = (branch) => S.members.filter((m) => m.role === "vendor" && (m.branch || "").trim() === branch);
+function reqShop(r) {
+  const m = shopFlorists(r.pickup_branch)[0];
+  return [el("b", {}, r.pickup_branch), ...(m?.pickup_address ? [el("br"), el("a", { class: "link-out", href: mapsUrl(m.pickup_address), target: "_blank", rel: "noopener" }, icon("map"), " ", m.pickup_address)] : [])];
+}
+// What the editor opens with: the request's details where the order keeps them, and the rest in the notes.
+// A pickup becomes a pickup order, given to the chosen shop's florist (one who is not away that day, if any).
 function requestDraft(r) {
-  const notes = [r.description, r.special_requests ? t("reqSpecialNote", { text: r.special_requests }) : "", r.mode === "pickup" ? t("reqPickupNote") : "",
+  const asPickup = r.mode === "pickup" && S.cap.pickupMode;
+  const notes = [r.description, r.special_requests ? t("reqSpecialNote", { text: r.special_requests }) : "", r.mode === "pickup" && !asPickup ? t("reqPickupNote") : "",
     t("reqFromNote", { ref: reqRef(r), method: t("pm_" + r.payment_method) })].filter(Boolean).join("\n");
+  const florists = asPickup && r.pickup_branch ? shopFlorists(r.pickup_branch) : [];
+  const florist = florists.find((m) => !(typeof awayOn === "function" && awayOn(m, r.date))) || florists[0];
   return { date: r.date, slot: r.slot, channel: "Web", buyer_name: r.buyer_name, buyer_phone: r.buyer_phone,
-    customer_name: r.receiver_name, customer_phone: r.receiver_phone, address: r.mode === "pickup" ? t("reqPickupAddress") : r.address,
-    drop_lat: r.lat != null ? +r.lat : null, drop_lng: r.lng != null ? +r.lng : null, card_message: r.card_message, notes, delivery_note: "" };
+    customer_name: r.receiver_name, customer_phone: r.receiver_phone, address: r.mode === "pickup" ? (asPickup ? "" : t("reqPickupAddress")) : r.address,
+    drop_lat: r.lat != null ? +r.lat : null, drop_lng: r.lng != null ? +r.lng : null, card_message: r.card_message, notes, delivery_note: "",
+    ...(asPickup ? { pickup: true, vendor_email: florist?.email || "" } : {}) };
 }
 
 async function acceptRequest(r) {

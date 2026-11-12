@@ -2,6 +2,7 @@
 // in the edge function (index.ts) and in tests (tests/public-order.test.mjs), with nothing real behind it.
 //
 // What a visitor can do here, and nothing else:
+//   shops    the shops a customer can pick up from (zone, address, point; open or not that day)
 //   session  pass the anti-abuse check once and get a short-lived token (carries the quotas)
 //   search   look an address up (its own endpoint: this function cannot price or book riders)
 //   upload   send one photo; it is checked and cleaned here before it is stored, privately
@@ -26,7 +27,7 @@ export type Deps = {
 // (an office, a mobile carrier): a shared address alone must not lock everyone out.
 const LIMITS = {
   sessionsPerIp: 30, sessionsOverall: 3000, searchesPerSession: 60, searchesPerIp: 400,
-  uploadsPerIp: 240, submitsPerSession: 10,
+  uploadsPerIp: 240, submitsPerSession: 10, shopsPerIp: 240,
 };
 const HOUR = 3600;
 
@@ -123,6 +124,17 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       return json({ session: token, expires_in: 2 * HOUR });
     }
 
+    // ---- shops: public information (the shops themselves), so no session is needed; only a rate limit
+    if (b.action === "shops") {
+      if (Object.keys(b).some((k) => k !== "action" && k !== "date")) return no("unknown_field");
+      const date = b.date == null ? null : typeof b.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(b.date) && !Number.isNaN(Date.parse(b.date + "T00:00:00Z")) ? b.date : undefined;
+      if (date === undefined) return no("invalid", 400, "date");
+      if (!(await within("shops-ip:" + ipHash, LIMITS.shopsPerIp))) return no("slow_down", 429);
+      const got = await d.rpc("cdf_pickup_shops", { p_date: date });
+      if (got.error) return no("server", 500);
+      return json({ shops: got.data || [] });
+    }
+
     const hash = await tokenHash();
     if (!hash) return no("session", 401);
 
@@ -200,6 +212,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         const m = saved.error.message;
         if (/cdf_session_invalid/.test(m)) return no("session", 401);
         if (/cdf_request_files/.test(m)) return no("files", 422, "reference_files");
+        if (/cdf_pickup_shop/.test(m)) return no("invalid", 422, "pickup_branch");
         if (/cdf_operation_conflict/.test(m)) return no("conflict", 409);
         if (/cdf_invalid_request/.test(m)) return no("invalid", 422, "date");
         return no("server", 500);

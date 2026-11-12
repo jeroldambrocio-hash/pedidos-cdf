@@ -2448,3 +2448,28 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 #accountBtn { position: relative; }
 #accountBtn.has-news::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--step-done); box-shadow: 0 0 0 2px var(--surface); }
 .changelog-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.45; }
+
+/* Public form · pickup: the shops as a list to choose from; the address shows once one is chosen */
+.po-shops { display: grid; gap: 8px; }
+.po-shop { display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 10px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); cursor: pointer; transition: border-color var(--dur-fast), background-color var(--dur-fast); }
+.po-shop:hover { background: var(--surface-hover); }
+.po-shop input { width: 20px; height: 20px; flex: none; margin: 0; accent-color: var(--primary); }
+.po-shop.is-chosen { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary) inset; }
+.po-shop.is-closed { cursor: not-allowed; opacity: .6; }
+.po-shop:has(input:focus-visible) { outline: 2px solid var(--primary); outline-offset: 2px; }
+.po-shop-text { display: grid; gap: 2px; min-width: 0; flex: 1; }
+.po-shop-text small { color: var(--muted); font-size: .8125rem; }
+.po-shop-near { flex: none; padding: 2px 8px; border-radius: 99px; font-size: .75rem; font-weight: 600; background: color-mix(in srgb, var(--step-done) 14%, transparent); color: var(--step-done); }
+.po-shop-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.po-shop-detail { display: grid; gap: 4px; padding: 12px 14px; border-radius: 12px; background: var(--sunk); }
+.po-shop-detail p { margin: 0; }
+.po-shop-box { display: grid; gap: 12px; }
+.po-shop-box .err:empty { display: none; }
+
+/* Pickup orders */
+.tag.pickup { background: var(--sunk); color: var(--fg); font-weight: 500; }
+.steps.three .link { flex: 1.5; }
+.pickup-info { margin: 0; }
+.mode-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+.w-pickup { display: inline-flex; align-items: center; gap: 4px; }
+.mode-off { display: none !important; }

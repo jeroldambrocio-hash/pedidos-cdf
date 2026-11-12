@@ -189,7 +189,7 @@ async function geocode(query: string) {
 // A rider is only priced or booked for an order that is still to be delivered (not cancelled, archived or done).
 // Refresh and cancel stay open for any order, so a rider left on a cancelled order can still be cancelled.
 const notBookable = (order: any) =>
-  order.cancelled_at ? "El pedido está cancelado" : order.archived_at ? "El pedido está archivado" : order.delivery === "Delivered" ? "El pedido ya está entregado" : null;
+  order.pickup ? "El cliente recoge en tienda: este pedido no lleva rider" : order.cancelled_at ? "El pedido está cancelado" : order.archived_at ? "El pedido está archivado" : order.delivery === "Delivered" ? "El pedido ya está entregado" : null;
 const near = (a: number, b: number) => Math.abs(+a - +b) <= 0.0002;
 
 async function quote(orderId: string, b: Record<string, any>) {

@@ -104,9 +104,12 @@ const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]
   assert.equal(r.buyer_phone, "+34612345678"); assert.equal(r.receiver_phone, "+639171234567");
   assert.equal(phoneE164("9171234567"), "+639171234567"); assert.equal(phoneE164("0034 612 345 678"), "+34612345678");
   for (const bad of ["612345678", "12345", "+0000000000", "phone", "+63 917 123 4567 ext 4"]) assert.equal(phoneE164(bad), null, bad);
-  const pickup = checkRequest(without(good({ mode: "pickup" }), "address", "lat", "lng", "location_source", "location_confirmed_at"), NOW);
-  assert.equal(pickup.lat, null); assert.equal(pickup.address, "");
-  assert.equal(code(() => checkRequest(good({ mode: "pickup" }), NOW)), "invalid:location"); }
+  const pickup = checkRequest(without(good({ mode: "pickup", pickup_branch: "Quezon City" }), "address", "lat", "lng", "location_source", "location_confirmed_at"), NOW);
+  assert.equal(pickup.lat, null); assert.equal(pickup.address, ""); assert.equal(pickup.pickup_branch, "Quezon City");
+  assert.equal(code(() => checkRequest(good({ mode: "pickup", pickup_branch: "Quezon City" }), NOW)), "invalid:location");
+  assert.equal(code(() => checkRequest(without(good({ mode: "pickup" }), "address", "lat", "lng", "location_source", "location_confirmed_at"), NOW)), "invalid:pickup_branch");
+  assert.equal(code(() => checkRequest(good({ pickup_branch: "Pasig" }), NOW)), "invalid:pickup_branch");
+  assert.equal(checkRequest(good(), NOW).pickup_branch, null); }
 ok("A buyer abroad and a receiver in the Philippines are both accepted; pickup needs no pin and refuses one");
 
 { const refused = (extra, expect) => assert.equal(code(() => checkRequest(good(extra), NOW)), expect, JSON.stringify(extra));
@@ -180,6 +183,20 @@ const rows = async (sql, params) => (await db.query(sql, params)).rows;
   assert.equal((await send({}, { method: "GET" })).status, 405);
   assert.equal((await rows("select count(*)::int n from public.cdf_upload_sessions"))[0].n, 0); }
 ok("Off by default; only the listed sites are answered; nothing is created for anyone else");
+
+{ await db.exec(`insert into public.cdf_members(email,name,role,branch,pickup_address,pickup_lat,pickup_lng) values
+    ('shop-qc@t','Jhandee','vendor','Quezon City','12 Visayas Ave, Quezon City',14.6538,121.0450),
+    ('shop-pas@t','Arjay','vendor','Pasig','8 Ortigas Ave, Pasig',14.5866,121.0614)`);
+  const r = await send({ action: "shops", date: manilaDate(NOW, 2) });
+  assert.equal(r.status, 200);
+  assert.deepEqual(r.shops.map((x) => x.branch), ["Pasig", "Quezon City"]);
+  assert(r.shops.every((x) => x.available && x.address && x.lat && x.lng));
+  assert(!/@t|Jhandee|Arjay/.test(JSON.stringify(r.shops)));
+  assert.equal((await send({ action: "shops" })).status, 200);
+  assert.equal((await send({ action: "shops", date: "tomorrow" })).field, "date");
+  assert.equal((await send({ action: "shops", vendor: "x" })).error, "unknown_field");
+  assert.equal((await rows("select count(*)::int n from public.cdf_upload_sessions"))[0].n, 0); }
+ok("Shops for pickup: zone, address and point, without a session or the anti-abuse check, nothing about the florists");
 
 { captchaOk = false; assert.deepEqual(await send({ action: "session", captcha: "bad" }), { status: 403, cors: ORIGIN, error: "captcha" });
   assert.equal((await send({ action: "session" })).error, "captcha");

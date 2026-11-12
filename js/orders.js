@@ -86,7 +86,8 @@ function riskOf(o) {
   if (o.date < S.today) return "late";
   if (o.date !== S.today) return null;
   const now = manilaMinutes(), start = slotStart(o.slot);
-  if (st <= 1 && now >= start) return "shouldBeOut";
+  // A pickup is on time once it is ready at the shop; a delivery once it has left
+  if (isPickup(o) ? st === 0 && now >= start : st <= 1 && now >= start) return isPickup(o) ? "notReadyPickup" : "shouldBeOut";
   if (!o.vendor_email && st === 0 && start - now <= 180) return "noFlorist";
   return null;
 }
@@ -95,8 +96,8 @@ function attentionOf(o) {
   const risk = riskOf(o), step = stepOf(o);
   if (risk) return risk;
   if (step === 0 && !o.vendor_email) return "attentionFlorist";
-  if (step === 1 && feature("drivers") && S.cap.carrier && !o.carrier_email) return "attentionCarrier";
-  if (step <= 1 && o.date === S.today && slotStart(o.slot) - manilaMinutes() <= 60) return "attentionSoon";
+  if (step === 1 && !isPickup(o) && feature("drivers") && S.cap.carrier && !o.carrier_email) return "attentionCarrier";
+  if ((isPickup(o) ? step === 0 : step <= 1) && o.date === S.today && slotStart(o.slot) - manilaMinutes() <= 60) return "attentionSoon";
   return null;
 }
 function renderRisk() {
@@ -213,6 +214,7 @@ function renderDay() {
 
 // ---------- one order on the timeline ----------
 const NEXT_LABEL = { 0: "actReady", 1: "actOut", 2: "actDelivered", 4: "actOutAgain" };
+const NEXT_LABEL_PICKUP = { 0: "actReady", 1: "actPickedUp", 4: "actPickedUp" };
 function timelineEntry(o, withDate) {
   const [a, z] = String(o.slot || "").split(/\s*-\s*/);
   const fmt = (s) => (s || "").replace(/^(\d):/, "0$1:");
@@ -220,7 +222,14 @@ function timelineEntry(o, withDate) {
     el("div", { class: "when", style: `--c:var(--${STEPS[stepOf(o)].k})` }, el("span", {}, withDate ? el("small", {}, shortDate(o.date)) : null, el("b", {}, fmt(a) || o.slot), el("small", {}, fmt(z)))),
     orderCard(o));
 }
-const badge = (i) => el("span", { class: "badge s-" + STEPS[i].k }, icon(STEP_ICON[i]), stepName(i));
+const badge = (i, o) => el("span", { class: "badge s-" + STEPS[i].k }, icon(STEP_ICON[i]), stepName(i, o));
+// Pickup: where the customer collects it, instead of an address to deliver to
+const pickupLine = (o, cls = "o-addr") => {
+  const shop = pickupShop(o);
+  const text = shop?.branch ? t("pickupAt", { shop: shop.branch }) : t("pickupNoShop");
+  return shop?.address ? el("a", { class: cls, href: mapsUrl(shop.address), target: "_blank", rel: "noopener" }, icon("box"), text)
+    : el("span", { class: cls + " note" }, icon("box"), text);
+};
 const retryTag = (o) => o.attempts > 0 && isOpen(o)
   ? el("span", { class: "tag fail" }, icon("alert"), o.missed_on ? t("retryTag", { n: o.attempts + 1, date: shortDate(o.missed_on) }) : t("retryTagNoDate", { n: o.attempts + 1 })) : null;
 // Quick pay from the card: records what is left as one payment (the same server check as the order's payment
@@ -249,19 +258,20 @@ async function quickPay(o) {
   finally { S.pending.delete(o.id); render(); }
 }
 function orderCard(o) {
-  const cur = stepOf(o), k = STEPS[cur].k, next = NEXT[cur], busy = S.pending.has(o.id), risk = S.filter === "attention" ? attentionOf(o) : riskOf(o);
+  const cur = stepOf(o), k = STEPS[cur].k, next = nextOf(o, cur), busy = S.pending.has(o.id), risk = S.filter === "attention" ? attentionOf(o) : riskOf(o);
+  const pickup = isPickup(o);
   const phone = intlPhone(o.customer_phone);
   const archived = S.cap.archive && o.archived_at;
   const open = () => openOrder(o);
   // The status badge is also a select: picking a step goes through the same checks as the progress line
   const cancelled = cur === CANCELLED;
-  const statusSel = cancelled ? el("span", { class: "badge-sel" }, badge(cur)) : el("label", { class: "badge-sel" }, badge(cur),
+  const statusSel = cancelled ? el("span", { class: "badge-sel" }, badge(cur, o)) : el("label", { class: "badge-sel" }, badge(cur, o),
     el("select", { "aria-label": t("status") + " · #" + o.num, disabled: busy || archived, onchange: (e) => { const v = +e.target.value; e.target.value = String(cur); requestStep(o, v); } },
-      STEP_IDS.map((i) => el("option", { value: String(i), selected: i === cur }, stepName(i)))));
+      stepIdsOf(o).map((i) => el("option", { value: String(i), selected: i === cur }, stepName(i, o)))));
   const pick = S.selecting ? el("label", { class: "pick" }, el("input", { type: "checkbox", checked: S.selected.has(o.id), "aria-label": t("selectOrder", { num: o.num }),
     onchange: (e) => { e.target.checked ? S.selected.add(o.id) : S.selected.delete(o.id); card.classList.toggle("picked", e.target.checked); renderBulk(); } })) : null;
   const ride = typeof llRowOf === "function" && !cancelled ? llRowOf(o) : null, due = cancelled ? null : dueOf(o);
-  const tags = [cancelled ? el("span", { class: "tag cancel" }, icon("close"), t("cancelledTag")) : null, retryTag(o),
+  const tags = [cancelled ? el("span", { class: "tag cancel" }, icon("close"), t("cancelledTag")) : null, pickup ? el("span", { class: "tag pickup" }, icon("box"), t("modePickup")) : null, retryTag(o),
     // Lalamove: where the rider is, or that Lalamove dropped it
     ride?.ll_order_id && isOpen(o) ? el("span", { class: "tag " + (llDropped(o) ? "fail" : LL_ACTIVE.has(ride.status) ? "risk" : "") }, icon("truck"), "Lalamove · " + (t("ll_" + ride.status) || ride.status)) : null,
     // Payment: paid, or what is still owed (the amount only when prices are shown on screen)
@@ -277,7 +287,7 @@ function orderCard(o) {
         el("div", { class: "o-sub" },
           isAdmin() && feature("drivers") && S.cap.carrier && isOpen(o) ? el("span", { class: "o-driver" }, icon("truck"), o.carrier_email ? t(cur === 2 ? "driverOnRoute" : "driverAssigned", { name: memberName(o.carrier_email) }) : t("driverUnassigned")) : null,
           /^\d{7,15}$/.test(phone) ? el("a", { href: "tel:+" + phone }, icon("phone"), phoneNice(phone)) : null,
-          o.address ? el("a", { class: "o-addr", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), o.address) : el("span", { class: "note" }, t("noAddress"))),
+          pickup ? pickupLine(o) : o.address ? el("a", { class: "o-addr", href: mapsUrl(o.address), target: "_blank", rel: "noopener" }, icon("map"), o.address) : el("span", { class: "note" }, t("noAddress"))),
         cancelled && o.cancel_reason ? el("div", { class: "o-cancel" }, el("b", {}, t("cancelReasonShort")), " " + o.cancel_reason) : null,
         o.card_message || o.notes ? el("div", { class: "o-card" }, icon("note"), o.card_message || o.notes) : null),
       statusSel),
@@ -286,26 +296,30 @@ function orderCard(o) {
         feature("tracking") ? el("button", { class: "btn icon", type: "button", "aria-label": t("notify"), title: t("notify"), onclick: async () => { await openFresh(o); document.querySelector(".sheet #f-link")?.scrollIntoView({ block: "center" }); } }, icon("message")) : null,
         cancelled && isAdmin() && !archived ? el("button", { class: "btn", type: "button", disabled: busy, onclick: () => reinstateOrder(o) }, t("reinstate")) : null,
         cur === 2 && !archived ? el("button", { class: "btn to-fail", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("actMissed")) : null,
+        pickup && cur === 1 && !archived ? el("button", { class: "btn to-fail", type: "button", disabled: busy, onclick: () => requestStep(o, 4) }, t("actNotCollected")) : null,
         cur === 4 && !archived ? el("button", { class: "btn danger", type: "button", disabled: busy, onclick: () => missedDialog(o) }, t("reschedule")) : null,
         next != null && !archived ? el("button", { class: "btn primary to-" + STEPS[next].k, type: "button", disabled: busy, onclick: async () => {
           // Head out (again) with Lalamove set up: book the rider instead of moving the order by hand
           if (next === 2 && typeof llHeadOut === "function" && await llHeadOut(o)) return;
           requestStep(o, next);
-        } }, t(NEXT_LABEL[cur])) : null,
+        } }, t((pickup ? NEXT_LABEL_PICKUP : NEXT_LABEL)[cur])) : null,
         el("button", { class: "btn", type: "button", onclick: open }, t("details")))));
   return card;
 }
 // The progress line is the one status control: a tap moves the order, and steps with consequences ask first.
 function stepper(o) {
   // A cancelled order shows where it stopped, greyed out and not tappable
-  const off = stepOf(o) === CANCELLED, cur = baseStep(o), idx = cur === 4 ? 3 : cur;
-  const box = el("div", { class: "steps" + (off ? " off" : ""), role: "group", "aria-label": t("status") });
+  const off = stepOf(o) === CANCELLED, cur = baseStep(o), pickup = isPickup(o);
+  // A pickup has three places: Preparing, Ready for pickup, then Picked up (or Not collected)
+  const line = pickup ? [0, 1, cur === 4 ? 4 : 3] : [0, 1, 2, cur === 4 ? 4 : 3];
+  const idx = Math.max(0, line.indexOf(cur));
+  const box = el("div", { class: "steps" + (off ? " off" : "") + (pickup ? " three" : ""), role: "group", "aria-label": t("status") });
   // "Nobody home" takes the last place, after On the way
-  [0, 1, 2, cur === 4 ? 4 : 3].forEach((s, i) => {
+  line.forEach((s, i) => {
     if (i) box.append(el("span", { class: "link" + (i <= idx ? " on" : "") }));
-    box.append(el("button", { type: "button", class: "step" + (i < idx ? " done" : i === idx ? " cur" : ""), "aria-pressed": String(i === idx), "aria-label": stepName(s),
+    box.append(el("button", { type: "button", class: "step" + (i < idx ? " done" : i === idx ? " cur" : ""), "aria-pressed": String(i === idx), "aria-label": stepName(s, o),
       disabled: off || S.pending.has(o.id) || (S.cap.archive && o.archived_at), onclick: () => requestStep(o, s) },
-      el("span", { class: "node" }), el("span", { class: "t" }, stepName(s))));
+      el("span", { class: "node" }), el("span", { class: "t" }, stepName(s, o))));
   });
   return box;
 }
@@ -437,7 +451,7 @@ function exportDialog() {
   });
 }
 function downloadCsv(rows, name) {
-  const cols = [["num", "orderNum"], ["date", "date"], ["slot", "slot"], ["channel", "channel"], [(o) => stepName(stepOf(o)), "status"],
+  const cols = [["num", "orderNum"], ["date", "date"], ["slot", "slot"], ["channel", "channel"], [(o) => stepName(stepOf(o), o), "status"],
     [(o) => memberName(o.vendor_email || ""), "vendor"], ["buyer_name", "buyerName"], ["buyer_phone", "buyerPhone"], ["customer_email", "email"],
     ["customer_name", "customerName"], ["customer_phone", "phone"], ["address", "deliveryAddr"], ["card_message", "cardMsg"], ["notes", "note"],
     ["attempts", "attempts"], ...(pricesOn() ? [["amount", "amount"]] : []), [(o) => (o.cancelled_at ? o.cancel_reason || "1" : ""), "cancelledCol"], [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];

@@ -302,6 +302,18 @@
    "config": "search_path=\"\"",
    "definer": true
   },
+  "cdf_pickup_shops(p_date date)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_pickup_step_ok(p_from text, p_to text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
   "cdf_progress(p_id uuid, p_step text, p_note text, p_proof text, p_set_proof boolean)": {
    "anon": false,
    "authenticated": true,
@@ -874,6 +886,7 @@
     "location_source:text",
     "mode:text!",
     "payment_method:text!",
+    "pickup_branch:text",
     "purge_claimed_at:timestamp with time zone",
     "receiver_name:text!",
     "receiver_phone:text!",
@@ -924,6 +937,7 @@
     "notes:text!",
     "num:text!",
     "photo_path:text",
+    "pickup:boolean!",
     "prepared_by:text",
     "proof_path:text",
     "slot:text!",

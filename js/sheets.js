@@ -142,6 +142,14 @@ async function requestStep(o, i) {
   const cur = stepOf(o);
   if (cur === CANCELLED) { toast(t("isCancelled"), { type: "error" }); return; }
   if (i === cur || S.pending.has(o.id)) return;
+  // Pickup: no On the way; Picked up and Not collected only ask to confirm (no photo, no new date)
+  if (isPickup(o)) {
+    if (i === 2) { toast(t("pickupNoTransit"), { type: "error" }); return; }
+    if (i === 3 && !(await askConfirm(t("confirmPickedUp", { num: o.num }), t("markPickedUp")))) return;
+    if (i === 4 && !(await askConfirm(t("confirmNotCollected", { num: o.num }), t("markNotCollected"), { detail: t("notCollectedHint") }))) return;
+    if (i < cur && i !== 3 && !(await askConfirm(t("confirmBack", { num: o.num, step: stepName(i, o) }), t("moveBack"), { detail: t("confirmBackHint") }))) return;
+    return advance(o, i);
+  }
   if (i === 3) return deliverDialog(o);
   if (i === 4) return missedDialog(o);
   if (i === 2) {
@@ -190,6 +198,7 @@ function deliverDialog(o) {
 // Nobody home: photo of the door, a new date and time, and the order goes back to Ready for that day.
 // The note is for the customer, so it is written in English.
 function missedDialog(o) {
+  if (isPickup(o)) return pickupRescheduleDialog(o);
   let setErr;
   const proof = photoPicker({ current: o.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: (m) => setErr?.(m) });
   const iDate = el("input", { type: "date", value: addDays(S.today, 1), min: isStaff() ? null : S.today, required: true });
@@ -217,6 +226,22 @@ function missedDialog(o) {
     if (data) upsertLocal(data);
     await closeSheet(true); toast(t("rescheduled", { date: shortDate(iDate.value) })); loadOrders();
   }, { dirty: () => proof.dirty || !!note.value.trim(), dispose: () => proof.dispose() });
+}
+
+// Not collected: the customer will come another day. New date and time; the order goes back to Ready for pickup.
+function pickupRescheduleDialog(o) {
+  const iDate = el("input", { type: "date", value: addDays(S.today, 1), min: isStaff() ? null : S.today, required: true });
+  const iSlot = slotPicker(o.slot);
+  miniSheet(t("pickupRescheduleTitle", { num: o.num }), [
+    el("p", { class: "note", style: "margin:0" }, t("pickupRescheduleHint")),
+    el("div", { class: "row2 when-row" }, field(t("newDate"), iDate), field(t("newSlot"), iSlot))], t("confirmMissed"), async () => {
+    const slot = iSlot.value();
+    if (!iDate.value || !slot) return t("slotInvalid");
+    const { data, error } = await sb.rpc("cdf_reschedule", { p_id: o.id, p_date: iDate.value, p_slot: slot, p_note: null, p_proof: null, p_set_proof: false });
+    if (error) return t("saveFail", { msg: error.message });
+    if (data) upsertLocal(data);
+    await closeSheet(true); toast(t("rescheduled", { date: shortDate(iDate.value) })); loadOrders();
+  });
 }
 
 // Time slot: pick "From" (every half hour); "To" fills itself one hour later. Stored as "H:MM - H:MM".
@@ -337,13 +362,15 @@ function historySection(o, hist) {
 function openOrderView(o) {
   const hist = historyBlock(o), cur = stepOf(o);
   const node = el("div", { class: "sheet", role: "dialog", "aria-modal": "true" },
-    el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), badge(cur), el("span", { class: "spacer" }), closeBtn()),
+    el("div", { class: "sheet-head" }, el("h2", {}, t("order", { num: o.num })), badge(cur, o), el("span", { class: "spacer" }), closeBtn()),
     el("div", { class: "sheet-body" },
       cancelNote(o),
       el("section", {}, el("dl", { class: "ro" },
         el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
         el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
-        el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress")),
+        isPickup(o) ? [el("dt", {}, t("pickupTag")), el("dd", {}, (() => { const shop = pickupShop(o);
+            return shop?.branch ? [el("b", {}, shop.branch), shop.address ? el("br") : null, shop.address ? mapLink(shop.address) : null] : t("pickupNoShop"); })())]
+          : [el("dt", {}, t("address")), el("dd", {}, o.address ? mapLink(o.address) : t("noAddress"))],
         o.customer_phone ? [el("dt", {}, t("phoneShort")), el("dd", {}, el("a", { href: "tel:+" + intlPhone(o.customer_phone), class: "link-out" }, phoneNice(o.customer_phone)))] : null,
         o.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, o.card_message)] : null,
         o.notes ? [el("dt", {}, t("note")), el("dd", {}, o.notes)] : null,
@@ -353,7 +380,7 @@ function openOrderView(o) {
         o.proof_path ? [el("dt", {}, t("proofPhoto")), el("dd", {}, el("div", { class: "pic" }, imgOf(o.proof_path, ENTREGAS, t("proofPhoto"))))] : null)),
       typeof orderReferences === "function" ? orderReferences(o) : null,
       chatSection(o),
-      typeof lalamoveSection !== "function" ? null
+      typeof lalamoveSection !== "function" || isPickup(o) ? null
         : o.status === "Ready" && o.delivery !== "Delivered" && !o.cancelled_at ? lalamoveSection(o)
         // Delivered or cancelled: only what Lalamove left (the proofs), if a rider was booked
         : o.delivery === "Delivered" || o.cancelled_at ? lalamoveSection(o, { proofsOnly: true }) : null,
@@ -469,7 +496,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
     customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "" };
-  const src = o || (copyFrom ? { ...blank, ...Object.fromEntries(["slot", "channel", "vendor_email", "customer_name", "address", "customer_phone", "customer_email", "buyer_name", "buyer_phone", "card_message"].map((k) => [k, copyFrom[k] ?? ""])) } : draft ? { ...blank, ...draft } : blank);
+  const src = o || (copyFrom ? { ...blank, ...Object.fromEntries(["slot", "channel", "vendor_email", "customer_name", "address", "customer_phone", "customer_email", "buyer_name", "buyer_phone", "card_message"].map((k) => [k, copyFrom[k] ?? ""])), pickup: !!copyFrom.pickup } : draft ? { ...blank, ...draft } : blank);
   const f = Object.fromEntries(ORDER_FIELDS.map((k) => [k, src[k] ?? ""]));
   const sel = (id, opts, val) => el("select", { id }, ...opts.map(([v, l]) => el("option", { value: v, selected: v === val }, l)));
   const err = el("div", { class: "err", role: "alert" });
@@ -572,6 +599,20 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
   // Phase 4: the shop nearest to the delivery point, suggested beside the florist picker (admins)
   const shops = isAdmin() && S.cap.ranking && typeof shopSuggestion === "function" ? shopSuggestion(iVend) : null;
+  // Delivery or pickup (12/11/2026): a pickup has no address, no pin, no rider; the shop is the florist's
+  let pickupVal = !!src.pickup;
+  const inTransit = o && baseStep(o) === 2;
+  const pickupInfo = el("p", { class: "note pickup-info", role: "status" });
+  const iMode = S.cap.pickupMode ? el("div", { class: "seg mode-seg", id: "f-mode", role: "group", "aria-label": t("fulfilment") },
+    ...[[false, "modeDelivery", "truck"], [true, "modePickup", "box"]].map(([v, k, ic]) => el("button", { type: "button", "data-pickup": String(v), "aria-pressed": String(v === pickupVal),
+      disabled: v && inTransit, title: v && inTransit ? t("pickupNotWhileTransit") : null,
+      onclick: (e) => { if (pickupVal === v) return; pickupVal = v; e.currentTarget.parentNode.querySelectorAll("button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pickup === String(v)))); syncMode(); keepDraft(); } },
+      icon(ic), " " + t(k)))) : null;
+  const paintPickupInfo = () => {
+    const shop = pickupShop({ vendor_email: iVend.value });
+    fill(pickupInfo, !iVend.value ? t("pickupChooseFlorist") : shop?.branch ? [t("pickupAt", { shop: shop.branch }), shop.address ? " · " + shop.address : ""] : t("pickupFloristNoShop"));
+  };
+  iVend.addEventListener("change", paintPickupInfo);
   const iCarr = S.cap.carrier && feature("drivers") ? sel("f-carrier", [["", t("anyCarrier")], ...S.members.filter((m) => m.role === "carrier").map((m) => [m.email, m.name])], f.carrier_email) : null;
   const shot = photoPicker({ current: o?.photo_path, bkt: bucket, hint: t("pasteHint"), alt: t("photoAlt"), onErr: setErr, paste: true, expand: true });
   // Extra photos (030); a stand-in that never changes anything while the column isn't there
@@ -807,6 +848,11 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     };
     if (iDrop) { const p = dropPoint(); row.drop_lat = p ? p.lat : null; row.drop_lng = p ? p.lng : null; }
     if (iVeh) row.vehicle = iVeh.value || null;
+    if (iMode) {
+      row.pickup = pickupVal;
+      // Nothing to deliver to: the shop is the florist's. What was typed stays in the form if they switch back.
+      if (pickupVal) { row.address = ""; if (iDrop) row.drop_lat = row.drop_lng = null; if (iVeh) row.vehicle = null; row.delivery_note = ""; }
+    }
     if (priceEditable()) row.amount = iAmount.value === "" ? null : Math.max(0, +iAmount.value);
     return row;
   };
@@ -837,7 +883,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     const row = collect();
     // Required: number, date, time, buyer name + (phone or email), recipient name, phone and address
     const need = [[iNum, row.num], [iDate, row.date], [iSlot, row.slot], [iBName, row.buyer_name],
-      [iBPhone, iSame.checked ? row.buyer_phone : row.buyer_phone || row.customer_email], [iAddr, row.address]];
+      [iBPhone, iSame.checked ? row.buyer_phone : row.buyer_phone || row.customer_email], ...(row.pickup ? [] : [[iAddr, row.address]])];
     if (!iSame.checked) need.push([iName, row.customer_name], [iPhone, row.customer_phone]);
     const miss = need.filter(([, v]) => !v).map(([x]) => x.closest(".field"));
     // The channel is required too: where every order came from is what the statistics are built on
@@ -867,7 +913,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       } else if (payProofs?.dirty || iPayRef.value.trim()) { iDown.closest(".field").classList.add("invalid"); iDown.focus(); return t("payInitialNoAmount"); }
     }
     if (row.customer_email && !/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(row.customer_email)) { moreDetails.open = true; iEmail.closest(".field").classList.add("invalid"); return t("emailInvalid"); }
-    if (iDrop && iDrop.value.trim() && !dropPoint()) { moreDetails.open = true; paintDrop(); iDrop.focus(); return t("dropBad"); }
+    if (!row.pickup && iDrop && iDrop.value.trim() && !dropPoint()) { moreDetails.open = true; paintDrop(); iDrop.focus(); return t("dropBad"); }
     // Things a rider booking will need: a heads-up, never a block. Only for orders still to come.
     if (!o?.cancelled_at && o?.delivery !== "Delivered" && row.date >= manilaToday()) {
       const gaps = [
@@ -1016,6 +1062,18 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       invalidateStats(); toast(t("deleted")); flip($("list"),render);
     } }, icon("trash"), el("span", { class: "lbl" }, t("delete"))) : null);
 
+  // Delivery-only parts, hidden for a pickup
+  const addrGroup = el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr),
+    el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind, dropMap), dropFind ? dropHits : null);
+  const dNoteField = field(t("deliveryNote"), iDNote, newOrderForm ? null : el("small", { class: "note" }, t("deliveryNoteHint")));
+  const vehField = iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null;
+  const dropField = iDrop ? field(t("dropPasteLabel"), iDrop, dropNote) : null;
+  function syncMode() {
+    // A class, not `hidden`: some of these (the shop suggestion) show and hide themselves too
+    for (const n of [addrGroup, dNoteField, vehField, dropField, shops?.node]) n?.classList.toggle("mode-off", pickupVal);
+    pickupInfo.hidden = !pickupVal;
+    if (pickupVal) paintPickupInfo();
+  }
   const moreDetails = el("details", {
     class: "hist order-more",
     open: !!(iEmail.value.trim() || (newOrderForm && iCarr?.value) || iVeh?.value || iDrop?.value.trim() || o?.extra_photos?.length || o?.pay_proofs?.length)
@@ -1023,8 +1081,8 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   el("div", { class: "order-more-fields" },
     field(t("buyerEmailOptional"), iEmail, el("small", { class: "note" }, t("autoMailHint"))),
     newOrderForm && iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null,
-    iVeh ? field(t("llVehicle"), iVeh, el("small", { class: "note" }, t("vehicleHint"))) : null,
-    iDrop ? field(t("dropPasteLabel"), iDrop, dropNote) : null,
+    vehField,
+    dropField,
     extras.node ? el("div", { class: "compact-photos" }, field(t("morePhotos"), extras.node)) : null,
     payOn && !downOn ? proofEditor : null));
   const cur = o ? stepOf(o) : 0;
@@ -1041,7 +1099,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     if (msg) setErr(msg);
   } },
     el("div", { class: "sheet-head" }, el("h2", {}, isNew ? (fromRequest ? t("reqAcceptTitle", { ref: "R" + fromRequest.ref }) : t(copyFrom ? "duplicateTitle" : "newOrderTitle")) : t("editOrder", { num: f.num })),
-      o ? badge(cur) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
+      o ? badge(cur, o) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
     el("div", { class: "sheet-body" },
       isNew ? null : cancelNote(o),
       newOrderForm ? null : chanWarn,
@@ -1061,9 +1119,9 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
         ? [el("div", { class: "new-order-recipient" }, el("h3", {}, t("recipientH")), checkRow(iSame, t("sameAsBuyerShort")))]
         : [el("h3", {}, t("recipientH")), checkRow(iSame, t("sameAsBuyer"))]),
         recip,
-        el("div", { style: "display:grid;gap:6px" }, reqField(t("deliveryAddr"), iAddr),
-          el("div", { class: "addr-tools" }, mapHint(iAddr), dropFind, dropMap), dropFind ? dropHits : null),
-        field(t("deliveryNote"), iDNote, newOrderForm ? null : el("small", { class: "note" }, t("deliveryNoteHint"))),
+        iMode ? field(t("fulfilment"), iMode, pickupInfo) : null,
+        addrGroup,
+        dNoteField,
         newOrderForm ? el("div", { class: "row2" }, field(t("cardMsg"), iCard), field(t("note"), iNotes)) : field(t("cardMsg"), iCard),
         newOrderForm ? null : field(t("note"), iNotes)),
       ...(newOrderForm ? [
@@ -1085,7 +1143,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       isNew ? null : chatSection(o),
       isNew || !feature("tracking") ? null : el("section", { id: "linkSection" }, field(t("customerLink"), linkBlock),
         notifyRow(o, () => iBName.value.trim() || iName.value.trim(), () => phFull(iBPhone) || phFull(iPhone), () => STEPS[stepOf(o)].k, hist)),
-      isNew || typeof lalamoveSection !== "function" ? null : lalamoveSection(o),
+      isNew || typeof lalamoveSection !== "function" || isPickup(o) ? null : lalamoveSection(o),
       isNew ? null : historySection(o, hist),
       newOrderForm ? null : err),
     newOrderForm ? err : null,
@@ -1097,7 +1155,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   node.addEventListener("input", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   node.addEventListener("change", (e) => { e.target.closest(".field")?.classList.remove("invalid"); keepDraft(); });
   openLayer(node, { dirty, dispose: () => { [shot, extras, proof, payProofs].forEach((p) => p?.dispose()); clearTimeout(draftT);clearTimeout(repeatTimer);repeatGeneration++; } });
-  syncSame(false); syncChan(); syncRepeat();
+  syncSame(false); syncChan(); syncRepeat(); syncMode();
   // The form as it opened is the baseline: only what differs from it is saved (and asked about on close).
   // A copy or a restored draft counts as unsaved work from the start.
   initial = copyFrom || draft ? { ...collect(), num: "" } : collect();

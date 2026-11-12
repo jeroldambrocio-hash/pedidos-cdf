@@ -26,6 +26,12 @@ const step = async (name, fn) => { if (only && !name.includes(only)) return; try
 // ---------- the server side, for real ----------
 const db = new PGlite();
 await build((sql) => db.exec(sql));
+// The shops for pickup, as Team holds them: Pasig's florist is away tomorrow
+const TOMORROW = new Date(Date.now() + 8 * 3600e3 + 86400e3).toISOString().slice(0, 10);
+await db.query(`insert into public.cdf_members(email,name,role,branch,pickup_address,pickup_lat,pickup_lng,away_from,away_until) values
+  ('qc@t','Jhandee','vendor','Quezon City','12 Visayas Ave, Quezon City',14.6538,121.0450,null,null),
+  ('pas@t','Arjay','vendor','Pasig','8 Ortigas Ave, Pasig',14.5866,121.0614,$1,$1),
+  ('par@t','Agnes','vendor','Parañaque','3 Dr A Santos Ave, Parañaque',14.4793,121.0198,null,null)`, [TOMORROW]);
 const sha = (v) => createHash("sha256").update(v).digest("hex");
 const stored = new Map();
 const env = { PUBLIC_ORDER: "on", TURNSTILE_SECRET: "", PUBLIC_ORDER_NO_CAPTCHA: "test-only", PUBLIC_ORDER_SALT: "salt", GOOGLE_MAPS_KEY: "server-key", PUBLIC_GOOGLE_DAILY: "1" };
@@ -137,6 +143,7 @@ async function fill(page, { pickup = false, location = true } = {}) {
   if (pickup) await page.locator("[data-mode=pickup]").click();
   await page.locator("#po-date").fill(tomorrow());
   await page.locator("#po-slot").selectOption("11:00 - 13:00");
+  if (pickup) await page.locator(".po-shop", { hasText: "Quezon City" }).click();
   if (!pickup) {
     await page.locator("#po-address").fill("12 Katipunan Ave, Loyola Heights, Quezon City");
     if (location) { await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click(); }
@@ -321,7 +328,7 @@ await step("What Google bills is kept to a minimum: the map loads only when reac
   await page.locator("#po-buyer_name").fill("Jose Santos"); await page.waitForTimeout(400);
   assert.equal(state.googleScripts.length, 0, "opening the page and filling the first fields loads nothing from Google");
   // Someone who picks up at the shop never loads the map
-  await page.locator("[data-mode=pickup]").click(); await page.locator(".po-pickup-note").scrollIntoViewIfNeeded(); await page.waitForTimeout(400);
+  await page.locator("[data-mode=pickup]").click(); await page.locator(".po-pickup").scrollIntoViewIfNeeded(); await page.waitForTimeout(400);
   assert.equal(state.googleScripts.length, 0);
   await page.locator("[data-mode=delivery]").click();
   await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
@@ -467,7 +474,14 @@ await step("Pickup: no address and no pin are asked for or sent", async () => {
   await page.locator("#po-address").fill("12 Katipunan Ave, Loyola Heights, Quezon City");
   await fill(page, { pickup: true });
   assert.equal(await page.locator(".loc-picker").count(), 0); assert.equal(await page.locator("#po-address").count(), 0);
-  assert.match(await page.locator(".po-pickup-note").innerText(), /which shop/);
+  assert.match(await page.locator(".po-pickup").innerText(), /Choose the shop/);
+  // The list shows the zones; the chosen one shows its address and a map link; a shop closed that day can't be chosen
+  assert.deepEqual(await page.locator(".po-shop b").allInnerTexts(), ["Parañaque", "Pasig", "Quezon City"]);
+  assert.equal(await page.locator(".po-shop", { hasText: "Pasig" }).locator("input").isDisabled(), true);
+  assert.match(await page.locator(".po-shop", { hasText: "Pasig" }).innerText(), /Not available on this date/);
+  assert.match(await page.locator(".po-shop-detail").innerText(), /12 Visayas Ave, Quezon City/);
+  assert.match(await page.locator(".po-shop-detail a").getAttribute("href"), /query=14\.6538,121\.045/);
+  await page.locator(".po-pickup").screenshot({ path: path.join(shots, "po-pickup-shops.png") });
   // Back to delivery: what was typed for it is still there; then pickup again
   await page.locator("[data-mode=delivery]").click();
   assert.equal(await page.locator("#po-address").inputValue(), "12 Katipunan Ave, Loyola Heights, Quezon City");
@@ -478,9 +492,35 @@ await step("Pickup: no address and no pin are asked for or sent", async () => {
   await page.getByRole("button", { name: "Send request" }).click();
   await page.locator(".po-done h2").waitFor();
   const sent = state.calls.find((c) => c.action === "submit").body;
-  assert.equal(sent.mode, "pickup");
+  assert.equal(sent.mode, "pickup"); assert.equal(sent.pickup_branch, "Quezon City");
   for (const k of ["address", "lat", "lng", "location_source", "location_confirmed_at"]) assert(!(k in sent), k);
   assert.deepEqual(await storedRequest(sent.request_key), { mode: "pickup", address: "", lat: null });
+  assert.equal((await db.query("select pickup_branch from public.cdf_order_requests where request_key = $1", [sent.request_key])).rows[0].pickup_branch, "Quezon City");
+  await ctx.close();
+});
+
+await step("Pickup: a shop is required; Use my location sorts the shops and picks the nearest open one; the review shows its address", async () => {
+  const { page, state, ctx } = await open({ geo: { latitude: 14.4801, longitude: 121.0201 } });
+  await page.locator("#po-buyer_name").fill("Jose Santos"); await page.locator("#po-buyer_phone").fill("+34 612 345 678");
+  await page.locator("#po-same").check();
+  await page.locator("[data-mode=pickup]").click();
+  await page.locator("#po-date").fill(tomorrow()); await page.locator("#po-slot").selectOption("11:00 - 13:00");
+  await page.locator("#po-description").fill("A dozen red roses"); await page.locator("#po-payment_method").selectOption("cash");
+  await review(page);
+  await page.locator(".po-pickup .err", { hasText: "Choose a shop" }).waitFor();
+  assert.equal(await page.locator(".po-review").count(), 0);
+  await page.getByRole("button", { name: "Use my location" }).click();
+  await page.locator(".po-shop-near").waitFor();
+  assert.deepEqual(await page.locator(".po-shop b").allInnerTexts(), ["Parañaque", "Quezon City", "Pasig"], "nearest first, the closed one last");
+  assert.match(await page.locator(".po-shop", { hasText: "Parañaque" }).innerText(), /Nearest[\s\S]*|km away/);
+  assert.equal(await page.locator(".po-shop", { hasText: "Parañaque" }).locator("input").isChecked(), true);
+  assert.match(await page.locator(".po-shop-detail").innerText(), /Dr A Santos Ave/);
+  await page.locator(".po-pickup").screenshot({ path: path.join(shots, "po-pickup-nearest.png") });
+  await noOverflow(page);
+  await review(page); await page.locator(".po-review").waitFor();
+  assert.match(await page.locator(".po-summary").innerText(), /Parañaque · 3 Dr A Santos Ave/);
+  assert(!JSON.stringify(state.calls).includes("14.4801"), "the position is never sent");
+  assert.deepEqual(state.errors, []);
   await ctx.close();
 });
 

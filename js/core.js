@@ -30,7 +30,15 @@ const stepOf = (o) => (o.cancelled_at ? CANCELLED : baseStep(o));
 const isOpen = (o) => { const s = stepOf(o); return s !== 3 && s !== CANCELLED; };
 // The next step from each one: Preparing → Ready → In transit → Delivered; a failed attempt goes out again.
 const NEXT = { 0: 1, 1: 2, 2: 3, 4: 2 };
-const stepName = (i) => t("st_" + STEPS[i].k);
+// A pickup (the customer collects it at the shop) has its own names for the last steps and no On the way
+const isPickup = (o) => !!o?.pickup;
+const PICKUP_NAME = { ready: "st_ready_pickup", done: "st_done_pickup", fail: "st_fail_pickup" };
+const stepName = (i, o) => t((isPickup(o) && PICKUP_NAME[STEPS[i].k]) || "st_" + STEPS[i].k);
+const NEXT_PICKUP = { 0: 1, 1: 3, 4: 3 };
+const nextOf = (o, cur) => (isPickup(o) ? NEXT_PICKUP : NEXT)[cur];
+const stepIdsOf = (o) => (isPickup(o) ? STEP_IDS.filter((i) => i !== 2) : STEP_IDS);
+// The shop a pickup is collected from: the assigned florist's (Team → each florist's shop)
+const pickupShop = (o) => { const m = o?.vendor_email && S.members.find((x) => x.email === o.vendor_email); return m ? { branch: m.branch || "", address: m.pickup_address || "" } : null; };
 
 // ---------- small helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -196,7 +204,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d, b, v, pay, mk, rq, rf, br] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v, pu, pay, mk, rq, rf, br] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -207,6 +215,7 @@ async function detectSchema() {
     sb.from("cdf_orders").select("drop_lat").limit(1), // 033: the customer's exact delivery point
     sb.from("cdf_members").select("branch").limit(1), // 035: each person's branch of the shop
     sb.from("cdf_orders").select("vehicle").limit(1), // 036: Lalamove vehicle per order
+    sb.from("cdf_orders").select("pickup").limit(1).then((r) => r, () => ({ error: true })), // 12/11/2026: pickup orders
     sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
     // Order + price + first payment in one step: an empty call only says whether the function is there
     isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, () => ({})) : {},
@@ -216,7 +225,7 @@ async function detectSchema() {
     // Phase 4: nearest shop to a delivery point; asked with no point, it answers by name that a point is needed
     isAdmin() ? sb.rpc("cdf_branch_ranking", { p_lat: null, p_lng: null, p_date: null }).then((r) => r, () => ({})) : {},
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, paid: isAdmin() && !m.error && !pay.error,
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, paid: isAdmin() && !m.error && !pay.error,
     create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: /cdf_invalid_point/.test(br?.error?.message || "") };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.

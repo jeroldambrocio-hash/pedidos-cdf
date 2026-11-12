@@ -215,8 +215,10 @@ const server = http.createServer((req, res) => {
       await p.locator('.req-card[data-id="req-13"]').click();
       await p.getByRole("button", { name: "Accept and create order" }).click();
       await p.locator(".new-order-sheet").waitFor();
-      assert.equal(await p.locator("#f-addr").inputValue(), "Pickup at the shop");
-      assert.match(await p.locator("#f-notes").inputValue(), /PICKUP AT THE SHOP/);
+      // A pickup request opens as a pickup order: no address to fill, no "pickup" note needed
+      assert.equal(await p.locator('#f-mode [data-pickup="true"]').getAttribute("aria-pressed"), "true");
+      assert.equal(await p.locator("#f-addr").isVisible(), false);
+      assert.doesNotMatch(await p.locator("#f-notes").inputValue(), /PICKUP AT THE SHOP/);
       assert.equal(await p.locator("#f-same").isChecked(), true, "buyer and receiver are the same person");
       await p.locator("#f-amount").fill("1500");
       await p.evaluate(() => { window.__acceptLost = true; window.__calls = []; });
@@ -228,7 +230,8 @@ const server = http.createServer((req, res) => {
       await p.locator(".toast", { hasText: "R13 accepted" }).waitFor();
       const sent = (await calls(p)).filter((c) => c.rpc === "cdf_request_accept");
       assert.equal(sent.length, 2); assert.equal(sent[1].args.p_request, sent[0].args.p_request); assert.equal(sent[1].args.p_order.id, sent[0].args.p_order.id);
-      assert.equal(await p.evaluate(() => window.__orders.filter((o) => o.address === "Pickup at the shop").length), 1);
+      assert.equal(sent[0].args.p_order.pickup, true); assert.equal(sent[0].args.p_order.address, "");
+      assert.equal(await p.evaluate(() => window.__orders.filter((o) => o.pickup === true).length), 1);
       await p.context().close();
     });
 

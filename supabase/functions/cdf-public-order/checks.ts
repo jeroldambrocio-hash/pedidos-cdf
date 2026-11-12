@@ -194,7 +194,7 @@ export const PAYMENT_METHODS = ["gcash", "maya", "bank", "cash", "other"];
 export const MAX_DAYS_AHEAD = 90;
 const FIELDS = ["request_key", "lang", "buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "mode", "date", "slot",
   "address", "lat", "lng", "location_source", "location_confirmed_at", "description", "special_requests", "card_message",
-  "payment_method", "reference_files", "payment_proof"];
+  "payment_method", "reference_files", "payment_proof", "pickup_branch"];
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const inPhilippines = (lat: number, lng: number) => lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127;
@@ -249,6 +249,8 @@ export function checkRequest(body: unknown, now: number) {
     if (!(at <= now + 5 * 60_000 && at >= now - 24 * 3600_000)) fail("location");
     location_confirmed_at = new Date(at).toISOString();
   } else if (b.address != null || b.lat != null || b.lng != null || b.location_source != null || b.location_confirmed_at != null) fail("location");
+  // Pickup: the shop the customer chose (its branch name; the database checks it exists and is open that day)
+  const pickup_branch = mode === "pickup" ? text(b.pickup_branch, "pickup_branch", 1, 60) : b.pickup_branch == null ? null : fail("pickup_branch");
 
   const refs = b.reference_files ?? [];
   if (!Array.isArray(refs) || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
@@ -258,7 +260,7 @@ export function checkRequest(body: unknown, now: number) {
     request_key: (b.request_key as string).toLowerCase(), lang: b.lang === "es" ? "es" : "en",
     buyer_name: text(b.buyer_name, "buyer_name", 2, 80), buyer_phone,
     receiver_name: text(b.receiver_name, "receiver_name", 2, 80), receiver_phone,
-    mode, date, slot, address, lat, lng, location_source, location_confirmed_at,
+    mode, date, slot, address, lat, lng, location_source, location_confirmed_at, pickup_branch,
     description: text(b.description, "description", 3, 1000, true), special_requests: text(b.special_requests, "special_requests", 0, 500, true),
     card_message: text(b.card_message, "card_message", 0, 300, true), payment_method,
     reference_files: (refs as string[]).map((f) => f.toLowerCase()), payment_proof: b.payment_proof ? (b.payment_proof as string).toLowerCase() : null,

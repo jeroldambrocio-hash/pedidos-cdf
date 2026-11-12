@@ -20,7 +20,7 @@
   };
 
   const v = { buyer_name: "", buyer_phone: "", same: false, receiver_name: "", receiver_phone: "", mode: "delivery", date: "", slot: "",
-    address: "", description: "", special_requests: "", card_message: "", payment_method: "" };
+    address: "", description: "", special_requests: "", card_message: "", payment_method: "", pickup_branch: "" };
   const files = { reference: [], payment_proof: [] }; // { id, name, url, state: "sending" | "ready" | "failed", blob, file, error }
   let view = CFG.features?.publicOrder === true ? "form" : "off", place = null, picker = null, session = null, sessionWait = null;
   let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "";
@@ -96,6 +96,77 @@
     search_unavailable: "locSearchFail", file_too_big: "poErrBig", not_an_image: "poErrNotImage", bad_dimensions: "poErrNotImage", empty_file: "poErrNotImage",
     session_lost: "poSessionExpired", origin: "poNotOpen", heic: "poErrHeic" }[e?.code] || "poErrServer");
 
+  // ---------- pickup shops ----------
+  // The shops come from the team's data (Team → each florist's shop), open or not on the chosen day. No
+  // session is needed: it is the shops' own public information. "Use my location" only sorts them here,
+  // in the browser; the position is never sent anywhere.
+  const shops = { list: null, forDate: undefined, loading: false, failed: false, me: null, locating: false, locMsg: "" };
+  const km = (a, b) => {
+    const r = (x) => (x * Math.PI) / 180, dLat = r(b.lat - a.lat), dLng = r(b.lng - a.lng);
+    const h = Math.sin(dLat / 2) ** 2 + Math.cos(r(a.lat)) * Math.cos(r(b.lat)) * Math.sin(dLng / 2) ** 2;
+    return 6371 * 2 * Math.asin(Math.sqrt(h));
+  };
+  async function loadShops() {
+    const date = v.date || null;
+    if (shops.loading || (shops.list && shops.forDate === date)) return;
+    shops.loading = true; shops.failed = false; paintShops();
+    try {
+      const data = await post({ action: "shops", ...(date ? { date } : {}) });
+      shops.list = Array.isArray(data.shops) ? data.shops : []; shops.forDate = date;
+      // A shop chosen before that is closed on the new day (or gone) has to be chosen again
+      const still = shops.list.find((x) => x.branch === v.pickup_branch);
+      if (v.pickup_branch && !still?.available) v.pickup_branch = "";
+    } catch { shops.failed = true; }
+    shops.loading = false;
+    paintShops();
+    if (v.date !== (shops.forDate ?? "") && (v.date || shops.forDate)) loadShops(); // the date changed meanwhile
+  }
+  function locateMe() {
+    if (!navigator.geolocation) { shops.locMsg = t("locNoGps"); paintShops(); return; }
+    shops.locating = true; shops.locMsg = t("locAsking"); paintShops();
+    navigator.geolocation.getCurrentPosition(
+      (p) => { shops.locating = false; shops.locMsg = ""; shops.me = { lat: p.coords.latitude, lng: p.coords.longitude };
+        // The nearest open shop is chosen for them, unless they already chose one
+        const near = sortedShops().find((x) => x.available);
+        if (near && !v.pickup_branch) { v.pickup_branch = near.branch; touched = true; if (errs.pickup_branch) delete errs.pickup_branch; }
+        paintShops(); },
+      () => { shops.locating = false; shops.locMsg = t("poShopLocFail"); paintShops(); },
+      { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 });
+  }
+  const sortedShops = () => {
+    const list = [...(shops.list || [])].map((x) => ({ ...x, km: shops.me ? km(shops.me, x) : null }));
+    return shops.me ? list.sort((a, b) => (b.available - a.available) || a.km - b.km) : list;
+  };
+  let shopBox = null;
+  function paintShops() {
+    if (!shopBox?.isConnected) return;
+    const list = sortedShops(), nearest = shops.me ? list.find((x) => x.available) : null;
+    const chosen = list.find((x) => x.branch === v.pickup_branch) || null;
+    const err = fields.pickup_branch?.err;
+    const body = shops.loading && !shops.list ? [h("p", { class: "note", role: "status" }, t("poShopsLoading"))]
+      : shops.failed ? [h("p", { class: "note", role: "alert" }, t("poShopsFail")), h("button", { type: "button", class: "btn", onclick: () => loadShops() }, t("poRetry"))]
+      : !list.length ? [h("p", { class: "note" }, t("poShopsNone"))]
+      : [
+        h("div", { class: "po-shops", role: "radiogroup", "aria-labelledby": "po-pickup_branch-label", "aria-describedby": "po-pickup_branch-err" },
+          list.map((x) => h("label", { class: "po-shop" + (x.available ? "" : " is-closed") + (x.branch === v.pickup_branch ? " is-chosen" : "") },
+            h("input", { type: "radio", name: "po-shop", value: x.branch, checked: x.branch === v.pickup_branch, disabled: !x.available,
+              onchange: () => { v.pickup_branch = x.branch; touched = true; if (errs.pickup_branch) { delete errs.pickup_branch; paintError("pickup_branch"); } paintShops();
+                shopBox.querySelector(`input[value="${CSS.escape(x.branch)}"]`)?.focus(); } }),
+            h("span", { class: "po-shop-text" },
+              h("b", {}, x.branch),
+              h("small", {}, !x.available ? t("poShopClosed") : x.km != null ? t("poShopKm", { km: x.km < 10 ? x.km.toFixed(1) : Math.round(x.km) }) : x.branch === v.pickup_branch ? t("poShopChosen") : t("poShopTap"))),
+            x === nearest ? h("span", { class: "po-shop-near" }, t("poShopNearest")) : null))),
+        h("div", { class: "po-shop-tools" },
+          h("button", { type: "button", class: "btn", disabled: shops.locating, onclick: locateMe }, t("poShopUseLocation")),
+          shops.locMsg ? h("span", { class: "note", role: "status" }, shops.locMsg) : null),
+        chosen ? h("div", { class: "po-shop-detail", role: "status" },
+          h("span", { class: "po-label" }, t("poShopAddress")),
+          h("p", {}, chosen.address || chosen.branch),
+          h("a", { class: "link-out", target: "_blank", rel: "noopener", href: `https://www.google.com/maps/search/?api=1&query=${chosen.lat},${chosen.lng}` }, t("poShopMap"))) : null];
+    shopBox.replaceChildren(...body, err || "");
+    if (err) paintError("pickup_branch");
+  }
+
   // ---------- photos ----------
   // Shrunk in the browser to save the visitor's data (and it drops camera and location data on the way).
   // A file the browser cannot read as a picture is refused here; the server refuses it too.
@@ -166,7 +237,7 @@
   // ---------- form ----------
   const errs = {};
   // Top to bottom, as the form reads: the first of these with an error is the one focused
-  const ORDER = ["buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "date", "slot", "address", "location",
+  const ORDER = ["buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "date", "slot", "pickup_branch", "address", "location",
     "description", "special_requests", "card_message", "reference_files", "payment_method"];
   let fields = {};
   function field(name, label, control, { hint, optional } = {}) {
@@ -203,7 +274,7 @@
       need("address", 8, "poErrAddress");
       place = picker?.state() || place;
       if (!place) errs.location = t("poErrLocation"); else if (!place.confirmedAt) errs.location = t("poErrConfirm");
-    }
+    } else if (!(shops.list || []).some((x) => x.branch === v.pickup_branch && x.available)) errs.pickup_branch = t("poErrShop");
     need("description", 3, "poErrDescription");
     if (!METHODS.includes(v.payment_method)) errs.payment_method = t("poErrMethod");
     const all = [...files.reference, ...files.payment_proof];
@@ -216,7 +287,7 @@
     return { request_key: requestKey, lang: LANG, buyer_name: v.buyer_name.trim(), buyer_phone: v.buyer_phone.trim(),
       receiver_name: (same ? v.buyer_name : v.receiver_name).trim(), receiver_phone: (same ? v.buyer_phone : v.receiver_phone).trim(),
       mode: v.mode, date: v.date, slot: v.slot,
-      ...(v.mode === "delivery" ? { address: v.address.trim(), lat: place.lat, lng: place.lng, location_source: place.source, location_confirmed_at: place.confirmedAt } : {}),
+      ...(v.mode === "delivery" ? { address: v.address.trim(), lat: place.lat, lng: place.lng, location_source: place.source, location_confirmed_at: place.confirmedAt } : { pickup_branch: v.pickup_branch }),
       description: v.description.trim(), special_requests: v.special_requests.trim(), card_message: v.card_message.trim(), payment_method: v.payment_method,
       reference_files: files.reference.map((f) => f.id), payment_proof: files.payment_proof[0]?.id || null };
   };
@@ -253,7 +324,15 @@
       fields.location = { wrap: locWrap, control: { focus: () => picker.focus() }, err: locErr };
       paintError("location");
       where = [field("address", t("poAddress"), address, { hint: t("poAddressHint") }), locWrap];
-    } else { picker = null; where = [h("p", { class: "note po-pickup-note" }, t("poPickupNote"))]; }
+    } else {
+      picker = null;
+      shopBox = h("div", { class: "po-shop-box" });
+      const shopErr = h("p", { class: "err", id: "po-pickup_branch-err", role: "alert" });
+      const shopWrap = h("div", { class: "field po-field po-pickup", role: "group", "aria-labelledby": "po-pickup_branch-label" },
+        h("span", { id: "po-pickup_branch-label", class: "po-label" }, t("poShop")), h("p", { class: "note" }, t("poShopHint")), shopBox);
+      fields.pickup_branch = { wrap: shopWrap, control: { focus: () => (shopBox.querySelector("input:checked, input:not(:disabled), button") || shopWrap).focus() }, err: shopErr };
+      where = [shopWrap];
+    }
 
     const method = h("select", {}, h("option", { value: "" }, t("poChoose")), METHODS.map((m) => h("option", { value: m }, t("pm_" + m))));
     fileBox.reference = h("div", { class: "po-files" }); fileBox.payment_proof = h("div", { class: "po-files" });
@@ -296,6 +375,8 @@
     root.replaceChildren(form);
     paintFiles("reference"); paintFiles("payment_proof");
     Object.keys(fields).forEach(paintError);
+    if (v.mode === "pickup") { paintShops(); loadShops(); }
+    date.addEventListener("change", () => { if (v.mode === "pickup") loadShops(); });
     if (typeof placePill === "function") document.querySelectorAll(".po-mode").forEach(placePill);
   }
 
@@ -313,6 +394,7 @@
         view = "done"; touched = false;
         // Nothing of the request stays in the page once it is sent
         for (const k of Object.keys(v)) v[k] = typeof v[k] === "boolean" ? false : k === "mode" ? "delivery" : "";
+        shops.me = null; shops.locMsg = "";
         for (const k of Object.keys(files)) { files[k].forEach((f) => f.url && URL.revokeObjectURL(f.url)); files[k] = []; }
         place = null; requestKey = crypto.randomUUID();
         render();
@@ -321,6 +403,7 @@
         if (e.field && e.code !== "files") {
           // The server disagreed with something: back to the form, on that field
           const name = e.field === "location" ? "location" : e.field;
+          if (name === "pickup_branch") { shops.list = null; v.pickup_branch = ""; }
           view = "form"; topError = t("poFixOne"); render();
           if (fields[name]) { errs[name] = t("poErrServerField"); paintError(name); fields[name].wrap.scrollIntoView({ block: "center" }); }
           return;
@@ -338,7 +421,10 @@
         row(t("poBuyer"), `${p.buyer_name} · ${phoneE164(p.buyer_phone)}`),
         row(t("poReceiver"), v.same ? t("poSameShort") : `${p.receiver_name} · ${phoneE164(p.receiver_phone)}`),
         row(t("poWhen"), `${day} · ${p.slot.replace(" - ", " – ")}`),
-        row(t(p.mode === "delivery" ? "poDelivery" : "poPickup"), p.mode === "delivery" ? p.address : t("poPickupShort")),
+        row(t(p.mode === "delivery" ? "poDelivery" : "poPickup"), p.mode === "delivery" ? p.address : (() => {
+          const x = (shops.list || []).find((y) => y.branch === p.pickup_branch);
+          return [h("b", {}, p.pickup_branch), x?.address ? h("span", { class: "po-review-addr" }, " · " + x.address) : null];
+        })()),
         p.mode === "delivery" ? row(t("poLocation"), t("locConfirmed")) : [],
         row(t("poDescription"), p.description), row(t("poSpecial"), p.special_requests), row(t("poCard"), p.card_message),
         row(t("poMethod"), t("pm_" + p.payment_method)),

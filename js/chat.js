@@ -245,7 +245,7 @@ function mentionedOrder(body) {
 function internalChatIcon(o) {
   if (!o) return el("span", { class: "thread-ic" }, icon("conversation"));
   const step = stepOf(o), k = STEPS[step].k;
-  const label = "#" + o.num + " · " + stepName(step);
+  const label = "#" + o.num + " · " + stepName(step, o);
   return el("span", { class: "thread-ic", title: label, role: "img", "aria-label": label },
     icon(k === "done" ? "deliveredPackage" : "package"),
     k === "done" ? null : el("i", { class: "thread-dot", style: "--c: var(--" + k + "-solid)" }));
@@ -612,7 +612,7 @@ function renderChatList() {
     const o = team ? null : byId(th) || CH.info.get(th);
     const step = o ? stepOf(o) : null;
     const key = STEPS[step]?.k;
-    const status = key ? stepName(step) : null;
+    const status = key ? stepName(step, o) : null;
     const who = m ? (m.author_email === S.me.email ? t("chatYou") : handleOf(p)) + ": " : "";
     return el("button", { type: "button", class: "thread" + (CH.open === th ? " on" : "") + (u ? " unread" : ""), "aria-current": CH.open === th ? "true" : "false", onclick: () => openThread(th) },
       team || peer ? internalChatIcon(mentionedOrder(m?.body)) : el("span", { class: "thread-ic", "data-status": key || "",
@@ -665,7 +665,7 @@ function renderChatPane() {
       el("div", { class: "chat-head-txt" },
         el("b", {}, threadTitle(th)),
         o ? el("small", {}, [shortDate(o.date), o.slot, o.vendor_email ? memberName(o.vendor_email) : null].filter(Boolean).join(" · ")) : null),
-      o && k != null ? badge(k) : null,
+      o && k != null ? badge(k, o) : null,
       el("span", { class: "spacer" }),
       o ? el("button", { class: "btn", type: "button", onclick: () => openOrder(byId(th) || o) }, t("chatOpenOrder")) : null);
   }
