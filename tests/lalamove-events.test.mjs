@@ -3,6 +3,7 @@
 // nothing goes to the network.
 // Run: NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/lalamove-events.test.mjs
 import assert from "node:assert";
+import { readFileSync } from "node:fs";
 import { createHash, createHmac } from "node:crypto";
 import { createRequire } from "node:module";
 import { checkSignature, download, eventProofs, eventTime, hostAllowed, popImages, processEvent, proofUrl, receive, sniffImage, work } from "../supabase/functions/cdf-lalamove/events.ts";
@@ -29,6 +30,7 @@ const before = await one("select to_jsonb(l) - 'updated_at' r from public.cdf_la
 await db.exec(migration("cdf_lalamove_events"));
 await db.exec(migration("cdf_lalamove_reconcile_fix"));
 await db.exec(migration("cdf_lalamove_proof_links"));
+await db.exec(migration("cdf_lalamove_proofs_removed_by"));
 assert.deepEqual((await one("select to_jsonb(l) - 'updated_at' r from public.cdf_lalamove l")).r, before.r);
 assert.deepEqual(await one("select order_id, env, status from public.cdf_lalamove_shipments where ll_order_id = '3626117933572534460'"),
   { order_id: ORDER, env: "production", status: "COMPLETED" });
@@ -432,10 +434,14 @@ const POD_EVENT = { updatedAt: "2026-11-12T03:08:28.000Z", order: { orderId: "36
   assert((await rows("select id from public.cdf_lalamove_proofs")).length > 3);
   assert((await rows("select id from public.cdf_lalamove_events")).length > 3);
   await assert.rejects(db.query("select source_url from public.cdf_lalamove_proofs"), /permission denied/);
+  // The exact columns the panel asks for (js/lalamove.js): one column it may not read hides the whole block
+  const panelCols = /const LL_PROOF_COLS = "([^"]+)"/.exec(readFileSync(new URL("../js/lalamove.js", import.meta.url), "utf8"))[1];
+  assert.ok((await rows(`select ${panelCols} from public.cdf_lalamove_proofs`)).length > 3, "admin: the panel's proof list reads");
   await assert.rejects(db.query("update public.cdf_lalamove_proofs set state = 'removed'"), /permission denied/);
   await assert.rejects(db.query("select public.cdf_ll_proof_removed(1, 'x')"), /permission denied/);
   await as("flo@t");
   const mine = await rows("select order_id, state, storage_path from public.cdf_lalamove_proofs");
+  assert.equal((await rows(`select ${panelCols} from public.cdf_lalamove_proofs`)).length, mine.length, "florist: the panel's proof list reads");
   assert(mine.length >= 2 && mine.every((p) => p.order_id === ORDER), "the florist sees her own order's proofs only");
   assert.equal((await rows("select id from public.cdf_lalamove_events")).length, 0);
   const path = mine.find((p) => p.state === "available").storage_path;
