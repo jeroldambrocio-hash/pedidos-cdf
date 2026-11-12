@@ -10,20 +10,24 @@ async function photoUrl(path, bkt = bucket) {
   S.photoUrls[key] = { url: data.signedUrl, exp: Date.now() + 50 * 60e3 };
   return data.signedUrl;
 }
+// Shows a photo over the page (dimmed backdrop, Close, Esc or a tap outside), so nobody leaves the panel.
+function openPhotoViewer(src, alt) {
+  const close = el("button", { class: "btn", type: "button", autofocus: true, onclick: () => viewer.close() }, t("close"));
+  const viewer = el("dialog", { class: "photo-viewer", "aria-label": alt,
+    onkeydown: (event) => { if (event.key === "Escape" || event.key === "Tab") event.stopPropagation(); },
+    onclick: (event) => { if (event.target === viewer) viewer.close(); },
+    onclose: () => viewer.remove()
+  }, el("div", {}, close, el("img", { src, alt })));
+  document.body.append(viewer);
+  viewer.showModal();
+  return viewer;
+}
 function photoPreview(src, alt, expand) {
   const image = el("img", { src, alt, loading: "lazy" });
   if (!expand) return image;
   const label = alt === t("photoAlt") ? t("expandPhoto") : t("expandOtherPhoto", { photo: alt });
-  return el("button", { class: "photo-preview", type: "button", "aria-label": label, onclick: () => {
-    const close = el("button", { class: "btn", type: "button", autofocus: true, onclick: () => viewer.close() }, t("close"));
-    const viewer = el("dialog", { class: "photo-viewer", "aria-label": alt,
-      onkeydown: (event) => { if (event.key === "Escape" || event.key === "Tab") event.stopPropagation(); },
-      onclick: (event) => { if (event.target === viewer) viewer.close(); },
-      onclose: () => viewer.remove()
-    }, el("div", {}, close, el("img", { src, alt })));
-    document.body.append(viewer);
-    viewer.showModal();
-  } }, image, el("span", { class: "photo-preview-zoom", "aria-hidden": "true" }, icon("search")));
+  return el("button", { class: "photo-preview", type: "button", "aria-label": label, onclick: () => openPhotoViewer(src, alt) },
+    image, el("span", { class: "photo-preview-zoom", "aria-hidden": "true" }, icon("search")));
 }
 const imgOf = (path, bkt, alt, expand = false) => {
   const box = el("div", { class: "drop ro-photo" }, t("loadingPhoto"));

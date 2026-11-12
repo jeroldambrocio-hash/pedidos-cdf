@@ -90,12 +90,18 @@ const server = http.createServer((req, res) => {
     await shot(p, "1-delivered"); await noOverflow(p);
     console.log("ok delivered: proof available, pickup proof in error with the reason, replacement noted, history");
 
-    const [tab] = await Promise.all([p.context().waitForEvent("page"), box.getByRole("button", { name: "Ver" }).click()]);
-    await tab.waitForURL(/emblem\.webp/);
+    const pages = p.context().pages().length;
+    await box.getByRole("button", { name: "Ver" }).click();
+    const viewer = p.locator("dialog.photo-viewer[open]");
+    await viewer.waitFor();
+    assert.match(await viewer.locator("img").getAttribute("src"), /emblem\.webp/);
+    assert.equal(p.context().pages().length, pages, "no new tab");
     const signed = await p.evaluate(() => __ll.signed);
     assert.equal(signed.length, 1); assert.equal(signed[0].secs, 300); assert.match(signed[0].p, /pod-S1-abc\.jpg$/);
-    await tab.close();
-    console.log("ok view opens a five-minute link to the private copy");
+    await shot(p, "1b-viewer");
+    await viewer.getByRole("button", { name: "Cerrar" }).click();
+    await viewer.waitFor({ state: "detached" });
+    console.log("ok view shows the five-minute link in the in-page viewer, no new tab");
 
     await box.getByRole("button", { name: "Quitar" }).click();
     await p.getByRole("alertdialog").getByRole("button", { name: "Quitar" }).click();

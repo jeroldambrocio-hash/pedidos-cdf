@@ -191,11 +191,15 @@ const LL_PROOF_COLS = "id,ll_order_id,kind,stop_key,provider_status,provider_at,
 function llProofs(o, holder) {
   const node = el("div", { class: "ll-proofs" });
   let list = null, ships = [], row = null, chan = null;
-  const view = (p) => async () => {
-    const w = window.open("", "_blank");
-    const { data, error } = await sb.storage.from("cdf-lalamove-proofs").createSignedUrl(p.storage_path, 300);
-    if (error || !data?.signedUrl) { w?.close(); return toastErr(error?.message || t("llps_error")); }
-    if (w) w.location = data.signedUrl; else window.open(data.signedUrl, "_blank", "noopener");
+  // Opens over the panel (the same viewer as the order photos) instead of a new tab.
+  const view = (p) => async (e) => {
+    const b = e.currentTarget;
+    b.disabled = true;
+    try {
+      const { data, error } = await sb.storage.from("cdf-lalamove-proofs").createSignedUrl(p.storage_path, 300);
+      if (error || !data?.signedUrl) return toastErr(error?.message || t("llps_error"));
+      openPhotoViewer(data.signedUrl, t("llProof_" + p.kind));
+    } finally { b.disabled = false; }
   };
   const remove = (p) => async (e) => {
     const b = e.currentTarget;
