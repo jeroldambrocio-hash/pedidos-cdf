@@ -436,20 +436,32 @@ async function attachPrices(rows) {
  }
  return rows;
 }
-// patch: {amount?, paid?, proofs?: {before, after}} with only what this person changed. Proofs are merged with the
-// row as it is now (someone else may have added one); a price or payment someone else changed since this
-// sheet opened is not overwritten: the save stops and says so.
+// patch: {amount?} with only what this person changed. seen: {amount} as the sheet showed it when it opened
+// (null for a new order). A price someone else changed since then is not overwritten: the save stops and says so.
+// Audit F03: the comparison is part of the write itself (update … where amount = seen), so two people saving at
+// once cannot both pass it; reading first and writing after let the second one win without a word.
 async function savePrice(id,patch,seen) {
  if(!priceEditable()) return;
  const row={order_id:id};
  if("amount" in patch) row.amount=patch.amount;
- if(seen&&"amount" in patch){
-  const {data:now}=await sb.from("cdf_order_prices").select("amount").eq("order_id",id).maybeSingle();
-  if(now&&(now.amount==null?null:+now.amount)!==(seen.amount==null||seen.amount===""?null:+seen.amount)) throw new Error(t("payChangedMeanwhile"));
- }
  if(Object.keys(row).length===1) return row;
- const {error}=await sb.from("cdf_order_prices").upsert(row,{onConflict:"order_id"});
- if(error) throw new Error(t(error.message === "cdf_price_below_paid" ? "payPriceBelowPaid" : "priceSaveFail"));
+ const fail=(error)=>new Error(t(error.message === "cdf_price_below_paid" ? "payPriceBelowPaid" : "priceSaveFail"));
+ if(seen){
+  const was=seen.amount==null||seen.amount===""?null:+seen.amount;
+  let q=sb.from("cdf_order_prices").update({amount:row.amount}).eq("order_id",id);
+  q=was==null?q.is("amount",null):q.eq("amount",was);
+  const {data,error}=await q.select("order_id");
+  if(error) throw fail(error);
+  if(!data?.length){
+   // Nothing matched: the price is no longer what this sheet showed, or the order never had a price row
+   if(was!=null) throw new Error(t("payChangedMeanwhile"));
+   const made=await sb.from("cdf_order_prices").insert(row);
+   if(made.error) throw made.error.code==="23505" ? new Error(t("payChangedMeanwhile")) : fail(made.error);
+  }
+ } else {
+  const {error}=await sb.from("cdf_order_prices").upsert(row,{onConflict:"order_id"});
+  if(error) throw fail(error);
+ }
  invalidateStats();
  return row;
 }

@@ -25,6 +25,12 @@ Nada de esto está aplicado en producción. Rama: `papelera-y-tipo-pedido` (incl
    `verify_jwt = true`, usa `SUPABASE_ANON_KEY` y `SUPABASE_SERVICE_ROLE_KEY`, que Supabase ya pone).
 4. Web (Netlify).
 
+Añadido después (ramas `franjas-pasadas` y `auditoria-f03-f04`, sin migraciones):
+- **F14 · franjas de hoy**: `cdf-public-order` (ya en el paso 3) y la web. Una franja de hoy se puede pedir mientras
+  falte al menos 1 hora para que acabe, hora de Manila (decisión del dueño, 12/11/2026).
+- **F03 · precio simultáneo**: solo web (`js/core.js`). El guardado compara el precio en la misma escritura.
+- **F04 · alta con el mismo correo**: función `cdf-users` (ahora `index.ts` + `handler.ts`): desplegarla en el paso 3.
+
 El formulario publicado hoy sigue funcionando entre los pasos 1 y 4 (la base de datos acepta recogidas sin tienda).
 
 ## Comprobaciones después

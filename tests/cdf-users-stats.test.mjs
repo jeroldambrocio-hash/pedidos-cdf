@@ -19,8 +19,8 @@ assert.equal(mayRemove(withStats, withStats), true);
 assert.equal(hasStats({ role: "vendor", sees_stats: true }), false);
 ok("An admin without Statistics cannot remove an admin who has them; anyone else as before");
 
-const src = readFileSync(new URL("../supabase/functions/cdf-users/index.ts", import.meta.url), "utf8");
-assert.match(src, /upsert\(\{ email, name, role, \.\.\.statsOnAdd\(me\)/);
+const src = readFileSync(new URL("../supabase/functions/cdf-users/handler.ts", import.meta.url), "utf8");
+assert.match(src, /insert\(\{ email, name, role, \.\.\.statsOnAdd\(me\)/); assert.doesNotMatch(src, /\.upsert\(/);
 assert.match(src, /if \(!mayRemove\(me, target\)\) return json\(/);
 assert.ok(src.indexOf("mayRemove(me, target)") < src.indexOf('.delete().eq("email", email)'));
 ok("The function uses both rules before writing with the service identity");

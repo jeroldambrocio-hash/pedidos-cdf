@@ -92,6 +92,8 @@ function query(table) {
       if ((window.__noChat && /^cdf_message/.test(table)) || (window.__noReactions && table === "cdf_message_reactions")) return Promise.resolve({ data: null, error: { code: "42P01", message: "relation does not exist" } }).then(resolve, reject);
       // A03: lets a test land another admin's save between this client's read and its write
       if (action === "update" && table === "cdf_orders" && window.__race) { const r = window.__race; window.__race = null; r(); }
+      // Audit F03: another admin's price lands just before this client's write is looked at
+      if (action !== "read" && table === "cdf_order_prices" && window.__priceRace) { const r = window.__priceRace; window.__priceRace = null; r(); }
       data = data.filter((o) => filters.every((f) => f(o)));
       // tests/notif-calendar.cjs: a database without migration 028 (no lang column), and a device still tied to someone else (RLS)
       if (action === "upsert" && table === "cdf_push_subs" && window.__noLang && "lang" in row) return Promise.resolve({ data: null, error: { code: "PGRST204", message: "Could not find the 'lang' column of 'cdf_push_subs' in the schema cache" } }).then(resolve, reject);
@@ -102,6 +104,8 @@ function query(table) {
         if(window.__role && window.__role !== "admin")return Promise.resolve({data:null,error:{message:"denied"}}).then(resolve,reject);
         const existing=window.__prices.find(p=>p.order_id===row.order_id);if(existing)Object.assign(existing,row);else window.__prices.push({...row});data=[row];
       }
+      // Audit F03: a second price row for the same order is refused, as the table's key does
+      if (action === "insert" && table === "cdf_order_prices" && window.__prices.some((x) => x.order_id === row.order_id)) return Promise.resolve({ data: null, error: { code: "23505", message: "duplicate key" } }).then(resolve, reject);
       if (action !== "read") {
         window.__calls.push({ table, action, row, ids: data.map((o) => o.id) });
         if (action === "insert" && table === "cdf_messages") { const item = { ...row, id: "m" + Date.now(), created_at: new Date().toISOString(), edited_at: null }; window.__messages.push(item); keepChat(); data = [item]; window.__chatReply && window.__chatReply(item); }
@@ -910,6 +914,28 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator(".dialog").getByRole("button", { name: "Save mine" }).click();
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       assert.equal(await p.evaluate(() => window.__orders.find((x) => x.num === "0127").address), "Mine again");
+    });
+    await step("Audit F03 · Two admins change the same price at once: the second is told, the first one's price stays", async () => {
+      await p.evaluate(() => (window.__calls = []));
+      const price = () => p.evaluate(() => window.__prices.find((x) => x.order_id === window.__orders.find((o) => o.num === "0127").id).amount);
+      await p.locator(".order", { hasText: "#0127" }).locator(".o-name").click();
+      const seen = await price();
+      await p.locator("#f-amount").fill("3100");
+      // The other admin's price lands after this sheet read the price, right at this client's write
+      await p.evaluate(() => { window.__priceRace = () => { window.__prices.find((x) => x.order_id === window.__orders.find((o) => o.num === "0127").id).amount = 2900; }; });
+      await p.locator(".sheet button[type=submit]").click();
+      await p.locator(".sheet .err", { hasText: "Someone else changed the price" }).waitFor();
+      assert.equal(await price(), 2900, "the other admin's price is not overwritten");
+      const writes = await p.evaluate(() => window.__calls.filter((c) => c.table === "cdf_order_prices"));
+      assert.deepEqual(writes.map((c) => [c.action, c.ids.length]), [["update", 0]], "one write, conditional on the price this sheet showed; no blind upsert");
+      await p.keyboard.press("Escape"); await p.locator(".dialog button", { hasText: /Discard|Close|Leave/ }).first().click({ timeout: 1500 }).catch(() => {});
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      // Reopened, it shows their price; with nobody else in the way the save goes through
+      await p.locator(".order", { hasText: "#0127" }).locator(".o-name").click();
+      assert.equal(await p.locator("#f-amount").inputValue(), "2900");
+      await p.locator("#f-amount").fill("3100"); await p.locator(".sheet button[type=submit]").click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+      assert.equal(await price(), 3100); assert.notEqual(seen, 3100);
     });
     await step("A14 · Admin cancels with a reason; the card stops offering steps; reinstate puts it back", async () => {
       await p.evaluate(() => (window.__calls = []));
