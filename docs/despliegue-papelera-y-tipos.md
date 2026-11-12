@@ -9,10 +9,15 @@ Nada de esto está aplicado en producción. Rama: `papelera-y-tipo-pedido` (incl
    1. `20261112150000_cdf_pickup_orders.sql` — tipo recogida en pedidos, tienda elegida en solicitudes, pasos sin «En camino».
    2. `20261112160000_cdf_ll_booking_guard.sql` — auditoría F01/F02: una reserva Lalamove a la vez, resultado incierto retenido, no borrar con rider.
    3. `20261112170000_cdf_order_trash.sql` — papelera, propietario, registro de borrados, número de pedido en las solicitudes, recuentos.
-2. Designar al propietario (solo desde el editor SQL; la app no puede hacerlo):
+2. Designar a los propietarios (solo desde el editor SQL; la app no puede hacerlo). Indicados por el dueño el
+   12/11/2026: **john.farggi@gmail.com** y **jerold.ambrocio@gmail.com**, y nadie más.
    ```sql
-   update public.cdf_members set is_owner = true where email = '<correo del propietario>';
+   update public.cdf_members set is_owner = true
+   where lower(email) in ('john.farggi@gmail.com', 'jerold.ambrocio@gmail.com') and role = 'admin';
+   -- comprobar: deben salir las dos, con role = admin
+   select email, role, is_owner from public.cdf_members where is_owner or lower(email) in ('john.farggi@gmail.com', 'jerold.ambrocio@gmail.com');
    ```
+   El permiso solo vale en cuentas admin: si alguna de las dos no sale como admin, preguntar antes de cambiarle el rol.
    Sin este paso nadie puede borrar definitivamente (la papelera funciona igual).
 3. Funciones: `cdf-public-order` (tiendas para recoger) y `cdf-lalamove` (reserva protegida, `booking.ts`, enlace por webhook).
 4. Web (Netlify).
