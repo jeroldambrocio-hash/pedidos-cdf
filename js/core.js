@@ -259,6 +259,21 @@ const inRange = (d) => S.range && d >= S.range[0] && d <= S.range[1];
 const inScope = (o) => !o.deleted_at && !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && isOpen(o)));
 
 let loading = null, loadingGen = -1;
+// Every row of a query, however many requests it takes. `make` builds the query afresh for each page (ordered,
+// so pages don't overlap). It goes on until the count the server reports is reached, so it does not depend on
+// knowing the API's row limit; without a count, until a page comes back short or empty.
+const PAGE_ROWS = 1000;
+async function allPages(make) {
+  const rows = [];
+  for (;;) {
+    const q = make(), paged = typeof q.range === "function";
+    const { data, error, count } = await (paged ? q.range(rows.length, rows.length + PAGE_ROWS - 1) : q);
+    if (error) return { data: null, error };
+    rows.push(...(data || []));
+    if (!paged || !data?.length || (count != null ? rows.length >= count : data.length < PAGE_ROWS)) break;
+  }
+  return { data: rows, error: null };
+}
 async function loadOrders() {
   invalidateStats(); awayAt = 0;
   const gen = sessionNow();
@@ -269,9 +284,11 @@ async function loadOrders() {
     const [from, to] = wantedRange();
     // Not archived, and not in the trash (12/11/2026)
     const live = (q) => { if (S.cap.archive) q = q.is("archived_at", null); return S.cap.trash ? q.is("deleted_at", null) : q; };
+    // Audit F07: both lists are read to the end, page by page. The API hands out a limited number of rows per
+    // request; without this, a busy range would simply stop there and orders would be missing with no warning.
     const [a, b] = await Promise.all([
-      live(sb.from("cdf_orders").select("*").gte("date", from).lte("date", to)).order("date"),
-      live(sb.from("cdf_orders").select("*").lt("date", from).neq("delivery", "Delivered")).order("date"),
+      allPages(() => live(sb.from("cdf_orders").select("*", { count: "exact" }).gte("date", from).lte("date", to)).order("date").order("id")),
+      allPages(() => live(sb.from("cdf_orders").select("*", { count: "exact" }).lt("date", from).neq("delivery", "Delivered")).order("date").order("id")),
     ]);
     if (stale(gen)) return false;
     if (a.error || b.error) {

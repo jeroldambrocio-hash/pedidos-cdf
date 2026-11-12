@@ -21,7 +21,12 @@ export type Deps = {
   unstore: (paths: string[]) => Promise<unknown>;
   fetch: typeof fetch;
   decodeJpeg: DecodeJpeg;              // a full, strict JPEG decoder (jpeg-js in the function)
+  log?: (entry: Record<string, unknown>) => void;   // where failures are written (the function's log by default)
 };
+
+// What a failure's own text may say in the log: no phone or card-like numbers, no emails, no tokens, and short.
+export const logText = (v: unknown) => String((v as { message?: unknown })?.message ?? v ?? "")
+  .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]").replace(/[A-Za-z0-9_-]{32,}/g, "[token]").replace(/\+?\d[\d\s().-]{6,}\d/g, "[number]").slice(0, 200);
 
 // Per hour unless said otherwise. Generous on purpose where many customers may share one address
 // (an office, a mobile carrier): a shared address alone must not lock everyone out.
@@ -57,13 +62,23 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     const token = req.headers.get("x-cdf-session") || "";
     return /^[A-Za-z0-9_-]{32,128}$/.test(token) ? await d.sha256(token) : null;
   };
-  const dbError = (e: { message: string } | null) => (e ? (/cdf_session_invalid/.test(e.message) ? no("session", 401) : /cdf_upload_quota/.test(e.message) ? no("quota", 429) : /cdf_invalid_file/.test(e.message) ? no("file", 400) : no("server", 500)) : null);
+  // Audit F05: every "server" answer leaves a line in the log saying which step failed and why. The visitor
+  // only ever gets "server" and the request's id; nothing personal is logged (see logText).
+  const rid = d.randomToken().slice(0, 10);
+  let step = "start";
+  const failure = (op: string, cause?: unknown) => {
+    const entry = { fn: "cdf-public-order", rid, step, op, code: (cause as { code?: unknown })?.code ?? null, cause: logText(cause) };
+    try { (d.log || ((e) => console.error(JSON.stringify(e))))(entry); } catch { /* logging never changes the answer */ }
+    return json({ error: "server", rid }, 500);
+  };
+  const dbError = (e: { message: string } | null) => (e ? (/cdf_session_invalid/.test(e.message) ? no("session", 401) : /cdf_upload_quota/.test(e.message) ? no("quota", 429) : /cdf_invalid_file/.test(e.message) ? no("file", 400) : failure("database", e)) : null);
 
   try {
     const url = new URL(req.url), type = (req.headers.get("content-type") || "").split(";")[0].trim().toLowerCase();
 
     // ---- upload: the body is the file itself
     if (url.searchParams.get("action") === "upload") {
+      step = "upload";
       const hash = await tokenHash(), kind = url.searchParams.get("kind") || "";
       if (!hash) return no("session", 401);
       if (kind !== "reference" && kind !== "payment_proof") return no("file", 400);
@@ -71,7 +86,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       // Audit F13: the session must exist before the file is read or decoded (costly work, on a public
       // endpoint). The claim further down checks again: it may expire or fill up meanwhile.
       const live = await d.rpc("cdf_upload_session_of", { p_token_hash: hash });
-      if (live.error) return no("server", 500);
+      if (live.error) return failure("upload_session_of", live.error);
       if (!live.data) return no("session", 401);
       if (!(await within("upload-ip:" + ipHash, LIMITS.uploadsPerIp))) return no("slow_down", 429);
       // Read no further than the limit, whatever the declared length says (or does not say)
@@ -96,7 +111,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       const finish = (status: string) => d.rpc("cdf_upload_finish", { p_token_hash: hash, p_file: file, p_status: status,
         p_mime: image.mime, p_bytes: image.bytes.length, p_width: image.width, p_height: image.height, p_sha256: null });
       const stored = await d.store(path, image.bytes, image.mime);
-      if (stored.error) { await finish("rejected"); return no("server", 500); }
+      if (stored.error) { await finish("rejected"); return failure("store", stored.error); }
       const done = await d.rpc("cdf_upload_finish", { p_token_hash: hash, p_file: file, p_status: "ready", p_mime: image.mime,
         p_bytes: image.bytes.length, p_width: image.width, p_height: image.height, p_sha256: await d.sha256(image.bytes) });
       if (done.error) { await d.unstore([path]); return dbError(done.error)!; }
@@ -109,6 +124,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     if (text.length > 20_000) return no("invalid", 413);
     let b: Record<string, unknown>;
     try { b = JSON.parse(text); } catch { return no("invalid"); }
+    if (b && typeof b.action === "string" && /^[a-z_]{1,20}$/.test(b.action)) step = b.action;
     if (!b || typeof b !== "object" || Array.isArray(b)) return no("invalid");
 
     // ---- session
@@ -125,7 +141,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       } else if (d.env("PUBLIC_ORDER_NO_CAPTCHA") !== "test-only") return no("off", 503); // never open without the check by accident
       const token = d.randomToken();
       const made = await d.rpc("cdf_upload_session_open", { p_token_hash: await d.sha256(token), p_ip_hash: ipHash });
-      if (made.error) return no("server", 500);
+      if (made.error) return failure("session_open", made.error);
       return json({ session: token, expires_in: 2 * HOUR });
     }
 
@@ -136,7 +152,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (date === undefined) return no("invalid", 400, "date");
       if (!(await within("shops-ip:" + ipHash, LIMITS.shopsPerIp))) return no("slow_down", 429);
       const got = await d.rpc("cdf_pickup_shops", { p_date: date });
-      if (got.error) return no("server", 500);
+      if (got.error) return failure("pickup_shops", got.error);
       return json({ shops: got.data || [] });
     }
 
@@ -149,7 +165,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       const query = typeof b.query === "string" ? b.query.trim() : "";
       if (query.length < 3 || query.length > 200) return no("invalid", 400, "query");
       const live = await d.rpc("cdf_upload_session_of", { p_token_hash: hash });
-      if (live.error) return no("server", 500);
+      if (live.error) return failure("upload_session_of", live.error);
       if (!live.data) return no("session", 401);
       if (!(await within("search:" + hash, LIMITS.searchesPerSession)) || !(await within("search-ip:" + ipHash, LIMITS.searchesPerIp))) return no("slow_down", 429);
       // Google first (it knows Philippine house numbers, villages and buildings), but only up to a daily
@@ -220,7 +236,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         if (/cdf_pickup_shop/.test(m)) return no("invalid", 422, "pickup_branch");
         if (/cdf_operation_conflict/.test(m)) return no("conflict", 409);
         if (/cdf_invalid_request/.test(m)) return no("invalid", 422, "date");
-        return no("server", 500);
+        return failure("request_submit", saved.error);
       }
       // Notices that did not get through earlier go again now; never holds up the answer
       await d.rpc("cdf_outbox_retry", {}).catch(() => null);
@@ -228,8 +244,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       return json({ received: true, ref });
     }
     return no("invalid");
-  } catch {
-    return no("server", 500); // details stay in the server's log, not in the answer
+  } catch (e) {
+    return failure("unexpected", e); // details go to the server's log, not into the answer
   }
 }
 

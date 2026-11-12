@@ -65,9 +65,9 @@ const tables = () => ({ cdf_direct_threads: directThreads, cdf_direct_messages: 
   cdf_request_events: window.__role === "admin" || !window.__role ? (window.__requestEvents ||= []) : [] });
 const like = (v, pat) => String(v || "").toLowerCase().includes(pat.replace(/%/g, "").toLowerCase());
 function query(table) {
-  let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*";
+  let action = "read", row = null, filters = [], lim = null, offset = 0, cols = "*", counted = false;
   const q = {
-    select(c) { if (action === "read") cols = c || "*"; return q; }, order() { return q; }, limit(n) { lim = n; return q; }, range(a,b) { offset=a; lim=b-a+1; return q; },
+    select(c, opts) { if (action === "read") { cols = c || "*"; counted = opts?.count === "exact"; } return q; }, order() { return q; }, limit(n) { lim = n; return q; }, range(a,b) { offset=a; lim=b-a+1; return q; },
     eq(k, v) { filters.push((o) => o[k] === v); return q; }, neq(k, v) { filters.push((o) => o[k] !== v); return q; },
     gte(k, v) { filters.push((o) => o[k] >= v); return q; }, lte(k, v) { filters.push((o) => o[k] <= v); return q; }, lt(k, v) { filters.push((o) => o[k] < v); return q; },
     is(k, v) { filters.push((o) => (o[k] ?? null) === v); return q; }, not(k, op, v) { filters.push((o) => (o[k] ?? null) !== v); return q; },
@@ -122,8 +122,11 @@ function query(table) {
         else if (action === "delete" && table === "cdf_push_subs") window.__pushSubs = window.__pushSubs.filter((o) => !data.includes(o));
         else if (action === "delete") window.__orders = window.__orders.filter((o) => !data.includes(o));
       }
+      const total = data.length;
       if (lim) data = data.slice(offset, offset+lim);
-      return Promise.resolve({ data: JSON.parse(JSON.stringify(data)), error: null }).then(resolve, reject);
+      // Audit F07: like the real API, never more than its row limit per request, whatever was asked for
+      if (action === "read" && window.__apiMax) { if (!lim) data = data.slice(offset); data = data.slice(0, window.__apiMax); (window.__pages ||= []).push({ table, offset, n: data.length }); }
+      return Promise.resolve({ data: JSON.parse(JSON.stringify(data)), error: null, ...(counted ? { count: total } : {}) }).then(resolve, reject);
     },
   };
   return q;
@@ -337,6 +340,8 @@ window.supabase = { createClient: () => ({
     }
     if (name === "cdf_away_conflicts") return { data: window.__orders.filter((o) => !o.archived_at && o.delivery !== "Delivered" && o.vendor_email).flatMap((o) => { const m = members.find((x) => x.email === o.vendor_email); return m && awayOnDay(m, o.date) ? [{ id: o.id, num: o.num, date: o.date, vendor_email: o.vendor_email, away_from: m.away_from, away_until: m.away_until }] : []; }), error: null };
     const o = window.__orders.find((x) => x.id === args?.p_id); if (!o) return { error: { message: "missing" } };
+    // Re-audit F12 hooks: "refused" = the database says no and writes nothing; "lost" = it writes, and the answer never arrives
+    if (name === "cdf_order_photos_merge" && window.__photoMerge === "refused") { window.__photoMerge = null; return { data: null, error: { code: "P0001", message: "cdf_photo_limit" } }; }
     if (name === "cdf_order_photos_merge") { const cur = (o.extra_photos || []).filter((p) => !(args.p_remove || []).includes(p)); o.extra_photos = [...cur, ...(args.p_add || []).filter((p) => !cur.includes(p))]; }
     if (name === "cdf_progress") { [o.status, o.delivery] = steps[args.p_step]; if (args.p_note) o.delivery_note = args.p_note; if (args.p_set_proof) o.proof_path = args.p_proof; }
     if (name === "cdf_set_bouquet") o.bouquet_path = args.p_path;
@@ -344,6 +349,8 @@ window.supabase = { createClient: () => ({
     if (name === "cdf_reinstate_order") Object.assign(o, { cancelled_at: null, cancelled_by: null, cancel_reason: null });
     if (name === "cdf_reschedule") Object.assign(o, { date: args.p_date, slot: args.p_slot, delivery_note: args.p_note, status: "Ready", delivery: "-", attempts: o.attempts + 1 });
     o.updated_at = new Date().toISOString();
+    if (name === "cdf_order_photos_merge" && window.__photoMerge === "lost") { window.__photoMerge = null; return { data: null, error: { message: "TypeError: Failed to fetch", details: "", hint: "", code: "" } }; }
+    if (name === "cdf_order_photos_merge" && window.__photoMerge === "lost-unsaved") { window.__photoMerge = null; o.extra_photos = (o.extra_photos || []).filter((x) => !(args.p_add || []).includes(x)); return { data: null, error: { message: "TypeError: Failed to fetch", details: "", hint: "", code: "" } }; }
     return { data: JSON.parse(JSON.stringify(o)), error: null };
     })();
   },
@@ -936,6 +943,22 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       await p.locator("#f-amount").fill("3100"); await p.locator(".sheet button[type=submit]").click();
       await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
       assert.equal(await price(), 3100); assert.notEqual(seen, 3100);
+    });
+    await step("Audit F07 · More orders than the API gives per request: the list is read to the end, none missing", async () => {
+      const before = await p.evaluate(() => S.orders.length);
+      // The API hands out 4 rows at a time; 9 more orders for today on top of what is there
+      const made = await p.evaluate(async () => {
+        const base = window.__orders.find((o) => o.num === "0127"), today = base.date, extra = [];
+        for (let i = 0; i < 9; i++) extra.push({ ...base, id: "f0700000-0000-0000-0000-00000000000" + i, num: "07" + String(i).padStart(2, "0"), customer_name: "Bulk " + i, date: today, proof_path: null, extra_photos: [] });
+        window.__orders.push(...extra); window.__apiMax = 4; window.__pages = [];
+        await loadOrders();
+        const got = { n: S.orders.length, bulk: S.orders.filter((o) => /^Bulk /.test(o.customer_name)).length, ids: new Set(S.orders.map((o) => o.id)).size, pages: window.__pages.filter((x) => x.table === "cdf_orders").length };
+        window.__apiMax = null; window.__orders = window.__orders.filter((o) => !/^Bulk /.test(o.customer_name)); await loadOrders();
+        return got;
+      });
+      assert.equal(made.bulk, 9, "every extra order is in the list"); assert.equal(made.n, before + 9); assert.equal(made.ids, made.n, "no order twice");
+      assert(made.pages > 3, "read in several requests: " + made.pages);
+      assert.equal(await p.evaluate(() => S.orders.length), before);
     });
     await step("A14 · Admin cancels with a reason; the card stops offering steps; reinstate puts it back", async () => {
       await p.evaluate(() => (window.__calls = []));

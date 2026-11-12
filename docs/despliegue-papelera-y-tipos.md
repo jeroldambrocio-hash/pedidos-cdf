@@ -30,6 +30,11 @@ Añadido después (ramas `franjas-pasadas` y `auditoria-f03-f04`, sin migracione
   falte al menos 1 hora para que acabe, hora de Manila (decisión del dueño, 12/11/2026).
 - **F03 · precio simultáneo**: solo web (`js/core.js`). El guardado compara el precio en la misma escritura.
 - **F04 · alta con el mismo correo**: función `cdf-users` (ahora `index.ts` + `handler.ts`): desplegarla en el paso 3.
+- **Reauditoría (13/11/2026)**: sin migraciones.
+  - F12: si se pierde la respuesta al guardar fotos, ya no se borran los archivos nuevos; se vuelve a leer el pedido. Solo web.
+  - F05: cada error "server" del formulario deja una línea en el log de `cdf-public-order` (paso, causa, id), sin datos personales.
+    Desplegar `cdf-public-order` (ya en el paso 3).
+  - F07: la lista de pedidos se lee completa por páginas, sin depender del límite de filas de la API. Solo web.
 - **Regular / Priority**: función `cdf-lalamove` y la web. Sin migración. El precio se pide con `pricingTierCode` "2" cuando se elige
   Priority; Regular sigue saliendo como antes. No probado contra el Lalamove real: comprobar el primer precio Priority.
 - **Propina al rider (Priority Fee)**: función `cdf-lalamove` (ya en el paso 3; nuevo `tip.ts`) y la web. Sin migración. En producción

@@ -99,6 +99,35 @@ const server = http.createServer((req, res) => {
       assert(await a.evaluate(() => window.__calls.some((c) => c.remove === "cdf-entregas")), "removed file not deleted");
     });
 
+    // Re-audit F12 (12/11/2026): what happens to a newly uploaded photo when the save's answer is not a clear yes
+    const addOne = async (how) => {
+      await a.evaluate((h) => { window.__calls = []; window.__photoMerge = h; openOrder(S.orders.find((o) => o.extra_photos?.length)); }, how);
+      const more = a.locator(".sheet");
+      await more.locator(".photo-tile").first().waitFor();
+      await more.locator('.photo-grid + input[type=file]').first().setInputFiles([{ name: "c.png", mimeType: "image/png", buffer: png }]);
+      await more.locator(".photo-tile").nth(1).waitFor();
+      await a.locator(".sheet .sheet-foot .btn.primary").click();
+      await a.locator(".sheet").waitFor({ state: "detached" });
+      return a.evaluate(() => { const up = window.__calls.find((c) => c.upload === "cdf-entregas")?.path;
+        return { up, removed: window.__calls.filter((c) => c.remove === "cdf-entregas").flatMap((c) => c.paths), inOrder: window.__orders.find((o) => o.extra_photos?.length).extra_photos.includes(up), local: S.orders.find((o) => o.extra_photos?.length).extra_photos.includes(up) }; });
+    };
+    await step("Re-audit F12 · The photo was saved but the answer got lost: the file is kept and the order shows it", async () => {
+      const r = await addOne("lost");
+      assert(r.up, "nothing uploaded"); assert.equal(r.inOrder, true);
+      assert.deepEqual(r.removed, [], "the file the order points at must not be deleted");
+      assert.equal(r.local, true, "the panel shows the photo that was saved");
+      assert.equal(await a.locator(".toast.error, .toast[data-type=error]").count(), 0, "it was saved: no warning");
+    });
+    await step("Re-audit F12 · No answer and the photo was not saved: the person is told, the file is left alone", async () => {
+      const r = await addOne("lost-unsaved");
+      assert.equal(r.inOrder, false); assert.deepEqual(r.removed, [], "an unclear result never deletes");
+      await a.locator(".toast.error", { hasText: /alguna foto no se pudo|photo couldn.t be uploaded/ }).first().waitFor();
+    });
+    await step("Re-audit F12 · The database refuses the photo: nothing was written, so the new file is taken back", async () => {
+      const r = await addOne("refused");
+      assert.equal(r.inOrder, false); assert.deepEqual(r.removed, [r.up]);
+    });
+
     await step("a price that hadn't loaded is fetched and never wiped by saving", async () => {
       const id = await a.evaluate(() => { const o = S.orders.find((x) => !x.extra_photos?.length); delete o.amount; window.__prices.find((p) => p.order_id === o.id).amount = 1800; return o.id; });
       await a.evaluate((id) => openOrder(S.orders.find((o) => o.id === id)), id);

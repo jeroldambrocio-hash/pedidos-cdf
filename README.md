@@ -145,6 +145,7 @@ NODE_PATH=.test-tools/node_modules node tests/photos-merge-db.cjs           # au
 NODE_PATH=.test-tools/node_modules node tests/price-conflict-db.cjs         # auditoría F03: dos admins cambian el mismo precio; el segundo no pisa al primero
 node --experimental-strip-types tests/cdf-users-add.test.mjs                # auditoría F04: dos altas del mismo correo a la vez; una entra, la otra recibe aviso
 node --experimental-strip-types tests/lalamove-tip.test.mjs                 # propina al rider: total acumulado, dos móviles a la vez, rider ya asignado, sin saldo
+# Reauditoría 13/11: F12 (fotos con respuesta perdida) en tests/panel-updates.cjs; F05 (log del formulario) en tests/public-order.test.mjs; F07 (pedidos por páginas) en tests/ui-smoke.cjs
 NODE_PATH=.test-tools/node_modules node tests/trash-db.cjs                  # papelera, propietario, registro, R2 → #0007, recuentos por tipo
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/order-purge.test.mjs   # borrado definitivo: todo fuera, archivos incluidos, reintentos
 NODE_PATH=.test-tools/node_modules node tests/trash-ui.cjs                  # papelera en el panel y Solicitudes por estado + tipo

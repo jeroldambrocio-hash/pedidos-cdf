@@ -1039,8 +1039,23 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       const m = await sb.rpc("cdf_order_photos_merge", { p_id: saved.id, p_add: extras.changes.add, p_remove: extras.changes.remove });
       if (!m.error && m.data) { saved = { ...saved, ...m.data }; delete pics.extra_photos; await extras.cleanup(m.data.extra_photos || []); }
       else if (m.error?.code !== "PGRST202" && !/could not find the function/i.test(m.error?.message || "")) {
-        photoTrouble = true; delete pics.extra_photos;
-        if (extras.changes.add.length) await sb.storage.from(ENTREGAS).remove(extras.changes.add);
+        delete pics.extra_photos;
+        const added = extras.changes.add;
+        if (m.error?.code) {
+          // The database answered "no" (it gives a code): nothing was written, so the new files are not needed
+          photoTrouble = true;
+          if (added.length) await sb.storage.from(ENTREGAS).remove(added);
+        } else {
+          // Re-audit F12. No clear answer (the connection dropped): the change may well have been saved, and
+          // then the order points at these files. They are never deleted here. The order is read again: if
+          // it has the change, it was saved; if not, or it cannot be read, the person is told and can save
+          // again, and the files stay (a file nobody points at is harmless; a photo pointing at nothing is not).
+          const now = await sb.from("cdf_orders").select("extra_photos, updated_at").eq("id", saved.id).maybeSingle();
+          const list = now.data?.extra_photos || null;
+          if (!now.error && list && added.every((p) => list.includes(p)) && extras.changes.remove.every((p) => !list.includes(p))) {
+            saved = { ...saved, ...now.data }; await extras.cleanup(list);
+          } else photoTrouble = true;
+        }
       }
     }
     // The delivery photo is one file: written only if it is still the one this editor opened with. If someone

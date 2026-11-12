@@ -12,7 +12,7 @@ import { checkRequest, cleanImage, IMAGE_MAX_BYTES, manilaDate, phoneE164, slotO
 import { createRequire as __cr } from "node:module";
 import { deflateSync } from "node:zlib";
 const jpegJs = __cr(import.meta.url)("jpeg-js");
-import { handle } from "../supabase/functions/cdf-public-order/handler.ts";
+import { handle, logText } from "../supabase/functions/cdf-public-order/handler.ts";
 
 const require = createRequire(import.meta.url);
 const { PGlite } = require("@electric-sql/pglite");
@@ -147,7 +147,9 @@ const sha = (v) => createHash("sha256").update(v).digest("hex");
 const stored = new Map();
 let decodes = 0, clock = NOW, captchaOk = true, geocoder = null, storeFails = false, seenCaptcha = null, searches = 0, google = null, googleCalls = [];
 const env = { PUBLIC_ORDER: "on", PUBLIC_ORDER_ORIGINS: "https://casadeflores.store, https://staging.example", TURNSTILE_SECRET: "secret", PUBLIC_ORDER_SALT: "salt" };
+const logged = [];
 const deps = {
+  log: (e) => logged.push(e),
   env: (k) => env[k], now: () => clock, randomToken: () => randomBytes(32).toString("base64url"), sha256: async (v) => sha(v),
   rpc: async (name, args) => {
     const keys = Object.keys(args);
@@ -281,8 +283,11 @@ const jpg = fixture("gps.jpg");
   assert.equal(again.status, 200);
   storeFails = true;
   await send({ action: "remove", file: again.file }, { session: s });
+  logged.length = 0;
   assert.equal((await upload(jpg, { session: s })).status, 500);
   storeFails = false;
+  // Audit F05: the failure is in the log, with the step and the cause, and nothing of the visitor's
+  assert.equal(logged.length, 1); assert.equal(logged[0].step, "upload"); assert.equal(logged[0].op, "store"); assert.match(logged[0].rid, /^[\w-]{10}$/);
   assert.equal((await rows("select status from public.cdf_request_files order by created_at desc limit 1"))[0].status, "rejected");
   ok("Six reference photos and one proof per session; removing one frees its place; a failed store leaves no file marked ready");
 
@@ -376,5 +381,19 @@ ok("Google answers address searches up to a daily number counted in the database
   // One storage rule, from Phase 3: reading only (admins; the assigned florist for reference photos). No writing.
   assert.deepEqual((await rows("select cmd from pg_policies where schemaname='storage' and (qual like '%cdf-solicitudes%' or with_check like '%cdf-solicitudes%')")).map((r) => r.cmd), ["SELECT"]); }
 ok("Neither a visitor nor a signed-in member of staff can write sessions, files or limits, or call their functions; the bucket is private and only readable as Phase 3 allows");
+
+// Audit F05: an unexpected failure (the database throwing in the middle of a request) used to answer 500 and
+// leave nothing behind. Now the log says where and why, without anything personal.
+{ logged.length = 0;
+  const broken = { ...deps, rpc: async () => { throw new Error("connection to db lost while saving Maria Santos +63 917 123 4567 maria@example.com token abcdefghijklmnopqrstuvwxyz0123456789ABCD"); } };
+  const res = await handle(new Request("https://x/functions/v1/cdf-public-order", { method: "POST", headers: { origin: ORIGIN, "content-type": "application/json", "x-forwarded-for": "203.0.113.9" }, body: JSON.stringify({ action: "shops" }) }), broken);
+  const body = await res.json();
+  assert.equal(res.status, 500); assert.equal(body.error, "server"); assert.equal(body.rid, logged[0].rid);
+  assert.equal(logged.length, 1); assert.equal(logged[0].step, "shops"); assert.equal(logged[0].op, "unexpected");
+  assert.match(logged[0].cause, /connection to db lost/);
+  assert.doesNotMatch(JSON.stringify(logged[0]), /917|maria@|abcdefghijklmnop/);
+  assert.equal(logText({ message: "x ".repeat(300) }).length, 200);
+  assert.doesNotMatch(JSON.stringify(body), /connection/); }
+ok("A failure nobody expected answers “server” with an id, and the log has the step and the cause with phones, emails and tokens taken out");
 
 await db.close();
