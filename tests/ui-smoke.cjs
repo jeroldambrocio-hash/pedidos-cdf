@@ -489,7 +489,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
     await step("Profile menu: four entries, Preferences and My account views, Back, Escape returns focus", async () => {
       await p.locator("#accountBtn").click();
       const main = p.locator('#account .mview[data-view="main"]');
-      assert.deepEqual(await main.locator(".mitem").allInnerTexts(), ["Preferences", "My account", "Send a suggestion", "Install the app", "Sign out"]);
+      assert.deepEqual(await main.locator(".mitem").allInnerTexts(), ["Preferences", "My account", "What's new", "Send a suggestion", "Install the app", "Sign out"]);
       assert.equal(await main.locator(".mhead small").innerText(), "Admin");
       assert.equal(await p.locator("#account .mrow:visible").count(), 0);
       await p.locator('#account [data-goto="prefs"]').click();
@@ -997,7 +997,7 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
         const q = await open(role, { width: 360 });
         assert.equal(await q.locator("#pricesBtn").isVisible(), role === "admin");
         await q.locator("#navOpen").click(); await q.waitForTimeout(650); await q.locator("#accountBtn").click();
-        assert.equal(await q.locator('#account .mview[data-view="main"] .mitem:visible').count(), 5);
+        assert.equal(await q.locator('#account .mview[data-view="main"] .mitem:visible').count(), 6);
         await q.locator('#account [data-goto="prefs"]').click(); await q.waitForTimeout(600);
         const fits = await q.locator("#account .menu").evaluate((m) => { const r = m.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth && r.top >= 0; });
         assert(fits, "menu inside the viewport");

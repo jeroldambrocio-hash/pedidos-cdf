@@ -223,6 +223,31 @@ function timelineEntry(o, withDate) {
 const badge = (i) => el("span", { class: "badge s-" + STEPS[i].k }, icon(STEP_ICON[i]), stepName(i));
 const retryTag = (o) => o.attempts > 0 && isOpen(o)
   ? el("span", { class: "tag fail" }, icon("alert"), o.missed_on ? t("retryTag", { n: o.attempts + 1, date: shortDate(o.missed_on) }) : t("retryTagNoDate", { n: o.attempts + 1 })) : null;
+// Quick pay from the card: records what is left as one payment (the same server check as the order's payment
+// section). Proofs and the method are still added from the details.
+async function quickPay(o) {
+  const due = dueOf(o);
+  if (!(due > 0) || S.pending.has(o.id)) return;
+  const ok = await askConfirm(t("quickPayAsk", { num: o.num }), t("quickPayOk"),
+    { detail: pricesOn() ? t("quickPayDetail", { sum: paymentPesos(due) }) : t("quickPayDetailHidden") });
+  if (!ok || S.pending.has(o.id)) return;
+  S.pending.add(o.id); render();
+  try {
+    const total = +o.amount;
+    const { data, error } = await sb.rpc("cdf_record_payment", { p_order: o.id, p_request: crypto.randomUUID(), p_amount: due,
+      p_proofs: [], p_price: total, p_seen_price: total, p_reverses: null, p_reason: "" });
+    if (error || !data) {
+      const key = { cdf_payment_above_due: "payAboveDue", cdf_price_changed: "payChangedMeanwhile", cdf_invalid_payment: "payInvalid" }[error?.message];
+      if (key) await attachPrices([o]).catch(() => {});
+      throw new Error(t(key || "payRetry"));
+    }
+    o.amount = data.amount == null ? null : +data.amount; o.paid = data.paid == null ? null : +data.paid;
+    invalidateStats();
+    upsertLocal(o);
+    toast(t("quickPayDone", { num: o.num }), { action: t("details"), onAction: () => openOrder(o) });
+  } catch (e) { toastErr(e.message); }
+  finally { S.pending.delete(o.id); render(); }
+}
 function orderCard(o) {
   const cur = stepOf(o), k = STEPS[cur].k, next = NEXT[cur], busy = S.pending.has(o.id), risk = S.filter === "attention" ? attentionOf(o) : riskOf(o);
   const phone = intlPhone(o.customer_phone);
@@ -240,7 +265,7 @@ function orderCard(o) {
     // Lalamove: where the rider is, or that Lalamove dropped it
     ride?.ll_order_id && isOpen(o) ? el("span", { class: "tag " + (llDropped(o) ? "fail" : LL_ACTIVE.has(ride.status) ? "risk" : "") }, icon("truck"), "Lalamove · " + (t("ll_" + ride.status) || ride.status)) : null,
     // Payment: paid, or what is still owed (the amount only when prices are shown on screen)
-    due == null ? null : due <= 0 ? el("span", { class: "tag ok" }, icon("check"), t("payPaid")) : el("span", { class: "tag due" }, icon("clock"), pricesOn() ? t("payDue", { sum: paymentPesos(due) }) : t("payPending")), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
+    due == null ? null : due <= 0 ? el("span", { class: "tag ok" }, icon("check"), t("payPaid")) : (isAdmin() && !archived ? el("button", { class: "tag due tag-btn", type: "button", disabled: busy, "aria-label": t("quickPayTap", { num: o.num }), title: t("quickPayOk"), onclick: (e) => { e.stopPropagation(); quickPay(o); } }, icon("clock"), pricesOn() ? t("payDue", { sum: paymentPesos(due) }) : t("payPending")) : el("span", { class: "tag due" }, icon("clock"), pricesOn() ? t("payDue", { sum: paymentPesos(due) }) : t("payPending"))), risk ? el("span", { class: "tag risk" }, icon("clock"), t("risk_" + risk)) : null, archived ? el("span", { class: "tag muted" }, icon("archive"), t("archived")) : null].filter(Boolean);
   const card = el("article", { class: "order k-" + k + (risk ? " at-risk" : "") + (S.selected.has(o.id) ? " picked" : "") + (busy ? " saving" : ""), "data-order": o.id },
     el("div", { class: "o-top" + (pick ? " picking" : "") }, pick,
       el("button", { class: "thumb-btn", type: "button", "aria-label": t("order", { num: o.num }) + " · " + (o.customer_name || t("noName")), onclick: open }, thumb(o)),

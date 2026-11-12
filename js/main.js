@@ -246,6 +246,8 @@ $("forgotBtn").onclick = () => {
   }, { dirty: () => !!mail.value && mail.value !== typed });
   requestAnimationFrame(() => mail.focus());
 };
+$("changelogBtn").onclick = () => openChangelog();
+paintChangelogDot();
 $("installBtn").onclick = () => installApp();
 $("notifBtn").onclick = () => onNotifBtn();
 $("fbBtn").onclick = () => {
