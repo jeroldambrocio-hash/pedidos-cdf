@@ -72,3 +72,10 @@ Pruebas: `stats-access-db.cjs` (9, cuatro nuevas), `stats-access-concurrency.cjs
 Alcance: ocultar Estadísticas no oculta los precios de cada pedido; no es una barrera de confidencialidad de los datos financieros.
 
 Orden de publicación: `cdf-users` lee la fila completa (`select("*")`), así que funciona antes y después de la migración.
+
+## Política de retención — aprobada por Jerold el 12/11/2026
+
+- Solicitud sin respuesta: pasa a «Caducada» el día después de su fecha de entrega y el equipo recibe un aviso.
+- Rechazadas o caducadas: se borran a los 90 días.
+- Fotos de formularios que no se llegaron a enviar: se borran al día siguiente.
+- Aceptadas (con su comprobante de pago): no se borran nunca.
