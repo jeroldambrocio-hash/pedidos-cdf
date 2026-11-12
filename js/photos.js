@@ -186,9 +186,12 @@ function photoList({ current = [], bkt = ENTREGAS, alt = "", onErr }) {
         if (up.error) { if (fresh.length) await sb.storage.from(bkt).remove(fresh); throw new Error(t("photoUploadFail")); }
         fresh.push(path);
       }
+      // What this editor changed (audit F12): saved as additions and removals, never as the whole list
+      list.changes = { add: fresh, remove: [...gone] };
       return [...kept, ...fresh];
     },
-    async cleanup() { if (gone.length) { await sb.storage.from(bkt).remove(gone); gone = []; } },
+    // still: the paths the order points at now. A photo someone else put back is not deleted.
+    async cleanup(still) { const go = still ? gone.filter((p) => !still.includes(p)) : gone; if (go.length) await sb.storage.from(bkt).remove(go); gone = []; },
     dispose() { added.forEach((a) => URL.revokeObjectURL(a.url)); },
   };
   return list;

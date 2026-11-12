@@ -68,6 +68,11 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (!hash) return no("session", 401);
       if (kind !== "reference" && kind !== "payment_proof") return no("file", 400);
       if (+(req.headers.get("content-length") || 0) > IMAGE_MAX_BYTES) return no("file_too_big", 413);
+      // Audit F13: the session must exist before the file is read or decoded (costly work, on a public
+      // endpoint). The claim further down checks again: it may expire or fill up meanwhile.
+      const live = await d.rpc("cdf_upload_session_of", { p_token_hash: hash });
+      if (live.error) return no("server", 500);
+      if (!live.data) return no("session", 401);
       if (!(await within("upload-ip:" + ipHash, LIMITS.uploadsPerIp))) return no("slow_down", 429);
       // Read no further than the limit, whatever the declared length says (or does not say)
       const parts: Uint8Array[] = [];

@@ -9,6 +9,7 @@ Nada de esto está aplicado en producción. Rama: `papelera-y-tipo-pedido` (incl
    1. `20261112150000_cdf_pickup_orders.sql` — tipo recogida en pedidos, tienda elegida en solicitudes, pasos sin «En camino».
    2. `20261112160000_cdf_ll_booking_guard.sql` — auditoría F01/F02: una reserva Lalamove a la vez, resultado incierto retenido, no borrar con rider.
    3. `20261112170000_cdf_order_trash.sql` — papelera, propietario, registro de borrados, número de pedido en las solicitudes, recuentos.
+   4. `20261112180000_cdf_order_photos_merge.sql` — auditoría F12: las fotos extra se guardan como altas/bajas, no como lista entera.
 2. Designar a los propietarios (solo desde el editor SQL; la app no puede hacerlo). Indicados por el dueño el
    12/11/2026: **john.farggi@gmail.com** y **jerold.ambrocio@gmail.com**, y nadie más.
    ```sql

@@ -23,6 +23,9 @@ drop policy if exists cdf_lalamove_proofs_file_read on storage.objects;
 drop policy if exists cdf_solicitudes_read on storage.objects;
 drop trigger if exists cdf_lalamove_track on public.cdf_lalamove;
 
+-- 12/11/2026 audit F12
+drop function if exists public.cdf_order_photos_merge(uuid, text[], text[]);
+
 -- 12/11/2026 trash: first restore or decide every order still in the trash (rolling back makes them visible again,
 -- since the column goes). The log (cdf_order_audit) is dropped too: export it first if it matters.
 drop trigger if exists cdf_orders_hard_delete_guard on public.cdf_orders;

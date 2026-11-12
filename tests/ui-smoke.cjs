@@ -333,6 +333,7 @@ window.supabase = { createClient: () => ({
     }
     if (name === "cdf_away_conflicts") return { data: window.__orders.filter((o) => !o.archived_at && o.delivery !== "Delivered" && o.vendor_email).flatMap((o) => { const m = members.find((x) => x.email === o.vendor_email); return m && awayOnDay(m, o.date) ? [{ id: o.id, num: o.num, date: o.date, vendor_email: o.vendor_email, away_from: m.away_from, away_until: m.away_until }] : []; }), error: null };
     const o = window.__orders.find((x) => x.id === args?.p_id); if (!o) return { error: { message: "missing" } };
+    if (name === "cdf_order_photos_merge") { const cur = (o.extra_photos || []).filter((p) => !(args.p_remove || []).includes(p)); o.extra_photos = [...cur, ...(args.p_add || []).filter((p) => !cur.includes(p))]; }
     if (name === "cdf_progress") { [o.status, o.delivery] = steps[args.p_step]; if (args.p_note) o.delivery_note = args.p_note; if (args.p_set_proof) o.proof_path = args.p_proof; }
     if (name === "cdf_set_bouquet") o.bouquet_path = args.p_path;
     if (name === "cdf_cancel_order") Object.assign(o, { cancelled_at: new Date().toISOString(), cancelled_by: me, cancel_reason: args.p_reason });

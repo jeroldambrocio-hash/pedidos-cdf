@@ -620,6 +620,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const extras = S.cap.extra ? photoList({ current: o?.extra_photos, alt: t("extraPhotos"), onErr: setErr })
     : { node: null, dirty: false, upload: async () => undefined, cleanup: async () => {}, dispose() {} };
   const proof = photoPicker({ current: o?.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: setErr, expand: true });
+  const initialProof = o?.proof_path || null; // what the delivery photo was when this editor opened (audit F12)
   const payOn = priceEditable() && S.cap.paid;
   const iPayment = el("input", { id: "f-payment", type: "number", inputmode: "decimal", min: 0.01, step: 0.01, max: 99999999.99 });
   // A new order can be saved with its first payment (down payment): order, price and payment go to the
@@ -1030,15 +1031,39 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     for (const [k, p, dest] of [["photo_path", shot, (id) => id + ".jpg"], ["extra_photos", extras], ["proof_path", proof]]) {
       try { const v = await p.upload(saved.id, dest); if (v !== undefined) pics[k] = v; } catch { photoTrouble = true; }
     }
+    // Audit F12. The extra photos go as "added / removed" and the database applies them to the list as it is
+    // now, so two people adding photos at once both keep theirs. A database without that function yet
+    // (PGRST202) keeps the old whole-list write.
+    let photoClash = false;
+    if (pics.extra_photos && extras.changes) {
+      const m = await sb.rpc("cdf_order_photos_merge", { p_id: saved.id, p_add: extras.changes.add, p_remove: extras.changes.remove });
+      if (!m.error && m.data) { saved = { ...saved, ...m.data }; delete pics.extra_photos; await extras.cleanup(m.data.extra_photos || []); }
+      else if (m.error?.code !== "PGRST202" && !/could not find the function/i.test(m.error?.message || "")) {
+        photoTrouble = true; delete pics.extra_photos;
+        if (extras.changes.add.length) await sb.storage.from(ENTREGAS).remove(extras.changes.add);
+      }
+    }
+    // The delivery photo is one file: written only if it is still the one this editor opened with. If someone
+    // changed it meanwhile, theirs stays, ours is taken back and the person is told.
+    if ("proof_path" in pics && !isNew) {
+      const was = initialProof || null;
+      let q = sb.from("cdf_orders").update({ proof_path: pics.proof_path }).eq("id", saved.id);
+      q = was ? q.eq("proof_path", was) : q.is("proof_path", null);
+      const r = await q.select();
+      if (r.error) photoTrouble = true;
+      else if (!r.data?.length) { photoClash = true; if (pics.proof_path) await sb.storage.from(ENTREGAS).remove([pics.proof_path]); }
+      else { saved = { ...saved, ...r.data[0] }; await proof.cleanup(); }
+      delete pics.proof_path;
+    }
     if (Object.keys(pics).length) {
       const r = await sb.from("cdf_orders").update(pics).eq("id", saved.id).select().single();
-      if (r.error) photoTrouble = true; else { saved = { ...saved, ...r.data }; await Promise.all([shot, extras, proof].map((p) => p.cleanup())); }
+      if (r.error) photoTrouble = true; else { saved = { ...saved, ...r.data }; await Promise.all([shot, ...("extra_photos" in pics ? [extras] : []), ...("proof_path" in pics ? [proof] : [])].map((p) => p.cleanup())); }
     }
     if (isNew && !fromRequest) writeDraft(null);
     upsertLocal(saved);
     S.sel = row.date; S.month = monthOf(row.date);
     await closeSheet(true);
-    toast(photoTrouble ? t("partialSave") : fromRequest ? t("reqAcceptedToast", { ref: "R" + fromRequest.ref, num: saved.num }) : t(isNew ? "created" : "saved"), photoTrouble ? { type: "error" } : {});
+    toast(photoClash ? t("photoClash") : photoTrouble ? t("partialSave") : fromRequest ? t("reqAcceptedToast", { ref: "R" + fromRequest.ref, num: saved.num }) : t(isNew ? "created" : "saved"), photoTrouble || photoClash ? { type: "error", ms: 7000 } : {});
     if (!inRange(row.date)) loadOrders(); else render();
     // The new order glows for a moment where it landed
     if (!isNew) requestAnimationFrame(()=>{const card=document.querySelector(`#list .entry[data-id="${saved.id}"]`);card?.classList.add("flash")});

@@ -350,6 +350,12 @@
    "config": "search_path=\"\"",
    "definer": false
   },
+  "cdf_order_photos_merge(p_id uuid, p_add text[], p_remove text[])": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
   "cdf_order_purge(p_id uuid, p_reason text)": {
    "anon": false,
    "authenticated": true,

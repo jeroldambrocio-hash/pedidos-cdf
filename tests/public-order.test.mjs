@@ -139,7 +139,7 @@ const db = new PGlite();
 await build((sql) => db.exec(sql));
 const sha = (v) => createHash("sha256").update(v).digest("hex");
 const stored = new Map();
-let clock = NOW, captchaOk = true, geocoder = null, storeFails = false, seenCaptcha = null, searches = 0, google = null, googleCalls = [];
+let decodes = 0, clock = NOW, captchaOk = true, geocoder = null, storeFails = false, seenCaptcha = null, searches = 0, google = null, googleCalls = [];
 const env = { PUBLIC_ORDER: "on", PUBLIC_ORDER_ORIGINS: "https://casadeflores.store, https://staging.example", TURNSTILE_SECRET: "secret", PUBLIC_ORDER_SALT: "salt" };
 const deps = {
   env: (k) => env[k], now: () => clock, randomToken: () => randomBytes(32).toString("base64url"), sha256: async (v) => sha(v),
@@ -150,7 +150,7 @@ const deps = {
   },
   store: async (path, bytes, mime) => { if (storeFails) return { error: "down" }; stored.set(path, { bytes, mime }); return { error: null }; },
   unstore: async (paths) => { paths.forEach((p) => stored.delete(p)); },
-  decodeJpeg: (bytes) => { const img = jpegJs.decode(bytes, { useTArray: true, tolerantDecoding: false, maxResolutionInMP: 17, maxMemoryUsageInMB: 160 }); return { width: img.width, height: img.height }; },
+  decodeJpeg: (bytes) => { decodes++; const img = jpegJs.decode(bytes, { useTArray: true, tolerantDecoding: false, maxResolutionInMP: 17, maxMemoryUsageInMB: 160 }); return { width: img.width, height: img.height }; },
   fetch: async (url, init) => {
     if (String(url).includes("turnstile")) { seenCaptcha = Object.fromEntries(init.body); return new Response(JSON.stringify({ success: captchaOk })); }
     if (String(url).includes("maps.googleapis.com")) { googleCalls.push(new URL(url)); const answer = google?.(); return answer ? new Response(JSON.stringify(answer)) : new Response("down", { status: 500 }); }
@@ -235,6 +235,14 @@ ok("Address search answers only places in the Philippines, from its own endpoint
 const jpg = fixture("gps.jpg");
 { const s = await open(), other = await open({ ip: "198.51.100.9" });
   assert.equal((await upload(jpg)).status, 401);
+  // Audit F13: a well-formed token of a session that doesn't exist (or has expired) is refused before the
+  // picture is read or decoded
+  { const before = decodes;
+    assert.equal((await upload(jpg, { session: "made-up-token-made-up-token-made-up-token-12" })).status, 401);
+    const old = await open();
+    await db.query("update public.cdf_upload_sessions set expires_at = now() - interval '1 minute' where token_hash = $1", [sha(old)]);
+    assert.equal((await upload(jpg, { session: old })).status, 401);
+    assert.equal(decodes, before, "nothing decoded without a live session"); }
   assert.equal((await upload(jpg, { session: s, kind: "avatar" })).status, 400);
   const before = stored.size;
   for (const [bytes, error, status] of [[Buffer.from("not a photo"), "not_an_image", 415], [Buffer.from("<svg xmlns='http://www.w3.org/2000/svg'/>"), "not_an_image", 415],
