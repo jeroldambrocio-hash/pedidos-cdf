@@ -30,9 +30,11 @@ const reqAgo = (ts) => {
 async function loadRequests() {
   $("tabRequests").hidden = !reqOn();
   if (!reqOn()) { RQ.list = []; return; }
+  const gen = sessionNow();
   const open = [];
   for (let from = 0; ; from += 500) {
     const { data, error } = await sb.from("cdf_order_requests").select("*").in("status", ["received", "in_review"]).order("created_at", { ascending: false }).range(from, from + 499);
+    if (stale(gen)) return;
     if (error) { if (S.tab === "requests") fill($("requestsBody"), el("p", { class: "err" }, t("reqLoadFail"))); return; }
     open.push(...(data || []));
     if (!data || data.length < 500) break;
@@ -41,20 +43,24 @@ async function loadRequests() {
     sb.from("cdf_order_requests").select("*").in("status", CLOSED).order("created_at", { ascending: false }).range(0, RQ.closedLimit),
     sb.rpc("cdf_request_counts").then((r) => r, () => ({ error: true })),
   ]);
+  if (stale(gen)) return;
   if (closed.error) { if (S.tab === "requests") fill($("requestsBody"), el("p", { class: "err" }, t("reqLoadFail"))); return; }
   RQ.closedMore = (closed.data || []).length > RQ.closedLimit;
   RQ.list = [...open, ...(closed.data || []).slice(0, RQ.closedLimit)];
   RQ.counts = !counts.error && counts.data && typeof counts.data === "object" ? counts.data : null;
   await loadRequestOrders();
+  if (stale(gen)) return;
   paintRequestCount();
   if (S.tab === "requests") renderRequests();
 }
 // What became of each accepted request's order: there, in the trash, or deleted (12/11/2026)
 async function loadRequestOrders() {
+  const gen = sessionNow();
   const ids = [...new Set(RQ.list.filter((r) => r.status === "accepted" && r.accepted_order_id).map((r) => r.accepted_order_id))];
   RQ.orders = new Map();
   for (let i = 0; i < ids.length; i += 200) {
     const { data } = await sb.from("cdf_orders").select("id,num" + (S.cap.trash ? ",deleted_at" : "")).in("id", ids.slice(i, i + 200));
+    if (stale(gen)) return;
     for (const o of data || []) RQ.orders.set(o.id, o);
   }
 }

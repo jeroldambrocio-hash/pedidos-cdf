@@ -133,11 +133,12 @@ let llAllChan = null;
 const LL_FAILED = new Set(["CANCELED", "REJECTED", "EXPIRED"]);
 async function llLoadRows() {
   if (S.me?.role !== "admin" && S.me?.role !== "vendor") return;
+  const gen = sessionNow();
   const ids = S.orders.filter((o) => !o.archived_at && (isOpen(o) || o.cancelled_at)).map((o) => o.id);
   const next = new Map();
   for (let i = 0; i < ids.length; i += 200) {
     const { data, error } = await sb.from("cdf_lalamove").select("*").in("order_id", ids.slice(i, i + 200));
-    if (error) return; // no table yet (migration 029) or no access: nothing to show
+    if (error || stale(gen)) return; // no table yet (migration 029) or no access: nothing to show
     (data || []).forEach((r) => next.set(r.order_id, r));
   }
   S.ll = next;

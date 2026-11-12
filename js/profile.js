@@ -232,7 +232,9 @@ async function refreshAwayConflicts(force) {
   if (!isStaff() || !S.cap.profiles) { awayConflicts = []; paintAwayBanner(); return; }
   if (!force && Date.now() - awayAt < 30000) { paintAwayBanner(); return; }
   awayAt = Date.now();
+  const gen = sessionNow();
   const { data, error } = await sb.rpc("cdf_away_conflicts");
+  if (stale(gen)) return;
   awayConflicts = error ? [] : data || [];
   paintAwayBanner();
 }

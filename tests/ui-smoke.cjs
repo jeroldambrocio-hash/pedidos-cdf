@@ -77,6 +77,11 @@ function query(table) {
     insert(v) { action = "insert"; row = v; return q; }, update(v) { action = "update"; row = v; return q; }, delete() { action = "delete"; return q; },
     maybeSingle() { return q.then((r) => ({ ...r, data: r.data?.[0] || null })); }, single() { return q.then((r) => ({ ...r, data: r.data?.[0] || null })); },
     then(resolve, reject) {
+      // Audit F10 test hook: hold this answer (worked out now, for whoever is signed in now) until released
+      if (window.__hold?.active && action === "read" && window.__hold.tables.includes(table) && !q.__held) {
+        q.__held = true; const res = q.then((x) => x), gate = new Promise((r) => window.__hold.waiting.push(r));
+        return Promise.all([res, gate]).then(([x]) => x).then(resolve, reject);
+      }
       if (window.__noMigration && action === "read" && (table === "cdf_order_events" || /archived_at|carrier_email/.test(cols) || (table === "cdf_members" && /away_from/.test(cols)))) return Promise.resolve({ data: null, error: { code: "42703", message: "column does not exist" } }).then(resolve, reject);
       if (action === "read" && table === "cdf_orders" && window.__loadError) return Promise.resolve({ error: { message: "offline" }, data: null }).then(resolve, reject);
       let data = tables()[table];
@@ -129,7 +134,7 @@ window.__chatReply = (m) => {
 const steps = { prep: ["Preparing", "-"], ready: ["Ready", "-"], transit: ["Ready", "In transit"], done: ["Ready", "Delivered"], fail: ["Ready", "Failed"] };
 window.supabase = { createClient: () => ({
   from: query,
-  auth: { onAuthStateChange(cb) { queueMicrotask(() => { const session = window.__role === "login" ? null : { user: { id: "test", email: email[window.__role] || "admin@example.com" } }; cb("INITIAL_SESSION", session); if (window.__recovery && session) cb("PASSWORD_RECOVERY", session); }); },
+  auth: { onAuthStateChange(cb) { window.__authCb = cb; queueMicrotask(() => { const session = window.__role === "login" ? null : { user: { id: "test", email: email[window.__role] || "admin@example.com" } }; cb("INITIAL_SESSION", session); if (window.__recovery && session) cb("PASSWORD_RECOVERY", session); }); },
     async signInWithPassword() { return { error: { message: "invalid" } }; }, async signOut() { return { error: null }; },
     async resetPasswordForEmail(mail, opts) { (window.__calls ||= []).push({ reset: mail, redirectTo: opts?.redirectTo }); return { error: null }; },
     async updateUser(u) { (window.__calls ||= []).push({ updateUser: !!u.password }); return { error: null }; } },

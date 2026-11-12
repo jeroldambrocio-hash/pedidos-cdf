@@ -36,7 +36,7 @@ async function renderStats(){
  $("statsPeriod").querySelectorAll("button").forEach(b=>b.setAttribute("aria-pressed",String(b.dataset.days===String(statsDays))));placePill($("statsPeriod"));
  if(statsFor!==key){
   box.replaceChildren(el("div",{class:"kpis six","aria-busy":"true"},...Array.from({length:6},()=>el("div",{class:"kpi"},el("div",{class:"skel",style:"height:50px"})))));
-  try{const data=await historyRows();if(request!==statsRequest||S.me?.email!==account||S.tab!=="stats")return;statsRows=data;statsFor=key;}
+  const gen=sessionNow();try{const data=await historyRows();if(stale(gen)||request!==statsRequest||S.me?.email!==account||S.tab!=="stats")return;statsRows=data;statsFor=key;}
   catch(e){if(request!==statsRequest)return;box.replaceChildren(el("div",{class:"empty"},el("b",{},e.message),el("button",{class:"btn",type:"button",onclick:()=>{invalidateStats();renderStats()}},t("retry"))));return;}
  }
  // Cancelled orders are not sales, nor orders the shop handled

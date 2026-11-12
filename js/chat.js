@@ -18,6 +18,7 @@ const ORDER_CHATS = feature("orderChats"), DIRECT_CHATS = feature("directChats")
 const TEAM_ONLY = !ORDER_CHATS; // order conversation block and chips
 const inScopeMsg = (m) => (m.direct_id ? DIRECT_CHATS : m.order_id ? ORDER_CHATS : true);
 async function loadChat() {
+  const gen = sessionNow();
   const [m, r, x, d, dm] = await Promise.all([
     ORDER_CHATS ? sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000)
       : sb.from("cdf_messages").select("*").is("order_id", null).order("created_at", { ascending: false }).limit(2000),
@@ -26,6 +27,7 @@ async function loadChat() {
     DIRECT_CHATS ? sb.from("cdf_direct_threads").select("*") : { error: true },
     DIRECT_CHATS ? sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000) : { error: true },
   ]);
+  if (stale(gen)) return;
   CH.on = !m.error && !r.error;
   $("tabChat").hidden = !CH.on;
   if (!CH.on) return;
@@ -37,7 +39,7 @@ async function loadChat() {
   CH.reacts = new Map();
   for (const y of x.data || []) CH.reacts.set(y.message_id, [...(CH.reacts.get(y.message_id) || []), y]);
   // Florists and drivers cannot read the team table; the directory gives them names and photos for the chat
-  if (!isStaff()) { const { data } = await sb.rpc("cdf_team_directory"); if (Array.isArray(data)) S.members = data; }
+  if (!isStaff()) { const { data } = await sb.rpc("cdf_team_directory"); if (stale(gen)) return; if (Array.isArray(data)) S.members = data; }
   chatSubscribe();
   paintChatCounts();
   render(); // the order cards were drawn before the chat loaded: now with their 💬 chips

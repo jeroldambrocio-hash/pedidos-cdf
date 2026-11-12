@@ -134,6 +134,13 @@ const paymentPesos = (n) => "₱" + Number(n).toLocaleString("en-PH", { maximumF
 const peso = (n) => "₱" + Math.round(n || 0).toLocaleString("en-PH");
 
 // ---------- state ----------
+// Audit F10: every sign-in (and sign-out) starts a new session number. Anything that went to the server is
+// kept only if the session that asked is still the current one: an answer for the previous account on a
+// shared phone is dropped instead of landing in the next person's lists.
+let SESSION = 0;
+const sessionNow = () => SESSION;
+const newSession = () => ++SESSION;
+const stale = (gen) => gen !== SESSION;
 const S = {
   me: null, tab: "orders", today: manilaToday(), sel: null, month: null,
   orders: [], members: [], photoUrls: {}, channel: null, range: null,
@@ -204,6 +211,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
+  const gen = sessionNow();
   const [a, c, e, m, p, x, k, d, b, v, pu, tr, ow, pay, mk, rq, rf, br] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
@@ -227,6 +235,7 @@ async function detectSchema() {
     // Phase 4: nearest shop to a delivery point; asked with no point, it answers by name that a point is needed
     isAdmin() ? sb.rpc("cdf_branch_ranking", { p_lat: null, p_lng: null, p_date: null }).then((r) => r, () => ({})) : {},
   ]);
+  if (stale(gen)) return;
   S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, trash: !tr.error, owner: !ow.error && ow.data === true, paid: isAdmin() && !m.error && !pay.error,
     create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: /cdf_invalid_point/.test(br?.error?.message || "") };
 }
@@ -249,11 +258,14 @@ function wantedRange() {
 const inRange = (d) => S.range && d >= S.range[0] && d <= S.range[1];
 const inScope = (o) => !o.deleted_at && !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && isOpen(o)));
 
-let loading = null;
+let loading = null, loadingGen = -1;
 async function loadOrders() {
   invalidateStats(); awayAt = 0;
-  if (loading) return loading;
-  loading = (async () => {
+  const gen = sessionNow();
+  // The same load is shared only within one session: a new account never waits on (or gets) the last one's
+  if (loading && loadingGen === gen) return loading;
+  loadingGen = gen;
+  const mine = (async () => {
     const [from, to] = wantedRange();
     // Not archived, and not in the trash (12/11/2026)
     const live = (q) => { if (S.cap.archive) q = q.is("archived_at", null); return S.cap.trash ? q.is("deleted_at", null) : q; };
@@ -261,6 +273,7 @@ async function loadOrders() {
       live(sb.from("cdf_orders").select("*").gte("date", from).lte("date", to)).order("date"),
       live(sb.from("cdf_orders").select("*").lt("date", from).neq("delivery", "Delivered")).order("date"),
     ]);
+    if (stale(gen)) return false;
     if (a.error || b.error) {
       S.loadError = true;
       setConnection(navigator.onLine === false ? "offline" : "error");
@@ -270,21 +283,26 @@ async function loadOrders() {
     const seen = new Set(), me = S.me?.email;
     // Overdue orders from before the range are open work only; a cancelled one stays on its own day.
     // A driver sees a cancelled order only if it was theirs (so they know not to go), not in the free pool.
-    S.orders = [...a.data, ...b.data.filter((o) => !o.cancelled_at)].filter((o) => !seen.has(o.id) && seen.add(o.id))
+    const rows = [...a.data, ...b.data.filter((o) => !o.cancelled_at)].filter((o) => !seen.has(o.id) && seen.add(o.id))
       .filter((o) => !(isCarrier() && o.cancelled_at && o.carrier_email !== me));
-    await attachPrices(S.orders);
+    await attachPrices(rows);
+    if (stale(gen)) return false;
+    S.orders = rows;
     // Riders booked for these orders: extra information, never a reason for the list not to load
     if (typeof llLoadRows === "function") await llLoadRows().catch(() => {});
+    if (stale(gen)) return false;
     S.range = [from, to]; S.loaded = true; S.loadError = false;
     setConnection(null);
     render();
     return true;
   })();
-  try { return await loading; } catch(e) { S.loadError=true;setConnection("error");render();return false; } finally { loading = null; }
+  loading = mine;
+  try { return await mine; } catch(e) { if (stale(gen)) return false; S.loadError=true;setConnection("error");render();return false; } finally { if (loading === mine) loading = null; }
 }
 async function loadMembers() {
+  const gen = sessionNow();
   const { data } = await sb.from("cdf_members").select("*").order("name");
-  if (data) S.members = data;
+  if (data && !stale(gen)) S.members = data;
 }
 // Realtime: apply the one row that changed instead of reloading everything
 function applyChange(p) {

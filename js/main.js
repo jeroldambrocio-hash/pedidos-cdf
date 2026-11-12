@@ -48,8 +48,10 @@ sb.auth.onAuthStateChange((ev, session) => {
   const id = session?.user?.id || null;
   if (id === booted) { if (id) maybeRecover(); return; }
   document.querySelector(".employee-profile[open]")?.close();
+  const switching = booted && id && booted !== id;
   booted = id;
-  setTimeout(async () => { if (id) { await start(session.user); maybeRecover(); } else stop(); }, 0);
+  // Another account without signing out in between: the previous one's data goes first
+  setTimeout(async () => { if (id) { if (switching) stop(); await start(session.user); maybeRecover(); } else stop(); }, 0);
 });
 // Back from the reset email: signed in by the link, so ask straight away for the new password.
 function maybeRecover() {
@@ -60,21 +62,26 @@ function maybeRecover() {
 }
 
 function stop() {
+  newSession(); // anything still on its way for the account that was here is dropped when it arrives (audit F10)
   invalidateStats(); S.prices = {}; stopChat();
   S.me = null; S.email = null; S.orders = []; S.photoUrls = {}; S.filter = null; S.chan = null; S.query = ""; S.hits = null; S.loaded = false; S.range = null;
   S.sel = S.today; S.month = monthOf(S.today); S.period = null; // the next person starts on today, not on the day the last one was looking at
   $("q").value = ""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
   if (RQ.channel) { sb.removeChannel(RQ.channel); RQ.channel = null; }
-  RQ.list = []; RQ.keys = {}; $("tabRequests").hidden = true;
+  RQ.list = []; RQ.keys = {}; RQ.counts = null; RQ.orders = new Map(); $("tabRequests").hidden = true;
+  S.members = []; S.ll = new Map(); S.cap = {}; awayConflicts = [];
+  if (typeof llAllChan !== "undefined" && llAllChan) { sb.removeChannel(llAllChan); llAllChan = null; }
   renderSub();
   closeSheet(true); setConnection(null); show("login");
   if (linkError) { $("lErr").textContent = t(linkError === "otp_expired" ? "linkExpired" : "linkFailed"); linkError = null; try { history.replaceState(null, "", location.pathname); } catch {} }
 }
 
 async function start(user) {
+  const gen = newSession();
   const email = user.email.toLowerCase();
   const { data, error } = await sb.from("cdf_members").select("*").eq("email", email).maybeSingle();
+  if (stale(gen)) return;
   if (error || !data) {
     S.me = null; S.email = email;
     $("noaccessTxt").textContent = t("noAccessTxt", { email });
@@ -97,12 +104,15 @@ async function start(user) {
   $("viewControls").hidden = !isStaff();
   // Independent round trips go together: the database is far from Manila, so each one in a row costs a few hundred ms
   await Promise.all([detectSchema(), isStaff() ? loadMembers() : null]);
+  if (stale(gen)) return;
   renderSub();
   setTab("orders");
   await loadOrders();
+  if (stale(gen)) return;
   subscribe();
-  await loadRequests(); subscribeRequests(); // Phase 3: requests from the public form (admins)
+  await loadRequests(); if (stale(gen)) return; subscribeRequests(); // Phase 3: requests from the public form (admins)
   await loadChat();
+  if (stale(gen)) return;
   syncPush(); paintPwa(); openDeepLink(); // this device's notifications follow whoever signs in; open what a notification pointed at
 }
 
