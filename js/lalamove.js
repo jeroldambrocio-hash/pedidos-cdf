@@ -337,6 +337,7 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
     ? el("button", { class: "linkish ll-manual", type: "button", onclick: async () => { await requestStep(o, 2); if (stepOf(o) === 2) closeSheet(true); } }, t("llManualOut"))
     : null;
 
+  async function reload() { row = (await sb.from("cdf_lalamove").select("*").eq("order_id", o.id).maybeSingle()).data; draw(); }
   function draw() {
     if (proofsOnly) {
       sec.hidden = !row?.ll_order_id;
@@ -350,6 +351,29 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
     if (row?.ll_order_id) proofs.update(row);
     if (o.cancelled_at && !riderOn) return fill(box, el("p", { class: "note" }, t("llOrderCancelled")), row?.ll_order_id ? proofs.node : null);
     const err = row?.error ? el("p", { class: "err", role: "alert" }, row.error) : null;
+    // A booking attempt still open (audit F01): being made now, or its result unknown. Nobody can book again
+    // until it is settled: Lalamove's own number for it (checked against Lalamove), or "nothing was booked".
+    const stuck = row?.booking_state === "pending" && Date.parse(row.booking_started_at) < Date.now() - 120000;
+    if (row?.booking_state === "pending" && !stuck) {
+      return fill(box, el("p", { class: "note ll-booking" }, icon("clock"), " " + t("llBookingNow")),
+        el("div", { class: "btn-row" }, btn(t("llRefresh"), reload)));
+    }
+    if (row?.booking_state === "uncertain" || stuck) {
+      const id = el("input", { inputmode: "numeric", autocomplete: "off", placeholder: t("llUncertainIdPh"), "aria-label": t("llUncertainIdPh") });
+      return fill(box,
+        el("div", { class: "sheet-note warn ll-uncertain", role: "alert" }, icon("alert"), el("span", {}, el("b", {}, t("llUncertainTitle")), " " + t("llUncertainHint"))),
+        row.error ? el("p", { class: "note" }, row.error) : null,
+        isAdmin() ? [
+          el("div", { class: "ll-search" }, id, btn(t("llUncertainLink"), async () => {
+            if (!id.value.trim()) { id.focus(); throw new Error(t("llUncertainIdPh")); }
+            row = (await llCall({ action: "book_resolve", order_id: o.id, ll_order_id: id.value.trim() })).row; draw(); toast(t("llUncertainLinked"));
+          }, true)),
+          el("div", { class: "btn-row" }, btn(t("llUncertainNone"), async () => {
+            if (!(await askConfirm(t("llUncertainNoneAsk", { num: o.num }), t("llUncertainNone"), { danger: true, detail: t("llUncertainNoneHint") }))) return;
+            row = (await llCall({ action: "book_resolve", order_id: o.id })).row; draw(); toast(t("llUncertainCleared"));
+          }), btn(t("llRefresh"), reload))
+        ] : el("p", { class: "note" }, t("llUncertainFlorist")));
+    }
     // Booked: status, rider, tracking link, refresh and cancel
     if (row?.ll_order_id) {
       const live = LL_ACTIVE.has(row.status);
@@ -396,7 +420,9 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
         el("div", { class: "btn-row" },
           phoneMissing ? null : btn(t("llBook"), async () => {
             if (!(await askConfirm(t("llBookAsk", { fee: fee(row.quote_total, row.quote_currency) }), t("llBook"), { detail: LL.env === "production" ? t("llBookLive") : t("llBookSandbox") }))) return;
-            row = (await llCall({ action: "book", order_id: o.id })).row; draw(); toast(t("llBooked"));
+            // A failed or unclear booking still changed the row (the attempt is noted): show it as it is now
+            try { row = (await llCall({ action: "book", order_id: o.id })).row; draw(); toast(t("llBooked")); }
+            catch (x) { await reload().catch(() => {}); throw x; }
           }, true),
           btn(t("llChangePlace"), () => pickPlace(quote))),
         manualOut());

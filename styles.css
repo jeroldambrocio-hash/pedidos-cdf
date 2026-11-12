@@ -2473,3 +2473,8 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .mode-seg button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
 .w-pickup { display: inline-flex; align-items: center; gap: 4px; }
 .mode-off { display: none !important; }
+/* Lalamove · unconfirmed booking (audit F01): stays within the sheet on a phone */
+.ll { grid-template-columns: minmax(0, 1fr); }
+.ll-uncertain { margin: 0; }
+.ll-uncertain > span { min-width: 0; }
+.ll-uncertain b { color: var(--fg); }

@@ -2,7 +2,9 @@
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 const CHANGELOG = [
   { date: "2026-11-12",
-    es: ["Pedidos de recogida: el pedido puede ser «Entrega» o «Recogida». Los de recogida van Preparando → Listo para recoger → Recogido (o No recogido, y se les puede dar otro día), sin «En camino» ni rider.",
+    es: ["Riders de Lalamove más seguros: un pedido ya no puede reservar dos riders a la vez. Si Lalamove no responde claro, la reserva queda «sin confirmar» hasta que la oficina la enlaza con su número de Lalamove o confirma que no se hizo.",
+      "Un pedido con rider activo ya no se puede borrar: primero hay que cancelar el rider (o el pedido).",
+      "Pedidos de recogida: el pedido puede ser «Entrega» o «Recogida». Los de recogida van Preparando → Listo para recoger → Recogido (o No recogido, y se les puede dar otro día), sin «En camino» ni rider.",
       "Formulario para clientes: al elegir Pick up, el cliente elige la tienda (por zona), puede usar su ubicación para ver la más cercana y ve la dirección de la tienda elegida.",
       "Solicitudes de recogida: se ve la tienda elegida y, al aceptarla, el pedido sale como recogida asignado a la florista de esa tienda.",
       "Pago rápido: toca «Pago pendiente» en la tarjeta de un pedido para marcarlo como pagado sin abrirlo (solo admins).",
@@ -11,7 +13,9 @@ const CHANGELOG = [
       "Estadísticas: solo las ven los admins que tengan el permiso activado en Equipo.",
       "Solicitudes: enlace al formulario para clientes, listo para copiar o compartir.",
       "Las solicitudes caducan el día después de la entrega y avisan al equipo."],
-    en: ["Pickup orders: an order can be “Delivery” or “Pickup”. Pickups go Preparing → Ready for pickup → Picked up (or Not collected, and can be given another day), with no “On the way” and no rider.",
+    en: ["Safer Lalamove riders: an order can no longer book two riders at once. If Lalamove's answer isn't clear, the booking stays “unconfirmed” until the office links it with its Lalamove number or confirms nothing was booked.",
+      "An order with an active rider can no longer be deleted: cancel the rider (or the order) first.",
+      "Pickup orders: an order can be “Delivery” or “Pickup”. Pickups go Preparing → Ready for pickup → Picked up (or Not collected, and can be given another day), with no “On the way” and no rider.",
       "Customer form: choosing Pick up, the customer picks the shop (by zone), can use their location to see the nearest one, and sees the chosen shop's address.",
       "Pickup requests: the chosen shop is shown and, once accepted, the order is a pickup assigned to that shop's florist.",
       "Quick pay: tap “Payment pending” on an order card to mark it as paid without opening it (admins only).",

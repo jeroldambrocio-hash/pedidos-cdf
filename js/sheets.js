@@ -1053,7 +1053,8 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     isAdmin() ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
       if (!(await askConfirm(t("askDelete", { num: o.num }), t("yesDelete"), { danger: true, detail: S.cap.archive ? t("deleteHintArchive") : null }))) return;
       const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
-      if (error) { toast(t("deleteFail"), { type: "error" }); return; }
+      // The database refuses while a Lalamove rider is on it (audit F02): cancel the rider first
+      if (error) { toast(/cdf_order_has_rider/.test(error.message || "") ? t("deleteHasRider") : t("deleteFail"), { type: "error", ms: 7000 }); return; }
       await removeFiles([o]);
       S.orders = S.orders.filter((x) => x.id !== o.id);
       await closeSheet(true);

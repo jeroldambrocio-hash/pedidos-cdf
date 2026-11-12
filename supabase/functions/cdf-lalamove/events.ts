@@ -210,8 +210,10 @@ export async function processEvent(d: Deps, ev: any): Promise<string> {
       if (!ship) {
         // Not ours, or a replacement Lalamove made: ask Lalamove which of our orders it carries
         const o = await d.ll("GET", `/v3/orders/${id}`);
-        const num = o?.metadata?.cdfOrder;
-        const linked = num != null ? await rpcData(d, "cdf_ll_link_replacement", { p_num: String(num), p_new: id, p_env: d.env }) : null;
+        const num = o?.metadata?.cdfOrder, key = o?.metadata?.cdfBooking;
+        // A booking whose answer was lost (audit F01): its attempt key ties it to the order that made it
+        let linked = typeof key === "string" && /^[0-9a-f-]{36}$/i.test(key) ? await rpcData(d, "cdf_ll_link_attempt", { p_key: key, p_new: id, p_env: d.env }) : null;
+        if (!linked && num != null) linked = await rpcData(d, "cdf_ll_link_replacement", { p_num: String(num), p_new: id, p_env: d.env });
         if (!linked) status = "unmatched";
         else ship = await rpcData(d, "cdf_ll_shipment", { p_ll: id });
       }

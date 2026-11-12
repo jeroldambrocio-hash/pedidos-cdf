@@ -23,6 +23,22 @@ drop policy if exists cdf_lalamove_proofs_file_read on storage.objects;
 drop policy if exists cdf_solicitudes_read on storage.objects;
 drop trigger if exists cdf_lalamove_track on public.cdf_lalamove;
 
+-- 12/11/2026 booking guard (audit F01/F02): the delete guard and the booking functions go, then the columns.
+-- Check first that no order has booking_state 'uncertain' (it would be forgotten).
+drop trigger if exists cdf_orders_guard_delete on public.cdf_orders;
+drop function if exists public.cdf_guard_order_delete();
+drop function if exists public.cdf_ll_quote_store(uuid, text, jsonb);
+drop function if exists public.cdf_ll_link_attempt(uuid, text, text);
+drop function if exists public.cdf_ll_book_resolve(uuid, text, text, text, text, numeric);
+drop function if exists public.cdf_ll_book_failed(uuid, uuid, boolean, text);
+drop function if exists public.cdf_ll_book_done(uuid, uuid, text, text, text, numeric);
+drop function if exists public.cdf_ll_book_claim(uuid, uuid, text);
+drop function if exists public.cdf_ll_settle_stale(public.cdf_lalamove);
+drop function if exists public.cdf_ll_final(text);
+alter table public.cdf_lalamove drop constraint if exists cdf_lalamove_booking_pair;
+alter table public.cdf_lalamove drop column if exists booking_key, drop column if exists booking_state,
+  drop column if exists booking_started_at, drop column if exists booking_by;
+
 -- 12/11/2026 pickup orders: cdf_progress back to production's version, then the column and functions go.
 -- Pickup orders made meanwhile stay as orders (as deliveries without an address).
 create or replace function public.cdf_progress(p_id uuid, p_step text, p_note text default null, p_proof text default null, p_set_proof boolean default false)

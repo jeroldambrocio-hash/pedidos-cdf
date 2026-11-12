@@ -138,6 +138,7 @@ Formulario público (función real + SQL real en memoria; solo se simulan Turnst
 ```bash
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order.test.mjs   # imágenes, validación, función, permisos
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order-ui.mjs     # el formulario en el navegador, móvil y escritorio
+NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/lalamove-booking.test.mjs   # auditoría F01/F02: una reserva a la vez, resultado incierto, borrado con rider
 NODE_PATH=.test-tools/node_modules node tests/pickup-db.cjs                 # recogida: tiendas, tienda elegida, pasos sin «En camino»
 NODE_PATH=.test-tools/node_modules node tests/pickup-ui.cjs                 # recogida en el panel: tarjeta, pasos, formulario, florista, solicitud
 NODE_PATH=.test-tools/node_modules node tests/quick-pay-ui.cjs              # pago rápido desde la tarjeta y Novedades

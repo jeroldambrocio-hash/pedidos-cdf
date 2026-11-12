@@ -24,6 +24,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { call, e164, FINAL, inPhilippines, LalamoveError, orderUpdateFor, parseCoords, pickupAt, validPhone, type Env } from "./lalamove.ts";
 import { afterRefresh, processEvent, receive, work, type Deps } from "./events.ts";
+import { bookRider, CLAIM_ERRORS, resolveBooking, type BookDeps } from "./booking.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -202,6 +203,7 @@ async function quote(orderId: string, b: Record<string, any>) {
   const lat = +b.lat, lng = +b.lng;
   if (!inPhilippines(lat, lng)) return json({ error: "Ubicación de entrega no válida" }, 400);
   const prev = await getRow(orderId);
+  if (prev?.booking_state) return json({ error: CLAIM_ERRORS[prev.booking_state === "pending" ? "cdf_ll_booking_busy" : "cdf_ll_booking_uncertain"][1] }, 409);
   if (prev?.ll_order_id && !FINAL.has(prev.status)) return json({ error: "Este pedido ya tiene un rider reservado" }, 409);
   const serviceType = /^[A-Z0-9_]{2,30}$/.test(b.service || "") ? b.service : "MOTORCYCLE";
   const scheduleAt = b.schedule === "slot" ? pickupAt(order.date, order.slot) : undefined;
@@ -214,21 +216,29 @@ async function quote(orderId: string, b: Record<string, any>) {
     ],
     // "item" is left out on purpose: its weight/category values differ per market and a wrong one rejects the quote
   });
-  const row = await save(orderId, {
+  // Stored through the database, which refuses if a booking was made (or started) meanwhile: a new price
+  // replaces only a cancelled or finished delivery, never a running one (audit F01)
+  const stored = await service.rpc("cdf_ll_quote_store", { p_order: orderId, p_env: ENV, p_quote: {
     lat, lng, place: b.place || null, service: serviceType,
     quotation_id: q.quotationId, sender_stop: q.stops?.[0]?.stopId, recipient_stop: q.stops?.[1]?.stopId,
     quote_total: +q.priceBreakdown?.total || null, quote_currency: q.priceBreakdown?.currency || "PHP", quote_expires: q.expiresAt || null,
-    // a fresh quote replaces a cancelled or finished delivery
-    ll_order_id: null, status: null, share_link: null, price_total: null,
-    driver_id: null, driver_name: null, driver_phone: null, driver_plate: null, driver_photo: null, booked_at: null, error: null,
     // What this price was for (migration 038): booking checks the order still matches it
     quote_for: { vendor: order.vendor_email || null, pickup: [p.lat, p.lng], date: order.date, slot: order.slot,
       wanted: b.schedule === "slot" ? "slot" : "now", schedule: scheduleAt || null },
-  });
-  return json({ row, scheduleAt: scheduleAt || null });
+  } });
+  if (stored.error) {
+    const k = Object.keys(CLAIM_ERRORS).find((x) => stored.error!.message.includes(x));
+    return json({ error: k ? CLAIM_ERRORS[k][1] : stored.error.message }, k ? CLAIM_ERRORS[k][0] : 500);
+  }
+  return json({ row: stored.data, scheduleAt: scheduleAt || null });
 }
 
-async function book(orderId: string) {
+const bookDeps: BookDeps = {
+  rpc: async (name, args) => { const { data, error } = await service.rpc(name, args); return { data, error }; },
+  ll, newKey: () => crypto.randomUUID(), log: (...a) => console.error(...a),
+};
+
+async function book(orderId: string, who: string) {
   const [order, row] = await Promise.all([getOrder(orderId), getRow(orderId)]);
   if (!order || !row?.quotation_id) return json({ error: "Pide primero un precio" }, 400);
   const no = notBookable(order);
@@ -244,23 +254,29 @@ async function book(orderId: string) {
   }
   if (order.drop_lat != null && (!near(order.drop_lat, row.lat) || !near(order.drop_lng, row.lng)))
     return json({ error: "La ubicación de entrega del pedido ha cambiado desde el precio. Pide un precio nuevo." }, 409);
+  if (row.booking_state) return json({ error: CLAIM_ERRORS[row.booking_state === "pending" ? "cdf_ll_booking_busy" : "cdf_ll_booking_uncertain"][1] }, 409);
   if (row.ll_order_id && !FINAL.has(row.status)) return json({ error: "Este pedido ya tiene un rider reservado" }, 409);
   if (row.quote_expires && Date.parse(row.quote_expires) < Date.now() + 15_000) return json({ error: "El precio ha caducado. Pídelo otra vez." }, 409);
   const phone = e164(order.customer_phone) || e164(order.buyer_phone);
   if (!validPhone(phone)) return json({ error: "El pedido necesita un teléfono válido de quien recibe" }, 400);
   const remarks = [`Order ${order.num}`, order.address, order.delivery_note].filter(Boolean).join(" · ").slice(0, 1000);
-  const o = await ll("POST", "/v3/orders", {
+  // One attempt at a time per order, held in the database before Lalamove is called (booking.ts)
+  const r = await bookRider(bookDeps, orderId, String(order.num), who, {
     quotationId: row.quotation_id,
     sender: { stopId: row.sender_stop, name: p.name, phone: p.phone },
     recipients: [{ stopId: row.recipient_stop, name: String(order.customer_name || order.buyer_name || "Recipient").slice(0, 100), phone, remarks }],
     isPODEnabled: true,
-    metadata: { cdfOrder: String(order.num) },
   });
-  const saved = await save(orderId, {
-    ll_order_id: o.orderId, status: o.status || "ASSIGNING_DRIVER", share_link: o.shareLink || null,
-    price_total: +o.priceBreakdown?.total || row.quote_total, booked_at: new Date().toISOString(), error: null, cancelled_by_us: false,
-  });
-  return json({ row: saved });
+  return json(r.body, r.status);
+}
+
+// An admin settles a booking left uncertain: Lalamove's number for it, or "nothing was booked"
+async function resolve(orderId: string, who: string, llOrderId: string | null) {
+  const [order, row] = await Promise.all([getOrder(orderId), getRow(orderId)]);
+  if (!order) return json({ error: "Pedido no encontrado" }, 404);
+  const r = await resolveBooking(bookDeps, orderId, String(order.num), who, row, llOrderId);
+  if (r.status === 200 && llOrderId) { try { return json({ row: await refresh(orderId) }); } catch { /* the link is saved; the details come with the next round */ } }
+  return json(r.body, r.status);
 }
 
 async function cancel(orderId: string) {
@@ -362,7 +378,11 @@ Deno.serve(async (req) => {
       if (mine?.vendor_email?.toLowerCase() !== email) return json({ error: "Este pedido no es tuyo" }, 403);
     }
     if (b.action === "quote") return await quote(orderId, b);
-    if (b.action === "book") return await book(orderId);
+    if (b.action === "book") return await book(orderId, email);
+    if (b.action === "book_resolve") {
+      if (me.role !== "admin") return json({ error: "Solo la oficina puede resolver una reserva sin confirmar" }, 403);
+      return await resolve(orderId, email, b.ll_order_id ? String(b.ll_order_id).trim() : null);
+    }
     if (b.action === "refresh") return json({ row: await refresh(orderId) });
     if (b.action === "cancel") return await cancel(orderId);
     return json({ error: "Acción desconocida" }, 400);

@@ -27,7 +27,15 @@ const fake = () => {
           quote_for: { vendor: o.vendor_email || null, pickup: [14.6337, 121.0338], date: o.date, slot: o.slot, wanted: body.schedule, schedule: at } };
         return reply({ row: __ll.row, scheduleAt: at });
       }
-      case "book": Object.assign(r, { ll_order_id: "LL1", status: "ASSIGNING_DRIVER", share_link: "https://share.sandbox.lalamove.com/x", price_total: 112 }); return reply({ row: r });
+      case "book":
+        // Audit F01: no clear answer from Lalamove → the attempt is held as unconfirmed
+        if (__ll.lose) { Object.assign(r, { booking_state: "uncertain", booking_key: "k1", booking_started_at: new Date().toISOString(), error: "Sin respuesta clara de Lalamove: fetch failed" });
+          return { data: null, error: { message: "Sin respuesta clara de Lalamove: fetch failed. La reserva queda pendiente de comprobar." } }; }
+        Object.assign(r, { ll_order_id: "LL1", status: "ASSIGNING_DRIVER", share_link: "https://share.sandbox.lalamove.com/x", price_total: 112 }); return reply({ row: r });
+      case "book_resolve":
+        Object.assign(r, { booking_state: null, booking_key: null, error: body.ll_order_id ? null : "Sin reserva (comprobado por admin@example.com)" },
+          body.ll_order_id ? { ll_order_id: body.ll_order_id, status: "ASSIGNING_DRIVER" } : {});
+        return reply({ row: r });
       case "refresh": return reply({ row: r });
       case "cancel": r.status = "CANCELED"; return reply({ row: r });
     }
@@ -376,6 +384,48 @@ const server = http.createServer((req, res) => {
       assert.match(await q.locator(".chart-card").filter({ hasText: "Riders Lalamove" }).innerText(), /Modo prueba/);
       console.log("ok stats: Lalamove rider spend for the period");
       await q.context().close();
+    }
+    {
+      // Audit F01: a booking whose answer was lost shows as unconfirmed; the office links it or releases it
+      const u = await open("admin", 390);
+      const o = await u.evaluate(() => { const o = S.orders.find((x) => x.status === "Ready" && !x.cancelled_at && x.vendor_email);
+        __ll.row = { order_id: o.id, lat: 14.6337, lng: 121.0338, place: "x", service: "MOTORCYCLE", quotation_id: "q7", quote_total: 99, quote_currency: "PHP",
+          quote_expires: new Date(Date.now() + 600000).toISOString(), quote_for: { vendor: o.vendor_email, pickup: [14.6337, 121.0338], date: o.date, slot: o.slot } };
+        __ll.lose = true; S.members.find((m) => m.email === o.vendor_email).pickup_address ||= "12 Tomas Morato Ave"; Object.assign(S.members.find((m) => m.email === o.vendor_email), { pickup_lat: 14.6337, pickup_lng: 121.0338 });
+        openOrder(o); return o.id; });
+      const s2 = u.locator("#lalamoveSection");
+      await s2.getByRole("button", { name: "Reservar rider" }).click();
+      await u.getByRole("alertdialog").getByRole("button", { name: "Reservar rider" }).click();
+      await s2.locator(".ll-uncertain").waitFor();
+      assert.match(await s2.innerText(), /Reserva sin confirmar/);
+      assert.equal(await s2.getByRole("button", { name: "Reservar rider" }).count(), 0, "no way to book again from here");
+      await s2.scrollIntoViewIfNeeded(); await shot(u, "uncertain");
+      await s2.getByRole("button", { name: "Enlazar esa reserva" }).click();
+      await u.locator(".toast", { hasText: /Nº de reserva/ }).first().waitFor();
+      await s2.locator("input[inputmode=numeric]").fill("3626117933572534460");
+      await s2.getByRole("button", { name: "Enlazar esa reserva" }).click();
+      await u.locator(".toast", { hasText: "Reserva enlazada" }).waitFor();
+      assert.deepEqual(await u.evaluate(() => __ll.calls.filter((c) => c.action === "book_resolve").map((c) => c.ll_order_id)), ["3626117933572534460"]);
+      await s2.getByText("Buscando rider").or(s2.locator(".ll-line")).first().waitFor();
+      // Released instead: asks first, then booking is possible again
+      await u.evaluate((id) => { Object.assign(__ll.row, { ll_order_id: null, status: null, booking_state: "uncertain", booking_key: "k2" }); closeSheet(true); openOrder(S.orders.find((x) => x.id === id)); }, o);
+      await s2.locator(".ll-uncertain").waitFor();
+      await s2.getByRole("button", { name: "No se reservó nada" }).click();
+      assert.match(await u.getByRole("alertdialog").innerText(), /dos riders/);
+      await u.getByRole("alertdialog").getByRole("button", { name: "No se reservó nada" }).click();
+      await u.locator(".toast", { hasText: "ya puedes pedir precio" }).waitFor();
+      await u.context().close();
+      // A florist sees it is being checked, with nothing to press
+      const f = await open("vendor", 390);
+      await f.evaluate((id) => { __ll.row = { order_id: id, quotation_id: "q7", booking_state: "uncertain", booking_key: "k3", error: null }; const o = S.orders.find((x) => x.id === id); if (o) openOrder(o); }, o);
+      const s3 = f.locator("#lalamoveSection");
+      if (await s3.isVisible().catch(() => false)) {
+        await s3.locator(".ll-uncertain").waitFor();
+        assert.match(await s3.innerText(), /La oficina está comprobando/);
+        assert.equal(await s3.getByRole("button", { name: "No se reservó nada" }).count(), 0);
+      }
+      await f.context().close();
+      console.log("ok audit F01: an unconfirmed booking can't be booked again; the office links it (Lalamove's number) or releases it after confirming");
     }
     assert.deepEqual(errors, []);
     console.log("ok no page errors");

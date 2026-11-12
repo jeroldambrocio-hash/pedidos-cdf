@@ -427,7 +427,7 @@ function renderTools() {
 async function purgeDelivered(done) {
   if (!(await askConfirm(t("purgeAsk", { n: done.length }), t("yesDelete"), { danger: true }))) return;
   const { error } = await sb.from("cdf_orders").delete().in("id", done.map((o) => o.id));
-  if (error) { toast(t("purgeFail"), { type: "error" }); return; }
+  if (error) { toast(/cdf_order_has_rider/.test(error.message || "") ? t("deleteHasRider") : t("purgeFail"), { type: "error", ms: 7000 }); return; }
   await removeFiles(done);
   toast(t("purged", { n: done.length })); loadOrders();
 }
