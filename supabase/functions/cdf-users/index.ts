@@ -43,6 +43,12 @@ Deno.serve(async (req) => {
     if (!name) return json({ error: "Falta el nombre" }, 400);
     if (password.length < 8) return json({ error: "La contraseña necesita al menos 8 caracteres" }, 400);
 
+    // Someone already in the team keeps their data: adding the same email again is refused, not overwritten
+    // (to change their name, role or username, edit them in Team)
+    const { data: member, error: memberError } = await service.from("cdf_members").select("name").eq("email", email).maybeSingle();
+    if (memberError) return json({ error: "Unable to check email" }, 503);
+    if (member) return json({ error: `Ya existe un miembro con este correo (${member.name})`, code: "email_taken", name: member.name }, 409);
+
     const created = await service.auth.admin.createUser({ email, password, email_confirm: true, user_metadata: { name }, app_metadata: { cdf: true } });
     let existed = false;
     if (created.error) {
