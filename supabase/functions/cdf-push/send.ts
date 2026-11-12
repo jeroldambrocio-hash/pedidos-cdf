@@ -2,7 +2,8 @@
 // outbox is finished (reviewed 12/11/2026). A notice is confirmed only when every device either got it or no
 // longer exists (404/410: that device is forgotten). A temporary failure (503, network, a failed lookup)
 // leaves it pending, so cdf_outbox_retry sends it again; the devices that already got it are remembered
-// (cdf_outbox.sent_endpoints) and are not sent it twice.
+// (cdf_outbox.sent_endpoints) and are normally not sent it again. Not "exactly once": if a push succeeds but
+// remembering it fails and the notice is retried, that device can get it twice (logged).
 export type Sub = { endpoint: string; p256dh: string; auth: string; lang?: string | null };
 type Res<T = unknown> = { data?: T | null; error?: unknown };
 

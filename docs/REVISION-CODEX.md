@@ -88,3 +88,9 @@ Orden de publicación: `cdf-users` lee la fila completa (`select("*")`), así qu
    Pruebas: `push-send.test.mjs` (503, red, entrega parcial y reintento, 404/410, búsquedas fallidas, confirmación fallida, columna real en base de datos).
 
 Compatibilidad de despliegue: `cdf-push` funciona antes y después de la migración nueva (si falta la columna, no recuerda dispositivos). La limpieza automática se programa al aplicar `20261112090000`, que requiere autorización.
+
+## Verificación del commit 2e96c05 — 12/11/2026
+
+- **Fallo al consultar el equipo en `cdf-push`.** Confirmado. Un error al leer `cdf_members` ya no se trata como «nadie a quien avisar»: responde 503 y el aviso queda pendiente. Si la consulta funciona y de verdad no hay admins, se confirma como antes. El código de la función pasa a `cdf-push/handler.ts` (index.ts solo conecta Supabase y web push), y `push-endpoint.test.mjs` prueba la función completa (6 casos; el primero falla sin la corrección).
+- **Duplicados.** Precisado: los dispositivos ya avisados normalmente no lo reciben otra vez, pero no es una entrega «exactamente una vez» (si el envío funciona y falla apuntarlo, un reintento puede repetirlo).
+- **Foto del rider.** Pendiente: falta el informe DIAGNOSTICO-FOTO-RIDER.md con las cargas reales (enlaces http y `POP.imageUrls[]`).
