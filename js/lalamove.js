@@ -337,13 +337,17 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
     await keepPoint(place);
     const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || o.vehicle || "MOTORCYCLE") }, t("llv_" + v))));
     const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: o.slot })));
+    // Lalamove's delivery type: Regular (cheaper) or Priority (pays the rider more, so one is found sooner and
+    // the flowers go straight to the door). The last one used for this order is offered again.
+    const tier = el("select", {}, ...["regular", "priority"].map((v) => el("option", { value: v, selected: v === (row?.quote_for?.tier || "regular") }, t("llTier_" + v))));
     const go = async () => {
-      const r = await llCall({ action: "quote", order_id: o.id, lat: place.lat, lng: place.lng, place: place.label, service: vehicle.value, schedule: when.value });
+      const r = await llCall({ action: "quote", order_id: o.id, lat: place.lat, lng: place.lng, place: place.label, service: vehicle.value, schedule: when.value, tier: tier.value });
       row = r.row; draw();
       if (when.value === "slot" && !r.scheduleAt) toast(t("llSlotTooClose"), { ms: 6000 });
     };
     fill(box, shopLine(), el("p", {}, el("b", {}, t("llDeliverTo")), " ", place.label), coordsLink(place.lat, place.lng),
       el("div", { class: "row2" }, field(t("llVehicle"), vehicle), field(t("llPickup"), when)),
+      field(t("llTier"), tier), el("p", { class: "note" }, t("llTierHint")),
       el("div", { class: "btn-row" }, btn(t("llGetPrice"), go, true),
         btn(t("mapAdjust"), async () => { const p = await llPickOnMap(place); if (p) await quote({ ...p, label: o.address || place.label }); }),
         btn(t("llChangePlace"), () => pickPlace(quote))));
@@ -429,7 +433,7 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
       const pick = row.quote_for?.schedule;
       const phoneMissing = !phoneOk(o.customer_phone || o.buyer_phone) || !(o.customer_phone || o.buyer_phone);
       return fill(box,
-        el("div", { class: "ll-line" }, el("b", { class: "ll-price" }, fee(row.quote_total, row.quote_currency)), el("span", { class: "note" }, t("llv_" + row.service) + " · " + t("llValidUntil", { time: when(row.quote_expires) }))),
+        el("div", { class: "ll-line" }, el("b", { class: "ll-price" }, fee(row.quote_total, row.quote_currency)), el("span", { class: "note" }, t("llv_" + row.service) + " · " + t("llTier_" + (row.quote_for?.tier === "priority" ? "priority" : "regular")) + " · " + t("llValidUntil", { time: when(row.quote_expires) }))),
         // When the rider is really asked to come: a time, or now (also when "in the slot" was too close to keep)
         el("p", { class: "note ll-pickup" }, icon("clock"), " " + (pick ? t("llPickupAt", { time: when(pick) }) : t("llPickupNow")),
           row.quote_for?.wanted === "slot" && !pick ? el("b", {}, " " + t("llSlotTooClose")) : null),

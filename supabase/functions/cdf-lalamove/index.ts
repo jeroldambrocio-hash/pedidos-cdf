@@ -208,8 +208,12 @@ async function quote(orderId: string, b: Record<string, any>) {
   if (prev?.ll_order_id && !FINAL.has(prev.status)) return json({ error: "Este pedido ya tiene un rider reservado" }, 409);
   const serviceType = /^[A-Z0-9_]{2,30}$/.test(b.service || "") ? b.service : "MOTORCYCLE";
   const scheduleAt = b.schedule === "slot" ? pickupAt(order.date, order.slot) : undefined;
+  // Lalamove's delivery type (pricingTierCode): "1" Regular, its default, or "2" Priority, which pays the rider
+  // more so one is matched sooner. Regular is asked for as before, by leaving the field out.
+  const tier = b.tier === "priority" ? "priority" : "regular";
   const q = await ll("POST", "/v3/quotations", {
     ...(scheduleAt ? { scheduleAt } : {}),
+    ...(tier === "priority" ? { pricingTierCode: "2" } : {}),
     serviceType, language: "en_PH", specialRequests: [],
     stops: [
       { coordinates: { lat: String(p.lat), lng: String(p.lng) }, address: p.address },
@@ -225,7 +229,9 @@ async function quote(orderId: string, b: Record<string, any>) {
     quote_total: +q.priceBreakdown?.total || null, quote_currency: q.priceBreakdown?.currency || "PHP", quote_expires: q.expiresAt || null,
     // What this price was for (migration 038): booking checks the order still matches it
     quote_for: { vendor: order.vendor_email || null, pickup: [p.lat, p.lng], date: order.date, slot: order.slot,
-      wanted: b.schedule === "slot" ? "slot" : "now", schedule: scheduleAt || null },
+      wanted: b.schedule === "slot" ? "slot" : "now", schedule: scheduleAt || null,
+      // What Lalamove says it priced, when it says; else what was asked
+      tier: q.pricingTierCode === "2" ? "priority" : q.pricingTierCode === "1" ? "regular" : tier },
   } });
   if (stored.error) {
     const k = Object.keys(CLAIM_ERRORS).find((x) => stored.error!.message.includes(x));

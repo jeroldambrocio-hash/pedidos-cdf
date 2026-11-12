@@ -23,8 +23,8 @@ const fake = () => {
       case "geocode": return reply({ results: body.query.includes("nowhere") ? [] : [{ label: "Tomas Morato Ave, Quezon City, Metro Manila", lat: 14.6337, lng: 121.0338 }] });
       case "quote": {
         const o = S.orders.find((x) => x.id === body.order_id) || {}, at = body.schedule === "slot" ? "2030-01-01T01:15:00.000Z" : null;
-        __ll.row = { order_id: body.order_id, lat: body.lat, lng: body.lng, place: body.place, service: body.service, quotation_id: "q1", quote_total: 112, quote_currency: "PHP", quote_expires: exp(),
-          quote_for: { vendor: o.vendor_email || null, pickup: [14.6337, 121.0338], date: o.date, slot: o.slot, wanted: body.schedule, schedule: at } };
+        __ll.row = { order_id: body.order_id, lat: body.lat, lng: body.lng, place: body.place, service: body.service, quotation_id: "q1", quote_total: body.tier === "priority" ? 150 : 112, quote_currency: "PHP", quote_expires: exp(),
+          quote_for: { vendor: o.vendor_email || null, pickup: [14.6337, 121.0338], date: o.date, slot: o.slot, wanted: body.schedule, schedule: at, tier: body.tier === "priority" ? "priority" : "regular" } };
         return reply({ row: __ll.row, scheduleAt: at });
       }
       case "book":
@@ -138,11 +138,25 @@ const server = http.createServer((req, res) => {
     await sec.locator(".ll-hit").first().click();
     console.log("ok address search, no results, Enter stays in the block");
 
+    // Delivery type: Regular unless Priority is chosen; the price and the label follow, and the choice is kept
+    const tierSel = sec.locator("select").filter({ has: p.locator('option[value="priority"]') });
+    assert.equal(await tierSel.inputValue(), "regular");
+    await tierSel.selectOption("priority");
+    await sec.getByRole("button", { name: "Ver precio" }).click();
+    await sec.locator(".ll-price").waitFor();
+    assert.match(await sec.locator(".ll-line").innerText(), /₱150[\s\S]*Priority/);
+    assert.equal(await p.evaluate(() => __ll.calls.filter((c) => c.action === "quote").pop().tier), "priority");
+    await sec.getByRole("button", { name: "Cambiar dirección" }).click();
+    await sec.locator(".ll-search input").fill("Tomas Morato, Quezon City"); await sec.locator(".ll-search input").press("Enter");
+    await sec.locator(".ll-hit").first().click();
+    assert.equal(await tierSel.inputValue(), "priority", "the last type used for this order is offered again");
+    await tierSel.selectOption("regular");
     await sec.getByRole("button", { name: "Ver precio" }).click();
     await sec.locator(".ll-price").waitFor();
     assert.match(await sec.locator(".ll-price").innerText(), /₱112/);
-    const q = await p.evaluate(() => __ll.calls.find((c) => c.action === "quote"));
-    assert.equal(q.lat, 14.6337); assert.equal(q.service, "MOTORCYCLE");
+    assert.match(await sec.locator(".ll-line").innerText(), /Regular/);
+    const q = await p.evaluate(() => __ll.calls.filter((c) => c.action === "quote").pop());
+    assert.equal(q.lat, 14.6337); assert.equal(q.service, "MOTORCYCLE"); assert.equal(q.tier, "regular");
     await shot(p, "3-price"); await noOverflow(p);
     console.log("ok price shown, quote sent with the picked point");
 
