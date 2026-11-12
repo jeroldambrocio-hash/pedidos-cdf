@@ -5,7 +5,7 @@
 import assert from "node:assert";
 import { createHash, createHmac } from "node:crypto";
 import { createRequire } from "node:module";
-import { checkSignature, download, eventTime, hostAllowed, popImages, processEvent, receive, sniffImage, work } from "../supabase/functions/cdf-lalamove/events.ts";
+import { checkSignature, download, eventProofs, eventTime, hostAllowed, popImages, processEvent, proofUrl, receive, sniffImage, work } from "../supabase/functions/cdf-lalamove/events.ts";
 
 const require = createRequire(import.meta.url);
 const { PGlite } = require("@electric-sql/pglite");
@@ -27,6 +27,8 @@ await db.exec(`insert into public.cdf_orders(id,num,date,slot,channel,customer_n
   insert into public.cdf_lalamove(order_id, env, ll_order_id, status, booked_at) values ('${ORDER}','production','3626117933572534460','COMPLETED', now() - interval '1 hour');`);
 const before = await one("select to_jsonb(l) - 'updated_at' r from public.cdf_lalamove l");
 await db.exec(migration("cdf_lalamove_events"));
+await db.exec(migration("cdf_lalamove_reconcile_fix"));
+await db.exec(migration("cdf_lalamove_proof_links"));
 assert.deepEqual((await one("select to_jsonb(l) - 'updated_at' r from public.cdf_lalamove l")).r, before.r);
 assert.deepEqual(await one("select order_id, env, status from public.cdf_lalamove_shipments where ll_order_id = '3626117933572534460'"),
   { order_id: ORDER, env: "production", status: "COMPLETED" });
@@ -263,15 +265,83 @@ web["https://pod.lalamove.com/a.jpg"] = () => new Response(JPEG, { headers: { "c
   ok("Failed delivery or no picture: not provided; a signature image is kept like a photo");
 }
 
-{ // Proof of pickup: only in the POP event (not documented): any https image under an image/photo key
-  assert.deepEqual(popImages({ order: { orderId: "1" }, stop: { stopId: "S0", status: "PICKED_UP", image: "https://pop.lalamove.com/p.jpg" }, shareLink: "https://share.lalamove.com/x" }),
+{ // Links as Lalamove really sends them (diagnosis of 12/11/2026): http, on its own image host
+  const H = ["lalamove.com"];
+  assert.equal(proofUrl("http://sg-oimg.lalamove.com/a/b.jpg?x=1", H), "https://sg-oimg.lalamove.com/a/b.jpg?x=1");
+  assert.equal(proofUrl("https://sg-oimg.lalamove.com/a.jpg", H), "https://sg-oimg.lalamove.com/a.jpg");
+  assert.equal(proofUrl("https://elsewhere.example/a.jpg", H), "https://elsewhere.example/a.jpg", "https elsewhere: kept, the download refuses the host");
+  for (const bad of ["http://evil.example/a.jpg", "http://sg-oimg.lalamove.com:8080/a.jpg", "http://user:pw@sg-oimg.lalamove.com/a.jpg",
+    "http://lalamove.com.evil.io/a.jpg", "javascript:alert(1)", "ftp://sg-oimg.lalamove.com/a.jpg", "http://sg-oimg.lalamove.com/a b.jpg", 42, null])
+    assert.equal(proofUrl(bad, H), null, String(bad));
+  ok("http links are made https only for Lalamove's image hosts; no other http, port, password or scheme gets through");
+}
+
+// The real shapes, anonymised: event 7 (pickup) and event 8 (delivery) of order 0002
+const POP_EVENT = { updatedAt: "2026-11-12T03:01:10.000Z", order: { orderId: "3626117933572534460", stops: [
+  { stopId: "S0", POP: { status: "PICKED_UP", imageUrls: ["http://sg-oimg.lalamove.com/pop/1.jpg", "http://sg-oimg.lalamove.com/pop/2.jpg"] } },
+  { stopId: "S1" }] } };
+const POD_EVENT = { updatedAt: "2026-11-12T03:08:28.000Z", order: { orderId: "3626117933572534460", stops: [
+  { stopId: "S0" }, { stopId: "S1", POD: { status: "DELIVERED", image: "http://sg-oimg.lalamove.com/pod/1.jpg", deliveredAt: "2026-11-12T03:08:20.000Z" } }] } };
+{
+  assert.deepEqual(eventProofs(POP_EVENT, ["lalamove.com"], "POP_STATUS_CHANGED"), [
+    { kind: "pop", stop: "S0", url: "https://sg-oimg.lalamove.com/pop/1.jpg", status: "PICKED_UP" },
+    { kind: "pop", stop: "S0#2", url: "https://sg-oimg.lalamove.com/pop/2.jpg", status: "PICKED_UP" }]);
+  assert.deepEqual(eventProofs(POD_EVENT, ["lalamove.com"], "POD_STATUS_CHANGED"),
+    [{ kind: "pod", stop: "S1", url: "https://sg-oimg.lalamove.com/pod/1.jpg", status: "DELIVERED" }]);
+  const both = { order: { stops: [{ stopId: "S0", POP: { imageUrls: ["https://sg-oimg.lalamove.com/p.jpg"] } },
+    { stopId: "S1", POD: { image: "https://sg-oimg.lalamove.com/d.jpg" } }] } };
+  assert.deepEqual(eventProofs(both, ["lalamove.com"], "POP_STATUS_CHANGED").map((p) => p.kind + ":" + p.stop + ":" + p.url.slice(-5)), ["pop:S0:p.jpg", "pod:S1:d.jpg"]);
+  // An unknown POP shape: the older guess, but never what sits under a POD key
+  assert.deepEqual(popImages({ pod: { stopId: "S1", image: "https://pod.lalamove.com/d.jpg" }, stop: { stopId: "S0", status: "PICKED_UP", image: "https://pop.lalamove.com/p.jpg" } }, ["lalamove.com"]),
     [{ stop: "S0", url: "https://pop.lalamove.com/p.jpg", status: "PICKED_UP" }]);
   assert.deepEqual(popImages({ photo: "http://insecure/p.jpg" }), []);
-  web["https://pop.lalamove.com/p.jpg"] = () => new Response(JPEG);
-  const r = await receive(d, JSON.stringify(event("POP_STATUS_CHANGED", { order: { orderId: "3626117933572534460" }, pod: { stopId: "S0", image: "https://pop.lalamove.com/p.jpg" } })), URL_IN, "observe");
-  await processEvent(d, await claim(r.eventId));
-  assert.equal((await one("select state from public.cdf_lalamove_proofs where kind = 'pop' and ll_order_id = '3626117933572534460'")).state, "available");
-  ok("The pickup photo of a POP event is kept too");
+  ok("Pickup photos (POP.imageUrls[], all of them) and the delivery photo (POD.image) are read by kind and stop; a delivery photo is never taken for a pickup one");
+}
+
+{ // Order 0002 as it happened: the events carry http links, and reading the booking back says
+  // "delivered" without the picture. Before: proof "not provided", link never fetched.
+  lalamove.set("3626117933572534460", { orderId: "3626117933572534460", status: "COMPLETED",
+    stops: [{ stopId: "S0" }, { stopId: "S1", POD: { status: "DELIVERED", deliveredAt: "2026-11-12T03:08:20.000Z" } }] });
+  await db.exec("delete from public.cdf_lalamove_proofs where ll_order_id = '3626117933572534460'");
+  // What production has today: the delivery proof noted without a link
+  await rpc("cdf_ll_proof_note", { p_ll: "3626117933572534460", p_kind: "pod", p_stop: "S1", p_status: "DELIVERED", p_at: null, p_url: null });
+  assert.equal((await one("select state from public.cdf_lalamove_proofs where ll_order_id = '3626117933572534460' and kind = 'pod'")).state, "not_provided");
+  const fetched = [];
+  for (const u of ["pop/1.jpg", "pop/2.jpg", "pod/1.jpg"]) web["https://sg-oimg.lalamove.com/" + u] = () => { fetched.push(u); return new Response(JPEG); };
+  // The same events processed again (as the controlled recovery after deploying would do), twice: idempotent
+  for (let round = 0; round < 2; round++) {
+    for (const [type, data] of [["POP_STATUS_CHANGED", POP_EVENT], ["POD_STATUS_CHANGED", POD_EVENT]]) {
+      const r = await receive(d, JSON.stringify(event(type, data)), URL_IN, "observe");
+      assert.equal(await processEvent(d, await claim(r.eventId)), "done");
+    }
+  }
+  const got = await rows("select kind, stop_key, state, content_type from public.cdf_lalamove_proofs where ll_order_id = '3626117933572534460' order by kind, stop_key");
+  assert.deepEqual(got.map((x) => `${x.kind}:${x.stop_key}:${x.state}`), ["pod:S1:available", "pop:S0:available", "pop:S0#2:available"]);
+  assert.deepEqual(fetched.sort(), ["pod/1.jpg", "pop/1.jpg", "pop/2.jpg"], "each photo downloaded once, over https");
+  assert.ok(!Object.keys(web).some((u) => u.startsWith("http:")), "nothing fetched over http");
+  ok("Order 0002: the http links in the events are fetched over https and kept, even though reading the booking back has no picture; processing again changes nothing");
+}
+
+{ // A link kept from an event is not lost when a later read has none; a new link still replaces a failed one
+  const note = (url, status = "DELIVERED") => rpc("cdf_ll_proof_note", { p_ll: "3626117933572534460", p_kind: "pod", p_stop: "S9", p_status: status, p_at: null, p_url: url });
+  await note("https://sg-oimg.lalamove.com/pod/9.jpg");
+  await note(null);
+  assert.deepEqual(await one("select state, source_url from public.cdf_lalamove_proofs where ll_order_id = '3626117933572534460' and stop_key = 'S9'"),
+    { state: "pending", source_url: "https://sg-oimg.lalamove.com/pod/9.jpg" });
+  ok("A later read without the picture keeps the link that came in the event");
+}
+
+{ // Redirects: a normalised link that redirects to plain http or to another host is refused
+  web["https://sg-oimg.lalamove.com/r/1.jpg"] = () => new Response(null, { status: 302, headers: { location: "http://sg-oimg.lalamove.com/r/2.jpg" } });
+  web["https://sg-oimg.lalamove.com/r/3.jpg"] = () => new Response(null, { status: 302, headers: { location: "https://evil.example/x.jpg" } });
+  const errOf = async (stop, url) => {
+    const id = (await rpc("cdf_ll_proof_note", { p_ll: "3626117933572534460", p_kind: "pod", p_stop: stop, p_status: "DELIVERED", p_at: null, p_url: proofUrl(url, ["lalamove.com"]) })).data.id;
+    await download(d, (await rpc("cdf_ll_proofs_due", { p_limit: 1, p_id: id })).data[0]);
+    return (await one("select error from public.cdf_lalamove_proofs where id = $1", [id])).error;
+  };
+  assert.match(await errOf("X1", "http://sg-oimg.lalamove.com/r/1.jpg"), /not_https/);
+  assert.match(await errOf("X2", "http://sg-oimg.lalamove.com/r/3.jpg"), /host_not_allowed:evil.example/);
+  ok("After making a link https, every redirect is still checked: no plain http, no other host");
 }
 
 // ---------- safe downloads ----------
@@ -326,6 +396,34 @@ web["https://pod.lalamove.com/a.jpg"] = () => new Response(JPEG, { headers: { "c
   assert.equal((await one(`select status from public.cdf_lalamove where order_id = '${ORDER2}'`)).status, "PICKED_UP");
   assert.equal((await work(d)).reconciled, 0, "not again within four minutes");
   ok("Running bookings are read back from Lalamove every few minutes even if no webhook comes");
+}
+
+{ // Delivered with no photo yet: read back every 30 minutes (no webhook needed) until the photo appears
+  await db.exec(`update public.cdf_lalamove set ll_order_id = '7000000002', status = 'COMPLETED', booked_at = now() - interval '2 hours' where order_id = '${ORDER2}'`);
+  lalamove.set("7000000002", { orderId: "7000000002", status: "COMPLETED", stops: [{}, { stopId: "Z1", POD: { status: "DELIVERED" } }] });
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() where ll_order_id <> '7000000002'");
+  await work(d);
+  const proofZ = async () => one("select state from public.cdf_lalamove_proofs where ll_order_id = '7000000002'");
+  assert.equal((await proofZ()).state, "not_provided");
+  assert.equal((await work(d)).reconciled, 0, "not again within 30 minutes");
+  // Lalamove adds the photo later; no webhook comes
+  lalamove.get("7000000002").stops[1].POD.image = "https://pod.lalamove.com/late.jpg";
+  web["https://pod.lalamove.com/late.jpg"] = () => new Response(JPEG);
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() - interval '31 minutes' where ll_order_id = '7000000002'");
+  assert.equal((await work(d)).reconciled, 1);
+  assert.equal((await proofZ()).state, "available");
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() - interval '31 minutes' where ll_order_id = '7000000002'");
+  assert.equal((await work(d)).reconciled, 0, "a kept photo ends the checks");
+  // A failed delivery is not checked again; nor is anything booked more than 3 days ago
+  await db.exec(`update public.cdf_lalamove set ll_order_id = '7000000003', status = 'COMPLETED', booked_at = now() - interval '2 hours' where order_id = '${ORDER2}'`);
+  lalamove.set("7000000003", { orderId: "7000000003", status: "COMPLETED", stops: [{}, { stopId: "F", POD: { status: "FAILED" } }] });
+  await work(d);
+  await db.exec("update public.cdf_lalamove_shipments set last_checked_at = now() - interval '31 minutes' where ll_order_id = '7000000003'");
+  assert.equal((await work(d)).reconciled, 0);
+  await db.exec(`update public.cdf_lalamove_shipments set booked_at = now() - interval '4 days', last_checked_at = null where ll_order_id = '7000000002'`);
+  await db.exec(`update public.cdf_lalamove_proofs set state = 'not_provided' where ll_order_id = '7000000002'`);
+  assert.equal((await work(d)).reconciled, 0, "the 3-day window closes even though each check moves updated_at");
+  ok("Delivered without a photo: re-read every 30 minutes for 3 days, so a photo added later is kept without a webhook; failed deliveries and old ones are left alone");
 }
 
 // ---------- who sees what ----------

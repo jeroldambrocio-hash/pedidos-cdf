@@ -15,7 +15,8 @@ export class CheckError extends Error {
 // This checks the structure of the file; it does not decode the pixels.
 
 export const IMAGE_MAX_BYTES = 3 * 1024 * 1024;
-const MAX_SIDE = 8000, MIN_SIDE = 16, MAX_PIXELS = 40_000_000;
+// The form sends JPEGs of at most 1600 px; the limits leave room without letting a decode get expensive.
+const MAX_SIDE = 4096, MIN_SIDE = 16, MAX_PIXELS = 16_800_000;
 
 export type CleanImage = { mime: "image/jpeg" | "image/png" | "image/webp"; ext: "jpg" | "png" | "webp"; width: number; height: number; bytes: Uint8Array };
 
@@ -163,6 +164,25 @@ export function cleanImage(input: Uint8Array): CleanImage {
   const { width, height } = image;
   if (!(width >= MIN_SIDE && height >= MIN_SIDE && width <= MAX_SIDE && height <= MAX_SIDE && width * height <= MAX_PIXELS)) throw new CheckError("bad_dimensions");
   return image;
+}
+
+// ---------------------------------------------------------------------------------------------------
+// The pixels. The structure check above can be fooled by a file whose parts are well formed but whose
+// picture data is garbage. Only what the form itself sends is accepted: the page shrinks every photo in the
+// browser and always sends a JPEG. That JPEG is decoded in full here (jpeg-js, strict, with limits on size
+// and memory) and its size must match its header. PNG and WebP are refused at this step: checking their
+// structure is not decoding them (a PNG can be well formed and still not decodable, e.g. indexed colour
+// with no palette), and nothing legitimate sends them.
+export type DecodeJpeg = (bytes: Uint8Array) => { width: number; height: number } | Promise<{ width: number; height: number }>;
+
+export async function verifyPixels(image: CleanImage, decodeJpeg: DecodeJpeg) {
+  if (image.mime !== "image/jpeg") throw new CheckError("not_an_image");
+  try {
+    const d = await decodeJpeg(image.bytes);
+    if (d?.width !== image.width || d?.height !== image.height) bad();
+  } catch (e) {
+    throw e instanceof CheckError ? e : new CheckError("not_an_image");
+  }
 }
 
 // ---------------------------------------------------------------------------------------------------

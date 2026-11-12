@@ -139,6 +139,8 @@ const S = {
 S.sel = S.today; S.month = monthOf(S.today);
 // admin: everything · vendor (florist): own orders · carrier (driver): deliveries
 const isAdmin = () => S.me?.role === "admin";
+// Statistics: admins chosen in Team (cdf_members.sees_stats, migration 20261112110000; everyone before it)
+const seesStats = () => isAdmin() && S.me?.sees_stats !== false;
 // The office view: only the admin
 const isStaff = () => S.me?.role === "admin";
 const isCarrier = () => S.me?.role === "carrier";
@@ -324,7 +326,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) retur
 function render() {
   if (!S.me) return;
   if (S.tab === "team") renderTeam();
-  else if (S.tab === "stats") renderStats();
+  else if (S.tab === "stats" && seesStats()) renderStats();
   else if (S.tab === "chat") renderChat();
   else if (S.tab === "requests") renderRequests();
   else renderOrders();

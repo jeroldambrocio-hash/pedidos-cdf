@@ -1,5 +1,6 @@
 // Pedidos CDF: admins add or remove team members (admin / florist (vendor) / driver (carrier)) with a password login.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
+import { mayRemove, statsOnAdd } from "./stats.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -19,7 +20,7 @@ Deno.serve(async (req) => {
   const token = (req.headers.get("Authorization") || "").replace(/^Bearer\s+/i, "");
   const { data: caller, error: callerErr } = await service.auth.getUser(token);
   if (callerErr || !caller?.user?.email) return json({ error: "Inicia sesión de nuevo" }, 401);
-  const { data: me } = await service.from("cdf_members").select("role").eq("email", caller.user.email.toLowerCase()).maybeSingle();
+  const { data: me } = await service.from("cdf_members").select("*").eq("email", caller.user.email.toLowerCase()).maybeSingle();
   if (me?.role !== "admin") return json({ error: "Solo un admin puede gestionar usuarios" }, 403);
 
   let body: Record<string, string>;
@@ -55,7 +56,7 @@ Deno.serve(async (req) => {
       if (!/already|registered|exists/i.test(created.error.message)) return json({ error: created.error.message }, 400);
       existed = true; // account already exists in this project: keep its password, just grant access
     }
-    const { error } = await service.from("cdf_members").upsert({ email, name, role, ...(body.username !== undefined ? { username } : {}) });
+    const { error } = await service.from("cdf_members").upsert({ email, name, role, ...statsOnAdd(me), ...(body.username !== undefined ? { username } : {}) });
     if (error) return json({ error: error.message }, 400);
     return json({ ok: true, existed });
   }
@@ -65,6 +66,9 @@ Deno.serve(async (req) => {
     // Removing someone only takes away their access to this app (the cdf_members row decides it, RLS reads it).
     // The login itself is never deleted: this Supabase project is shared with another app that may use the same
     // account (decided 9/11/2026). Adding them again later gives access back with the same password.
+    const { data: target, error: targetErr } = await service.from("cdf_members").select("*").eq("email", email).maybeSingle();
+    if (targetErr) return json({ error: targetErr.message }, 503);
+    if (!mayRemove(me, target)) return json({ error: "Solo un admin con acceso a Estadísticas puede quitar a otro que lo tiene", code: "stats_forbidden" }, 403);
     const { error } = await service.from("cdf_members").delete().eq("email", email);
     if (error) return json({ error: error.message }, 400);
     // Their phones stop getting this app's notifications

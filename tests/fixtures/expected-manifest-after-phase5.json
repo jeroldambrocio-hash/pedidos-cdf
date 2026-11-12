@@ -92,6 +92,18 @@
    "config": "search_path=\"\"",
    "definer": false
   },
+  "cdf_guard_request_purge()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
+  "cdf_guard_sees_stats()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_hook_ok(p_secret text)": {
    "anon": false,
    "authenticated": false,
@@ -284,6 +296,12 @@
    "config": "search_path=\"\"",
    "definer": true
   },
+  "cdf_outbox_sent(p_id bigint, p_endpoint text)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_progress(p_id uuid, p_step text, p_note text, p_proof text, p_set_proof boolean)": {
    "anon": false,
    "authenticated": true,
@@ -416,7 +434,7 @@
    "config": "search_path=\"\"",
    "definer": true
   },
-  "cdf_requests_purge_list(p_limit integer)": {
+  "cdf_requests_purge_claim(p_limit integer)": {
    "anon": false,
    "authenticated": false,
    "config": "search_path=\"\"",
@@ -754,6 +772,7 @@
     "pickup_lat:numeric(9,6)",
     "pickup_lng:numeric(9,6)",
     "role:text!",
+    "sees_stats:boolean!",
     "username:text"
    ],
    "rls": true
@@ -855,6 +874,7 @@
     "location_source:text",
     "mode:text!",
     "payment_method:text!",
+    "purge_claimed_at:timestamp with time zone",
     "receiver_name:text!",
     "receiver_phone:text!",
     "ref:bigint!",
@@ -922,7 +942,8 @@
     "id:bigint!",
     "kind:text!",
     "last_attempt_at:timestamp with time zone",
-    "ref_id:uuid!"
+    "ref_id:uuid!",
+    "sent_endpoints:text[]!"
    ],
    "rls": true
   },
@@ -968,6 +989,7 @@
     "kind:text!",
     "mime:text",
     "path:text!",
+    "purge_claimed_at:timestamp with time zone",
     "request_id:uuid",
     "session_id:uuid!",
     "sha256:text",
@@ -996,11 +1018,13 @@
   "cdf_lalamove.cdf_lalamove_track",
   "cdf_lalamove_proofs.cdf_lalamove_proofs_touch",
   "cdf_lalamove_shipments.cdf_lalamove_shipments_touch",
+  "cdf_members.cdf_members_sees_stats",
   "cdf_messages.cdf_message_edited",
   "cdf_messages.cdf_messages_push",
   "cdf_order_prices.cdf_price_against_paid",
   "cdf_order_prices.cdf_price_history",
   "cdf_order_requests.cdf_order_requests_announce",
+  "cdf_order_requests.cdf_order_requests_purge_guard",
   "cdf_orders.cdf_legacy_price_guard",
   "cdf_orders.cdf_orders_cancelled_guard",
   "cdf_orders.cdf_orders_credit",
@@ -1009,6 +1033,7 @@
   "cdf_orders.cdf_orders_push",
   "cdf_orders.cdf_orders_push_cancelled",
   "cdf_orders.cdf_orders_touch",
-  "cdf_orders.cdf_orders_transit"
+  "cdf_orders.cdf_orders_transit",
+  "cdf_request_files.cdf_request_files_purge_guard"
  ]
 }

@@ -8,7 +8,10 @@ import assert from "node:assert";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { checkRequest, cleanImage, IMAGE_MAX_BYTES, manilaDate, phoneE164 } from "../supabase/functions/cdf-public-order/checks.ts";
+import { checkRequest, cleanImage, IMAGE_MAX_BYTES, manilaDate, phoneE164, verifyPixels } from "../supabase/functions/cdf-public-order/checks.ts";
+import { createRequire as __cr } from "node:module";
+import { deflateSync } from "node:zlib";
+const jpegJs = __cr(import.meta.url)("jpeg-js");
 import { handle } from "../supabase/functions/cdf-public-order/handler.ts";
 
 const require = createRequire(import.meta.url);
@@ -31,7 +34,7 @@ for (const [name, mime] of [["gps.jpg", "image/jpeg"], ["progressive.jpg", "imag
 }
 assert(has(cleanImage(fixture("gps.jpg")).bytes, "Exif"), "the rotation is kept so the photo stays upright");
 assert.equal(Buffer.from(cleanImage(fixture("gps.jpg")).bytes).indexOf(Buffer.from([0x01, 0x12, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x06])) > 0, true);
-ok("JPEG, progressive JPEG, PNG and WebP are accepted; location, camera data and text are removed; rotation is kept");
+ok("Structure check and cleaning (JPEG, progressive JPEG, PNG, WebP): location, camera data and text are removed; rotation is kept. Only JPEG passes the decode step below");
 
 { const jpg = fixture("gps.jpg"), png = fixture("text.png"), webp = fixture("exif.webp");
   const tail = Buffer.from("<script>alert(1)</script>PK\x03\x04hidden archive");
@@ -62,6 +65,32 @@ ok("JPEG, progressive JPEG, PNG and WebP are accepted; location, camera data and
   assert.equal(code(() => cleanImage(sized(1, 1))), "bad_dimensions");
   assert.equal(code(() => cleanImage(sized(60000, 60000))), "bad_dimensions"); }
 ok("Files that only claim to be photos are refused: text, HTML, SVG, PDF, GIF, cut or corrupt images, absurd sizes; trailing data is dropped");
+
+// ---------- the pixels themselves ----------
+{ const decode = (b) => { const img = jpegJs.decode(b, { useTArray: true, tolerantDecoding: false, maxResolutionInMP: 17, maxMemoryUsageInMB: 160 }); return { width: img.width, height: img.height }; };
+  const fails = async (bytes) => { try { await verifyPixels(cleanImage(bytes), decode); return null; } catch (e) { return e.message; } };
+  for (const name of ["gps.jpg", "progressive.jpg"]) assert.equal(await fails(fixture(name)), null, name + " decodes");
+  // PNG is refused at this step, even a well-made one: the form only ever sends JPEG
+  const crc = (buf) => { let c = ~0; for (const x of buf) { c ^= x; for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1; } return ~c >>> 0; };
+  const chunk = (type, data) => { const t = Buffer.from(type, "latin1"), len = Buffer.alloc(4), sum = Buffer.alloc(4); len.writeUInt32BE(data.length); sum.writeUInt32BE(crc(Buffer.concat([t, data]))); return Buffer.concat([len, t, data, sum]); };
+  const png = (w, h, idat, { color = 2, depth = 8 } = {}) => { const head = Buffer.alloc(13); head.writeUInt32BE(w); head.writeUInt32BE(h, 4); head[8] = depth; head[9] = color;
+    return new Uint8Array(Buffer.concat([Buffer.from("89504e470d0a1a0a", "hex"), chunk("IHDR", head), chunk("IDAT", idat), chunk("IEND", Buffer.alloc(0))])); };
+  const rows = (w, h, bytes) => Buffer.concat(Array.from({ length: h }, () => Buffer.concat([Buffer.from([0]), Buffer.alloc(w * bytes, 1)])));
+  const noPalette = png(16, 16, deflateSync(rows(16, 16, 1)), { color: 3 });                 // indexed colour with no PLTE: not decodable
+  assert.equal(code(() => cleanImage(noPalette)), null, "its structure passes");
+  assert.equal(await fails(noPalette), "not_an_image", "indexed PNG without a palette");
+  assert.equal(await fails(png(20, 20, Buffer.from("this is not compressed pixel data at all"))), "not_an_image", "PNG with garbage IDAT");
+  assert.equal(await fails(png(20, 20, deflateSync(rows(20, 20, 3)))), "not_an_image", "a well-made PNG too");
+  assert.equal(await fails(fixture("text.png")), "not_an_image");
+  // A JPEG whose markers are fine but whose compressed picture is cut short or scrambled
+  const jpg = Buffer.from(fixture("gps.jpg")), sos = jpg.lastIndexOf(Buffer.from([0xff, 0xda]));
+  const cut = Buffer.concat([jpg.subarray(0, sos + 14 + ((jpg.length - sos) / 3 | 0)), Buffer.from([0xff, 0xd9])]);
+  assert.equal(code(() => cleanImage(new Uint8Array(cut))), null, "its structure passes");
+  assert.equal(await fails(new Uint8Array(cut)), "not_an_image", "JPEG cut short (end marker added back)");
+  const blank = Buffer.from(jpg); blank.fill(0xfe, sos + 20, blank.length - 2);
+  assert.equal(await fails(new Uint8Array(blank)), "not_an_image", "JPEG with its picture data overwritten");
+  assert.equal(await fails(fixture("exif.webp")), "not_an_image", "WebP is not accepted (the form only sends JPEG)"); }
+ok("Only JPEG, decoded in full: a JPEG cut short or overwritten is refused, and so is any PNG (even without a palette or with broken data) or WebP");
 
 // ---------- the request ----------
 const NOW = Date.parse("2026-11-11T04:00:00Z"); // midday in Manila
@@ -118,6 +147,7 @@ const deps = {
   },
   store: async (path, bytes, mime) => { if (storeFails) return { error: "down" }; stored.set(path, { bytes, mime }); return { error: null }; },
   unstore: async (paths) => { paths.forEach((p) => stored.delete(p)); },
+  decodeJpeg: (bytes) => { const img = jpegJs.decode(bytes, { useTArray: true, tolerantDecoding: false, maxResolutionInMP: 17, maxMemoryUsageInMB: 160 }); return { width: img.width, height: img.height }; },
   fetch: async (url, init) => {
     if (String(url).includes("turnstile")) { seenCaptcha = Object.fromEntries(init.body); return new Response(JSON.stringify({ success: captchaOk })); }
     if (String(url).includes("maps.googleapis.com")) { googleCalls.push(new URL(url)); const answer = google?.(); return answer ? new Response(JSON.stringify(answer)) : new Response("down", { status: 500 }); }
@@ -207,7 +237,7 @@ const jpg = fixture("gps.jpg");
   assert(!file.path.includes("gps"), "the visitor's file name is not used");
   ok("A real photo is stored privately under a random name, already cleaned of its location data");
 
-  for (let i = 0; i < 5; i++) assert.equal((await upload(fixture(["text.png", "exif.webp", "progressive.jpg"][i % 3]), { session: s })).status, 200);
+  for (let i = 0; i < 5; i++) assert.equal((await upload(fixture(["gps.jpg", "progressive.jpg"][i % 2]), { session: s })).status, 200);
   assert.deepEqual(await upload(jpg, { session: s }), { status: 429, error: "quota" });
   assert.equal((await upload(jpg, { session: s, kind: "payment_proof" })).status, 200);
   assert.deepEqual(await upload(jpg, { session: s, kind: "payment_proof" }), { status: 429, error: "quota" });

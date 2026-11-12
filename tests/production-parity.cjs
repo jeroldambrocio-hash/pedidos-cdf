@@ -16,7 +16,7 @@ const { build, migration, migrationFiles } = require('./lib/fresh-db.cjs');
 const ok = (n) => console.log('ok ' + n);
 const MANIFEST = fs.readFileSync(path.join(__dirname, 'lib/manifest.sql'), 'utf8');
 const prod = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/production-manifest-2026-11-11.json'), 'utf8'));
-const PHASES = ['cdf_create_order_with_payment', 'cdf_public_uploads', 'cdf_order_requests', 'cdf_branch_ranking', 'cdf_lalamove_events', 'cdf_cron', 'cdf_request_expiry'];
+const PHASES = ['cdf_create_order_with_payment', 'cdf_public_uploads', 'cdf_order_requests', 'cdf_branch_ranking', 'cdf_lalamove_events', 'cdf_cron', 'cdf_request_expiry', 'cdf_lalamove_reconcile_fix', 'cdf_member_sees_stats', 'cdf_outbox_sent_devices', 'cdf_lalamove_proof_links'];
 
 const manifest = async (db) => (await db.query(MANIFEST)).rows[0].manifest;
 const keys = (o) => Object.keys(o || {}).sort();

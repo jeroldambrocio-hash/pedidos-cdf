@@ -723,6 +723,24 @@ const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR
       assert.equal(saved.n, 1); assert.equal(saved.price.length, 1); assert.equal(saved.price[0].paid, 2000); assert.equal(saved.price[0].payment_history.length, 1);
       assert.equal(await p.locator(".order", { hasText: "#2004" }).count(), 1);
     });
+    await step("Phase 1 · Lost answer, then edited, with a proof: the saved payment keeps its proof (nothing is deleted)", async () => {
+      await p.evaluate(() => { window.__calls = []; window.__createResponseLost = true; });
+      await fillNew(p, "2091", { total: 1500, down: 500 });
+      await p.locator("#f-method").selectOption("gcash");
+      await p.locator(".pay-initial input[type=file]").setInputFiles({ name: "proof.png", mimeType: "image/png", buffer: fs.readFileSync(path.join(root, "img/emblem.png")) });
+      await p.locator(".pay-initial .photo-tile img").waitFor();
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "Press Save again" }).waitFor();
+      await p.locator("#f-bname").fill("Changed after the lost answer");
+      await submit(p);
+      await p.locator(".sheet .err", { hasText: "already saved a moment ago" }).waitFor();
+      const kept = await p.evaluate(() => { const o = window.__orders.find((x) => x.num === "2091"); return window.__prices.find((x) => x.order_id === o.id).payment_history[0].proofs; });
+      assert.equal(kept.length, 1, "the saved payment has its proof");
+      const removed = (await calls(p)).filter((c) => c.remove === "cdf-pagos").flatMap((c) => c.paths);
+      assert(!removed.includes(kept[0]), "the proof of the saved payment was not deleted");
+      await p.keyboard.press("Escape"); await p.locator(".dialog").getByRole("button", { name: "Discard" }).click();
+      await p.locator("#sheetRoot .scrim").waitFor({ state: "detached" });
+    });
     await step("Phase 1 · Lost answer, then edited: the server says it was already saved instead of creating a second order", async () => {
       await p.evaluate(() => { window.__calls = []; window.__createResponseLost = true; });
       await fillNew(p, "2005", { total: 900, down: 900 });

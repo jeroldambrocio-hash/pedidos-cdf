@@ -450,6 +450,16 @@ function phoneBox(input) {
 
 const ORDER_FIELDS = ["num", "date", "slot", "channel", "vendor_email", "carrier_email", "customer_name", "address", "customer_phone",
   "customer_email", "buyer_name", "buyer_phone", "card_message", "delivery_note", "notes", "amount"];
+// Payment proofs an order's saved payments refer to (Set of storage paths), or null when it can't be read:
+// before removing files after a refused save, so a payment that was saved never loses its proof.
+async function proofsInUse(orderId) {
+  const { data, error } = await sb.from("cdf_order_prices").select("pay_proofs, payment_history").eq("order_id", orderId).maybeSingle();
+  if (error) return null;
+  const used = new Set(data?.pay_proofs || []);
+  for (const m of data?.payment_history || []) for (const p of m?.proofs || []) used.add(p);
+  return used;
+}
+
 function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   let isNew = !o;
   const newOrderForm = isNew && !copyFrom;
@@ -893,9 +903,17 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
         .then((r) => r, (e) => ({ error: { message: String(e?.message || e) } }));
       if (res.error || !res.data?.order) {
         const e = res.error || { message: "" };
-        // Refused by the database: nothing was saved, so the files uploaded for it go too
         if (e.code || /^cdf_/.test(e.message)) {
-          if (createReq.proofs?.length) await sb.storage.from("cdf-pagos").remove(createReq.proofs);
+          // Refused by the database. Usually nothing was saved and the files uploaded for it go too. But a
+          // conflict means an earlier attempt with this key DID save (its answer got lost, then the form was
+          // changed): its payment may hold these very files, so only the ones it does not use are removed,
+          // and nothing at all if that can't be checked.
+          if (createReq.proofs?.length) {
+            const settled = e.message === "cdf_operation_conflict" || e.message === "cdf_operation_gone";
+            const keep = settled ? await proofsInUse(createReq.id) : new Set();
+            const drop = keep ? createReq.proofs.filter((p) => !keep.has(p)) : [];
+            if (drop.length) await sb.storage.from("cdf-pagos").remove(drop);
+          }
           createReq.proofs = null;
           if (e.message === "cdf_operation_conflict" || e.message === "cdf_operation_gone") {
             createSettled = true; clearTimeout(draftT); if (!fromRequest) writeDraft(null); loadOrders(); return t("createConflict");
