@@ -25,6 +25,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import { call, e164, FINAL, inPhilippines, LalamoveError, orderUpdateFor, parseCoords, pickupAt, validPhone, type Env } from "./lalamove.ts";
 import { afterRefresh, processEvent, receive, work, type Deps } from "./events.ts";
 import { bookRider, CLAIM_ERRORS, resolveBooking, type BookDeps } from "./booking.ts";
+import { addPriorityFee } from "./tip.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -287,6 +288,19 @@ async function cancel(orderId: string) {
   return json({ row: await save(orderId, { status: "CANCELED", error: null, cancelled_by_us: true }) });
 }
 
+// Extra pay for the rider while none has accepted (tip.ts). The new price is stored from Lalamove's own answer.
+async function tip(orderId: string, add: unknown) {
+  const row = await getRow(orderId);
+  if (!row?.ll_order_id) return json({ error: "No hay ningún envío reservado" }, 400);
+  const r = await addPriorityFee(ll, row.ll_order_id, add);
+  const o = r.order, patch: Record<string, unknown> = {};
+  if (o?.status) patch.status = o.status;
+  if (o?.priceBreakdown?.total) patch.price_total = +o.priceBreakdown.total;
+  let saved = row;
+  if (Object.keys(patch).length) { try { saved = await save(orderId, patch); } catch { /* the next refresh brings it */ } }
+  return json({ ...r.body, row: saved }, r.status);
+}
+
 async function webhook(req: Request) {
   const token = Deno.env.get("LALAMOVE_WEBHOOK_TOKEN") || "";
   if (!token || new URL(req.url).searchParams.get("token") !== token) return json({ error: "token" }, 401);
@@ -385,6 +399,7 @@ Deno.serve(async (req) => {
     }
     if (b.action === "refresh") return json({ row: await refresh(orderId) });
     if (b.action === "cancel") return await cancel(orderId);
+    if (b.action === "priority_fee") return await tip(orderId, b.add);
     return json({ error: "Acción desconocida" }, 400);
   } catch (e) {
     const msg = e instanceof LalamoveError

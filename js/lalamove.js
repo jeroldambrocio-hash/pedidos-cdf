@@ -270,6 +270,23 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
     try { await onclick(); } catch (x) { toastErr(x.message); } finally { busy = false; b.disabled = false; b.classList.remove("busy"); }
   } }, label);
   const fee = (n, cur) => (cur && cur !== "PHP" ? cur + " " + Math.round(n) : peso(n));
+  // Still looking for a rider: a priority fee (tip) makes the job pay more, so it is taken sooner. The amount
+  // pressed is added to whatever the fee is now; the server works out the total and Lalamove charges the Wallet.
+  let tipNow = null;
+  const addTip = async (n) => {
+    if (!Number.isInteger(n) || n < 1 || n > 1000) throw new Error(t("llTipBad"));
+    if (!(await askConfirm(t("llTipAsk", { amount: peso(n) }), t("llTipYes", { amount: peso(n) }), { detail: t(LL.env === "production" ? "llTipWallet" : "llTipSandbox") }))) return;
+    const r = await llCall({ action: "priority_fee", order_id: o.id, add: n });
+    row = r.row || row; tipNow = r.priority_fee ?? tipNow; draw(); toast(t("llTipAdded", { amount: peso(r.priority_fee) }));
+  };
+  const tipBox = () => {
+    const own = el("input", { class: "input ll-tip-own", type: "text", inputMode: "numeric", pattern: "[0-9]*", maxLength: 4, placeholder: t("llTipOwnPh"), "aria-label": t("llTipOwn") });
+    return el("div", { class: "ll-tip", role: "group", "aria-label": t("llTip") },
+      el("p", { class: "ll-tip-title" }, el("b", {}, t("llTip")), tipNow ? " · " + t("llTipNow", { amount: peso(tipNow) }) : ""),
+      el("p", { class: "note" }, t("llTipHint")),
+      el("div", { class: "btn-row" }, [20, 50, 100].map((n) => btn("+" + peso(n), () => addTip(n))),
+        el("span", { class: "ll-tip-manual" }, own, btn(t("llTipAdd"), () => addTip(/^\d+$/.test(own.value.trim()) ? +own.value.trim() : NaN)))));
+  };
   const shopLine = () => { const s = llShopOf(o); return s ? el("p", { class: "note ll-shop" }, icon("flower"), " " + t("llFrom", { name: s.name, address: s.pickup_address })) : null; };
   // The pin the rider will be sent to, in numbers (the written address stays the same when the pin moves), and a way to see it
   const coordsLink = (lat, lng) => el("p", { class: "note ll-pin" }, t("llPinAt", { point: `${+(+lat).toFixed(6)}, ${+(+lng).toFixed(6)}` }) + " · ",
@@ -387,6 +404,7 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
         row.place ? el("p", { class: "note" }, t("llDeliverTo") + " " + row.place) : null,
         row.share_link ? el("a", { class: "link-out", href: row.share_link, target: "_blank", rel: "noopener" }, t("llTrack")) : null,
         LL.env !== "production" && live ? el("p", { class: "note" }, t("llSandboxNoMove")) : null,
+        row.status === "ASSIGNING_DRIVER" && !o.cancelled_at ? tipBox() : null,
         err,
         el("div", { class: "btn-row" },
           btn(t("llRefresh"), async () => { row = (await llCall({ action: "refresh", order_id: o.id })).row; draw(); }),

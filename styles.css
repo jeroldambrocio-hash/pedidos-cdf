@@ -2148,6 +2148,10 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .ll-hit { display: flex; gap: 8px; align-items: flex-start; text-align: left; padding: 10px 12px; border: 1px solid var(--line, currentColor); border-radius: 10px; background: none; color: inherit; font: inherit; cursor: pointer; }
 .ll-hit:hover, .ll-hit:focus-visible { border-color: var(--primary); }
 .ll-hit svg.i { flex: none; margin-top: 2px; }
+.ll-tip { border-top: 1px solid var(--line, rgba(127,127,127,.25)); padding-top: 10px; margin-top: 4px; display: grid; gap: 6px; }
+.ll-tip-title { margin: 0; }
+.ll-tip-manual { display: inline-flex; gap: 8px; align-items: center; }
+.ll-tip-own { width: 7.5em; min-height: 44px; }
 .ll-line { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
 .ll-price { font-size: 1.25rem; }
 .ll-driver { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }

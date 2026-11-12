@@ -2,7 +2,10 @@
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 const CHANGELOG = [
   { date: "2026-11-12",
-    es: ["Papelera: «Mover a la papelera» sustituye a borrar. El pedido se puede restaurar durante 30 días con sus pagos, fotos e historial; queda registrado quién, cuándo y por qué. Solo el propietario puede borrar definitivamente: se borra todo, archivos incluidos, tras escribir el número del pedido.",
+    es: ["Propina para el rider de Lalamove: mientras se busca rider, se puede añadir propina (+₱20, +₱50, +₱100 u otro importe) para que lo acepten antes. Se cobra del Wallet de Lalamove.",
+      "Formulario para clientes: las franjas de hoy que ya han pasado, o a las que les queda menos de una hora, ya no se pueden elegir.",
+      "Precio: si dos personas cambian el precio del mismo pedido a la vez, la segunda recibe un aviso en vez de pisar el cambio de la primera.",
+      "Papelera: «Mover a la papelera» sustituye a borrar. El pedido se puede restaurar durante 30 días con sus pagos, fotos e historial; queda registrado quién, cuándo y por qué. Solo el propietario puede borrar definitivamente: se borra todo, archivos incluidos, tras escribir el número del pedido.",
       "Solicitudes: filtro por tipo (Todas / Pickup / Delivery) junto al de estado, con contadores exactos; cada tarjeta dice Pickup o Delivery. Una solicitud aceptada cuyo pedido está en la papelera o se borró lo indica con su número.",
       "Pedidos: filtro por tipo (Entrega / Recogida) y estadísticas por tipo. Los pedidos de recogida terminan en «Collected» y el estado de reparto se llama «In transit».",
       "Riders de Lalamove más seguros: un pedido ya no puede reservar dos riders a la vez. Si Lalamove no responde claro, la reserva queda «sin confirmar» hasta que la oficina la enlaza con su número de Lalamove o confirma que no se hizo.",
@@ -16,7 +19,10 @@ const CHANGELOG = [
       "Estadísticas: solo las ven los admins que tengan el permiso activado en Equipo.",
       "Solicitudes: enlace al formulario para clientes, listo para copiar o compartir.",
       "Las solicitudes caducan el día después de la entrega y avisan al equipo."],
-    en: ["Trash: “Move to trash” replaces deleting. The order can be restored for 30 days with its payments, photos and history; who, when and why are recorded. Only the owner can delete for good: everything goes, files included, after typing the order number.",
+    en: ["Priority fee for the Lalamove rider: while looking for a rider, you can add a priority fee (+₱20, +₱50, +₱100 or another amount) so the job is taken sooner. It is charged to the Lalamove Wallet.",
+      "Customer form: today's time slots that have passed, or have less than an hour left, can no longer be chosen.",
+      "Price: if two people change the same order's price at once, the second is told instead of overwriting the first one's change.",
+      "Trash: “Move to trash” replaces deleting. The order can be restored for 30 days with its payments, photos and history; who, when and why are recorded. Only the owner can delete for good: everything goes, files included, after typing the order number.",
       "Requests: a type filter (All / Pickup / Delivery) next to the status one, with exact counts; each card says Pickup or Delivery. An accepted request whose order is in the trash or was deleted says so, with its number.",
       "Orders: a type filter (Delivery / Pickup) and statistics by type. Pickup orders end as “Collected”, and the delivery step is now “In transit”.",
       "Safer Lalamove riders: an order can no longer book two riders at once. If Lalamove's answer isn't clear, the booking stays “unconfirmed” until the office links it with its Lalamove number or confirms nothing was booked.",

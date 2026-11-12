@@ -36,6 +36,8 @@ const fake = () => {
         Object.assign(r, { booking_state: null, booking_key: null, error: body.ll_order_id ? null : "Sin reserva (comprobado por admin@example.com)" },
           body.ll_order_id ? { ll_order_id: body.ll_order_id, status: "ASSIGNING_DRIVER" } : {});
         return reply({ row: r });
+      // Priority fee: the amount pressed is added to the fee so far; the price follows
+      case "priority_fee": r.tip = (r.tip || 0) + body.add; r.price_total = 112 + r.tip; return reply({ row: r, priority_fee: r.tip, added: body.add });
       case "refresh": return reply({ row: r });
       case "cancel": r.status = "CANCELED"; return reply({ row: r });
     }
@@ -150,10 +152,33 @@ const server = http.createServer((req, res) => {
       await p.locator("#dialogRoot").getByText("no se cobra nada").waitFor();
       await p.locator("#dialogRoot .btn.primary").click();
       await sec.getByText("Buscando rider").first().waitFor();
+      // Still looking for a rider: a priority fee can be added, by button or typed; each asks first
+      const tip = sec.locator(".ll-tip");
+      await tip.waitFor();
+      await tip.getByRole("button", { name: "+₱20" }).click();
+      await p.locator("#dialogRoot").getByText("¿Añadir ₱20 de propina al rider?").waitFor();
+      await p.locator("#dialogRoot").getByText("no se cobra nada").waitFor();
+      await p.locator("#dialogRoot .btn.primary").click();
+      await sec.getByText("ahora ₱20").waitFor();
+      assert.match(await sec.locator(".ll-line").innerText(), /₱132/);
+      await tip.getByRole("button", { name: "+₱50" }).click();
+      await p.locator("#dialogRoot .btn:not(.primary)").first().click(); // changed their mind: nothing is sent
+      assert.equal(await p.evaluate(() => __ll.calls.filter((c) => c.action === "priority_fee").length), 1);
+      await sec.locator(".ll-tip-own").fill("abc"); await sec.locator(".ll-tip").getByRole("button", { name: "Añadir", exact: true }).click();
+      await p.getByText("Escribe un importe en pesos enteros").first().waitFor();
+      await sec.locator(".ll-tip-own").fill("35"); await sec.locator(".ll-tip").getByRole("button", { name: "Añadir", exact: true }).click();
+      await p.locator("#dialogRoot .btn.primary").click();
+      await sec.getByText("ahora ₱55").waitFor();
+      assert.deepEqual(await p.evaluate(() => __ll.calls.filter((c) => c.action === "priority_fee").map((c) => c.add)), [20, 35]);
+      assert.match(await sec.locator(".ll-line").innerText(), /₱167/);
+      assert(await tip.getByRole("button", { name: "+₱100" }).evaluate((x) => x.getBoundingClientRect().height >= 40), "touch-sized");
+      await shot(p, "3b-tip"); await noOverflow(p);
+      console.log("ok priority fee: +20/+50/+100 or a typed amount, confirmed first, added to the fee so far, price updated");
       // Webhook → realtime: rider assigned
       await p.evaluate(() => { Object.assign(__ll.row, { status: "ON_GOING", driver_name: "Juan Dela Cruz", driver_plate: "NAB 1234", driver_phone: "+639171112222" }); });
       await sec.getByRole("button", { name: "Actualizar" }).click();
       await sec.getByText("Juan Dela Cruz").waitFor();
+      assert.equal(await sec.locator(".ll-tip").count(), 0, "no priority fee once a rider has accepted");
       assert(await sec.locator('a[href="tel:+639171112222"]').count());
       await shot(p, "4-rider"); await noOverflow(p);
       console.log("ok booked with sandbox warning, rider shown");
