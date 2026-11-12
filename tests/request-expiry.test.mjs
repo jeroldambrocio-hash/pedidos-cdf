@@ -8,13 +8,13 @@ import { cleanup } from "../supabase/functions/cdf-public-order/handler.ts";
 
 const require = createRequire(import.meta.url);
 const { PGlite } = require("@electric-sql/pglite");
-const { build, TEAM } = require("./lib/fresh-db.cjs");
+const { build, TEAM, claims } = require("./lib/fresh-db.cjs");
 const ok = (n) => console.log("ok " + n);
 const db = new PGlite();
 await build((sql) => db.exec(sql));
 await db.exec(TEAM);
 const one = async (q, a) => (await db.query(q, a)).rows[0];
-const SETOF = new Set(["cdf_requests_purge_list"]);
+const SETOF = new Set(["cdf_requests_purge_claim"]);
 const rpc = async (name, args) => {
   const keys = Object.keys(args);
   const call = `public.${name}(${keys.map((k, i) => `${k} => $${i + 1}`).join(", ")})`;
@@ -77,6 +77,44 @@ assert.equal(await statusOf(late), "expired", "expired today: kept 90 days");
 assert.equal((await one("select count(*)::int c from public.cdf_request_files where path like $1", [`${live}/%`])).c, 1, "a form being filled in is untouched");
 assert.deepEqual(await cleanup({ rpc, unstore }), { files: 0, requests: 0, sessions: 0 });
 ok("Rejected or expired requests go with their photos after 90 days; accepted ones stay; unsent forms' photos go after a day; storage trouble deletes nothing");
+
+// Third review: an admin reopening an old rejected request while the clean-up runs
+const asAdmin = async (q, a) => {
+  await db.query("select set_config('request.jwt.claims',$1,false)", [claims("admin@t")]); await db.exec("set role authenticated");
+  try { return await db.query(q, a); } finally { await db.exec("reset role"); await db.query("select set_config('request.jwt.claims','',false)"); }
+};
+const filesOf = async (id) => (await one("select count(*)::int c from public.cdf_request_files where request_id = $1", [id])).c;
+{ // a) the clean-up reserves first; the reopen comes between the listing and the deletion and is refused
+  const old = await request("rejected", -100, 100);
+  const gone = [];
+  const between = async (name, args) => {
+    const r = await rpc(name, args);
+    if (name === "cdf_requests_purge_claim") await assert.rejects(asAdmin("select public.cdf_request_reopen($1)", [old]), /cdf_request_closed/);
+    return r;
+  };
+  const out = await cleanup({ rpc: between, unstore: async (p) => { gone.push(...p); return { error: null }; } });
+  assert.equal(out.requests, 1); assert.equal(await statusOf(old), undefined, "deleted whole: never a live request without its photos");
+}
+{ // b) the reopen comes first: the request is no longer due, its photo stays
+  const old = await request("rejected", -100, 100);
+  await asAdmin("select public.cdf_request_reopen($1)", [old]);
+  const gone = [];
+  await cleanup({ rpc, unstore: async (p) => { gone.push(...p); return { error: null }; } });
+  assert.equal(await statusOf(old), "in_review"); assert.equal(await filesOf(old), 1); assert.equal(gone.length, 0);
+}
+{ // c) the storage fails half-way: the reservation stays (no reopening a request whose photos may be gone),
+  //    and the next round finishes it
+  const old = await request("expired", -100, 100);
+  await assert.rejects(cleanup({ rpc, unstore: async () => ({ error: { message: "down" } }) }), /storage/);
+  assert.equal(await statusOf(old), "expired"); assert.equal(await filesOf(old), 1);
+  assert.ok((await one("select purge_claimed_at from public.cdf_order_requests where id = $1", [old])).purge_claimed_at);
+  const r = await rpc("cdf_requests_purge_claim", { p_limit: 10 });
+  assert.ok(r.data.length >= 1, "still reserved for tomorrow");
+  await assert.rejects(db.query("update public.cdf_order_requests set status = 'in_review' where id = $1", [old]), /cdf_request_closed/);
+  const out = await cleanup({ rpc, unstore: async () => ({ error: null }) });
+  assert.equal(out.requests, 1); assert.equal(await statusOf(old), undefined);
+}
+ok("Clean-up and reopening at the same time: whichever comes first wins, and a request never survives without its photos; a storage failure keeps the reservation until the next round");
 
 await db.exec("reset role; set role anon");
 await assert.rejects(db.query("select public.cdf_requests_purge('{}')"), /permission denied/);

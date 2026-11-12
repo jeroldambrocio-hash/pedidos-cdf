@@ -30,29 +30,66 @@ begin
   return v_n;
 end $$;
 
--- 2) What can go: files of requests closed (rejected or expired) more than 90 days ago, and files of
---    sessions that ended a day ago without being sent. Paths only, for the function to delete.
-create function public.cdf_requests_purge_list(p_limit integer) returns table (path text)
-language sql stable security definer set search_path = '' as $$
-  select f.path from public.cdf_request_files f
-  left join public.cdf_order_requests r on r.id = f.request_id
-  left join public.cdf_upload_sessions s on s.id = f.session_id
-  where (r.id is not null and r.status in ('rejected', 'expired') and r.updated_at < now() - interval '90 days')
-     or (f.request_id is null and (s.id is null or s.expires_at < now() - interval '1 day'))
-  order by f.created_at
-  limit greatest(1, least(coalesce(p_limit, 100), 500))
-$$;
+-- 2) What can go is first reserved, and the reservation is kept until the files are really gone
+--    (reviewed 12/11/2026: without it an admin could reopen an old rejected request between the listing and
+--    the deletion, and end up with a live request whose photos were deleted). A reserved request can no
+--    longer be reopened or accepted, and a reserved file can no longer be attached to a request; if the
+--    storage fails, the reservation stays and the next round finishes the job.
+alter table public.cdf_order_requests add column purge_claimed_at timestamptz;
+alter table public.cdf_request_files add column purge_claimed_at timestamptz;
 
--- 3) Once the files are gone: their rows, the closed requests (their history goes with them) and the
---    sessions left with nothing. Returns what was deleted.
+create function public.cdf_guard_request_purge() returns trigger
+language plpgsql set search_path = '' as $$
+begin
+  if old.purge_claimed_at is not null then
+    if tg_table_name = 'cdf_order_requests' and (new.status is distinct from old.status or new.purge_claimed_at is null) then
+      raise exception 'cdf_request_closed' using detail = 'being deleted';
+    end if;
+    if tg_table_name = 'cdf_request_files' and (new.request_id is distinct from old.request_id or new.purge_claimed_at is null) then
+      raise exception 'cdf_request_closed' using detail = 'being deleted';
+    end if;
+  end if;
+  return new;
+end $$;
+create trigger cdf_order_requests_purge_guard before update on public.cdf_order_requests
+  for each row execute function public.cdf_guard_request_purge();
+create trigger cdf_request_files_purge_guard before update on public.cdf_request_files
+  for each row execute function public.cdf_guard_request_purge();
+revoke all on function public.cdf_guard_request_purge() from public, anon, authenticated;
+
+--    Reserve, then list: requests closed (rejected or expired) more than 90 days ago, and files of sessions
+--    that ended a day ago without being sent. Returns the paths reserved (old reservations included), for the
+--    function to delete. Row locks make a reopen/accept at the same moment either win (the request is then
+--    not reserved) or wait and be refused.
+create function public.cdf_requests_purge_claim(p_limit integer) returns table (path text)
+language plpgsql security definer set search_path = '' as $$
+begin
+  update public.cdf_order_requests r set purge_claimed_at = now()
+  where r.purge_claimed_at is null and r.status in ('rejected', 'expired') and r.updated_at < now() - interval '90 days';
+  update public.cdf_request_files f set purge_claimed_at = now()
+  where f.purge_claimed_at is null and f.request_id is null and f.session_id is not null
+    and not exists (select 1 from public.cdf_upload_sessions s where s.id = f.session_id and s.expires_at >= now() - interval '1 day');
+  update public.cdf_request_files f set purge_claimed_at = now()
+  where f.purge_claimed_at is null and f.request_id is null and f.session_id is null;
+  update public.cdf_request_files f set purge_claimed_at = now()
+  from public.cdf_order_requests r
+  where f.purge_claimed_at is null and r.id = f.request_id and r.purge_claimed_at is not null;
+  return query
+    select f.path from public.cdf_request_files f where f.purge_claimed_at is not null
+    order by f.created_at
+    limit greatest(1, least(coalesce(p_limit, 100), 500));
+end $$;
+
+-- 3) Once the files are gone: their rows, the reserved requests left with no files (their history goes with
+--    them) and the sessions left with nothing. Only reserved rows are ever deleted. Returns what was deleted.
 create function public.cdf_requests_purge(p_paths text[]) returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare v_files integer; v_requests integer; v_sessions integer;
 begin
-  delete from public.cdf_request_files where path = any (coalesce(p_paths, '{}'));
+  delete from public.cdf_request_files where path = any (coalesce(p_paths, '{}')) and purge_claimed_at is not null;
   get diagnostics v_files = row_count;
   delete from public.cdf_order_requests r
-  where r.status in ('rejected', 'expired') and r.updated_at < now() - interval '90 days'
+  where r.purge_claimed_at is not null
     and not exists (select 1 from public.cdf_request_files f where f.request_id = r.id);
   get diagnostics v_requests = row_count;
   delete from public.cdf_upload_sessions s
@@ -80,7 +117,7 @@ end $$;
 do $$
 declare fn text;
 begin
-  foreach fn in array array['public.cdf_requests_expire()', 'public.cdf_requests_purge_list(integer)',
+  foreach fn in array array['public.cdf_requests_expire()', 'public.cdf_requests_purge_claim(integer)',
     'public.cdf_requests_purge(text[])', 'public.cdf_requests_cleanup_hook()'] loop
     execute format('revoke all on function %s from public, anon, authenticated', fn);
     execute format('grant execute on function %s to service_role', fn);

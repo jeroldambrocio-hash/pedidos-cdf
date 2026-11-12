@@ -5,6 +5,7 @@
 // Needs the CDF_VAPID_KEYS secret (JSON {publicKey, privateKey} JWKs); without it nothing is sent.
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import * as webpush from "jsr:@negrel/webpush@0.5.0";
+import { sendNotice, type Sub } from "./send.ts";
 
 const APP_URL = Deno.env.get("CDF_APP_URL") || "https://casadeflores-store.netlify.app";
 const CONTACT = Deno.env.get("CDF_PUSH_CONTACT") || "mailto:jerold.ambrocio@gmail.com";
@@ -107,7 +108,8 @@ Deno.serve(async (req) => {
   } else if (body.kind === "request") {
     // A new request from the public form (migration 20261111110000): every admin hears it. Nothing personal
     // goes in the notice (it may show on a locked screen): only that there is one, and its reference.
-    const { data: r } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    if (rErr) return json({ sent: 0, pending: true }, 503); // looked up again on the next retry
     if (!r || !["received", "in_review"].includes(r.status)) { if (body.outbox) await service.rpc("cdf_outbox_done", { p_id: body.outbox }); return json({ sent: 0 }); }
     to = team.filter((p) => p.role === "admin").map((p) => p.email);
     payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Nueva solicitud recibida · R" : "New order request · R") + r.ref,
@@ -115,7 +117,8 @@ Deno.serve(async (req) => {
       url: APP_URL + "/?request=" + r.id, tag: "request-" + r.id });
   } else if (body.kind === "request_expired") {
     // A request nobody accepted or rejected before its delivery day (migration 20261112090000)
-    const { data: r } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    if (rErr) return json({ sent: 0, pending: true }, 503); // looked up again on the next retry
     if (!r || r.status !== "expired") { if (body.outbox) await service.rpc("cdf_outbox_done", { p_id: body.outbox }); return json({ sent: 0 }); }
     to = team.filter((p) => p.role === "admin").map((p) => p.email);
     payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Solicitud caducada sin revisar · R" : "Request expired unreviewed · R") + r.ref,
@@ -123,26 +126,22 @@ Deno.serve(async (req) => {
       url: APP_URL + "/?request=" + r.id, tag: "request-" + r.id });
   } else return json({ error: "kind" }, 400);
 
-  // A notice from the outbox is confirmed once this function has done its part, so it is not sent again
-  const done = async () => { if (body.outbox) await service.rpc("cdf_outbox_done", { p_id: body.outbox }); };
-  if (!to.length) { await done(); return json({ sent: 0 }); }
-  const { data: subs } = await service.from("cdf_push_subs").select("*").in("member_email", to);
-  let sent = 0, gone = 0;
-  for (const s of subs || []) {
-    try {
-      await app.subscribe({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }).pushTextMessage(JSON.stringify(payloadFor(s.lang === "es" ? "es" : "en")), PUSH_OPTS);
-      sent++;
-      await service.from("cdf_push_subs").update({ last_ok_at: new Date().toISOString() }).eq("endpoint", s.endpoint);
-    } catch (e) {
-      // A phone that uninstalled the app or turned notifications off: forget that device
-      const err = e as { isGone?: () => boolean; response?: { status?: number } };
-      const status = err.response?.status;
-      if ((typeof err.isGone === "function" && err.isGone()) || status === 404 || status === 410) {
-        await service.from("cdf_push_subs").delete().eq("endpoint", s.endpoint);
-        gone++;
-      } else console.error("push failed", status, String(e));
-    }
+  // A notice from the outbox is confirmed only when every device got it or no longer exists (send.ts)
+  const outbox = body.outbox ? Number(body.outbox) : null;
+  if (!to.length) {
+    if (outbox) { const { error } = await service.rpc("cdf_outbox_done", { p_id: outbox }); if (error) return json({ sent: 0, pending: true }, 503); }
+    return json({ sent: 0 });
   }
-  await done();
-  return json({ sent, gone });
+  const r = await sendNotice({
+    outbox,
+    // select("*"): before migration 20261112120000 there is no sent_endpoints column, and nothing was remembered
+    loadSent: async (id) => { const { data, error } = await service.from("cdf_outbox").select("*").eq("id", id).maybeSingle(); return { data: data?.sent_endpoints || [], error }; },
+    loadSubs: async () => await service.from("cdf_push_subs").select("*").in("member_email", to),
+    push: async (s: Sub) => { await app.subscribe({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }).pushTextMessage(JSON.stringify(payloadFor(s.lang === "es" ? "es" : "en")), PUSH_OPTS); },
+    markOk: (s) => service.from("cdf_push_subs").update({ last_ok_at: new Date().toISOString() }).eq("endpoint", s.endpoint),
+    markSent: async (id, endpoint) => await service.rpc("cdf_outbox_sent", { p_id: id, p_endpoint: endpoint }),
+    forget: async (s) => await service.from("cdf_push_subs").delete().eq("endpoint", s.endpoint),
+    done: async (id) => await service.rpc("cdf_outbox_done", { p_id: id }),
+  });
+  return json(r, r.pending ? 503 : 200);
 });

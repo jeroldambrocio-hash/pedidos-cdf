@@ -79,3 +79,12 @@ Orden de publicación: `cdf-users` lee la fila completa (`select("*")`), así qu
 - Rechazadas o caducadas: se borran a los 90 días.
 - Fotos de formularios que no se llegaron a enviar: se borran al día siguiente.
 - Aceptadas (con su comprobante de pago): no se borran nunca.
+
+## Revisión final de integración — 12/11/2026
+
+1. **Limpieza de fotos contra reabrir una solicitud (alta).** Confirmado. La limpieza ahora primero *reserva* lo que va a borrar (`purge_claimed_at` en solicitudes y fotos, `cdf_requests_purge_claim`). Una solicitud reservada ya no se puede reabrir ni aceptar (responde «cerrada»), y una foto reservada no se puede unir a una solicitud. Si el almacenamiento falla, la reserva se queda y la siguiente vuelta termina el trabajo; solo se borran filas reservadas. Si la reapertura llega antes, la solicitud no se reserva y conserva sus fotos.
+   Pruebas: `request-expiry.test.mjs` (intercalado en los dos órdenes y fallo de almacenamiento) y `request-purge-concurrency.cjs` (PostgreSQL real, dos sesiones a la vez).
+2. **Un fallo temporal de push se daba por terminado (media).** Confirmado. `cdf-push/send.ts` confirma un aviso de la cola solo cuando cada dispositivo lo recibió o ya no existe (404/410, se olvida). Un 503, un fallo de red, un error al buscar dispositivos o la solicitud, o un fallo al confirmar lo dejan pendiente y la cola lo reintenta. Los dispositivos que ya lo recibieron se apuntan (`cdf_outbox.sent_endpoints`, migración `20261112120000_cdf_outbox_sent_devices`) y no lo reciben dos veces. Los avisos que no vienen de la cola (chat) se envían igual que antes.
+   Pruebas: `push-send.test.mjs` (503, red, entrega parcial y reintento, 404/410, búsquedas fallidas, confirmación fallida, columna real en base de datos).
+
+Compatibilidad de despliegue: `cdf-push` funciona antes y después de la migración nueva (si falta la columna, no recuerda dispositivos). La limpieza automática se programa al aplicar `20261112090000`, que requiere autorización.
