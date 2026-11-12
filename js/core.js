@@ -204,7 +204,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
-  const [a, c, e, m, p, x, k, d, b, v, pu, pay, mk, rq, rf, br] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v, pu, tr, ow, pay, mk, rq, rf, br] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -216,6 +216,8 @@ async function detectSchema() {
     sb.from("cdf_members").select("branch").limit(1), // 035: each person's branch of the shop
     sb.from("cdf_orders").select("vehicle").limit(1), // 036: Lalamove vehicle per order
     sb.from("cdf_orders").select("pickup").limit(1).then((r) => r, () => ({ error: true })), // 12/11/2026: pickup orders
+    sb.from("cdf_orders").select("deleted_at").limit(1).then((r) => r, () => ({ error: true })), // 12/11/2026: the trash
+    isAdmin() ? sb.rpc("cdf_is_owner").then((r) => r, () => ({ error: true })) : { error: true }, // who may delete for good
     sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
     // Order + price + first payment in one step: an empty call only says whether the function is there
     isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, () => ({})) : {},
@@ -225,7 +227,7 @@ async function detectSchema() {
     // Phase 4: nearest shop to a delivery point; asked with no point, it answers by name that a point is needed
     isAdmin() ? sb.rpc("cdf_branch_ranking", { p_lat: null, p_lng: null, p_date: null }).then((r) => r, () => ({})) : {},
   ]);
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, paid: isAdmin() && !m.error && !pay.error,
+  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, trash: !tr.error, owner: !ow.error && ow.data === true, paid: isAdmin() && !m.error && !pay.error,
     create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: /cdf_invalid_point/.test(br?.error?.message || "") };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
@@ -245,7 +247,7 @@ function wantedRange() {
   return [r[0] < near[0] ? r[0] : near[0], r[1] > near[1] ? r[1] : near[1]];
 }
 const inRange = (d) => S.range && d >= S.range[0] && d <= S.range[1];
-const inScope = (o) => !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && isOpen(o)));
+const inScope = (o) => !o.deleted_at && !(S.cap.archive && o.archived_at) && (inRange(o.date) || (S.range && o.date < S.range[0] && isOpen(o)));
 
 let loading = null;
 async function loadOrders() {
@@ -253,7 +255,8 @@ async function loadOrders() {
   if (loading) return loading;
   loading = (async () => {
     const [from, to] = wantedRange();
-    const live = (q) => (S.cap.archive ? q.is("archived_at", null) : q);
+    // Not archived, and not in the trash (12/11/2026)
+    const live = (q) => { if (S.cap.archive) q = q.is("archived_at", null); return S.cap.trash ? q.is("deleted_at", null) : q; };
     const [a, b] = await Promise.all([
       live(sb.from("cdf_orders").select("*").gte("date", from).lte("date", to)).order("date"),
       live(sb.from("cdf_orders").select("*").lt("date", from).neq("delivery", "Delivered")).order("date"),
@@ -434,9 +437,10 @@ async function savePrice(id,patch,seen) {
 }
 // Exhaust the paginated, RLS-protected history. Never silently accept the API's default row cap.
 async function historyRows() {
- const rows=[], cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone,cancelled_at";
+ const rows=[], cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone,cancelled_at"+(S.cap.pickupMode?",pickup":"");
  for(let offset=0;;offset+=1000){
   let query=sb.from("cdf_orders").select(cols).order("id");
+  if(S.cap.trash)query=query.is("deleted_at",null); // the trash is not part of the history or the statistics
   const paged=typeof query.range==="function";if(paged)query=query.range(offset,offset+999);
   const {data,error}=await query;if(error)throw new Error(t("loadFail"));rows.push(...(data||[]));
   if(!paged || !data || data.length<1000)break;

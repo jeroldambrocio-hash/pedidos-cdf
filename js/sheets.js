@@ -305,9 +305,10 @@ function historyBlock(o) {
 const EV_FIELDS = { num: "orderNum", date: "date", slot: "slot", channel: "channel", vendor_email: "vendor", carrier_email: "carrier",
   customer_name: "customerName", customer_phone: "phone", customer_email: "email", buyer_name: "buyerName", buyer_phone: "buyerPhone",
   address: "deliveryAddr", card_message: "cardMsg", notes: "note", delivery_note: "deliveryNote", status: "status", delivery: "delivery", cancel_reason: "cancelReason",
-  vehicle: "llVehicle", paid: "payPaidAmount", photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount" };
+  vehicle: "llVehicle", paid: "payPaidAmount", photo_path: "photo", bouquet_path: "bouquetPhoto", proof_path: "proofPhoto", extra_photos: "extraPhotos", amount: "amount", pickup: "f_pickup", delete_reason: "f_delete_reason" };
 const evValue = (k, v) => {
   if (v === null || v === "" || v === undefined) return "—";
+  if (k === "pickup") return t(v ? "modePickup" : "modeDelivery");
   if (typeof v === "boolean") return v ? t("evPhotoYes") : t("evPhotoNo");
   if (k === "vendor_email" || k === "carrier_email") return memberName(v);
   if (k === "amount" || k === "paid") return paymentPesos(v);
@@ -1050,7 +1051,12 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     S.cap.archive ? el("button", { class: "btn foot-act", type: "button", "aria-label": t(archived ? "restore" : "archive"), onclick: () => setArchived([o], !archived) }, icon("archive"), el("span", { class: "lbl" }, t(archived ? "restore" : "archive"))) : null,
     isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
     isAdmin() && o.cancelled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("reinstate"), onclick: async () => { if (await closeSheet()) reinstateOrder(o); } }, icon("refresh"), el("span", { class: "lbl" }, t("reinstate"))) : null,
-    isAdmin() ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
+    // With the trash (12/11/2026), "delete" moves the order there: recoverable, logged, explained
+    isAdmin() && S.cap.trash ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("trashMove"), onclick: async () => {
+      if (typeof llActive === "function" && llActive(o)) { toast(t("deleteHasRider"), { type: "error", ms: 7000 }); return; }
+      if (await closeSheet()) trashDialog(o);
+    } }, icon("trash"), el("span", { class: "lbl" }, t("trashMove"))) : null,
+    isAdmin() && !S.cap.trash ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
       if (!(await askConfirm(t("askDelete", { num: o.num }), t("yesDelete"), { danger: true, detail: S.cap.archive ? t("deleteHintArchive") : null }))) return;
       const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
       // The database refuses while a Lalamove rider is on it (audit F02): cancel the rider first

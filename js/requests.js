@@ -3,7 +3,10 @@
 // it creates the order and closes the request in one step on the server (cdf_request_accept).
 // A request is not an order: it is not in the calendar, the florists' work or the statistics until accepted.
 
-const RQ = { list: [], filter: "open", channel: null, keys: {} };
+const RQ = { list: [], filter: "open", kind: "all", channel: null, keys: {}, counts: null, closedLimit: 300, closedMore: false, orders: new Map() };
+const CLOSED = ["accepted", "rejected", "expired"];
+const reqBucket = (r) => (reqIsOpen(r) ? "open" : r.status === "accepted" ? "accepted" : "rejected");
+const reqKindOk = (r, kind = RQ.kind) => kind === "all" || r.mode === kind;
 const reqIsOpen = (r) => r.status === "received" || r.status === "in_review";
 const reqRef = (r) => "R" + r.ref;
 const reqPast = (r) => reqIsOpen(r) && r.date < manilaToday();
@@ -22,14 +25,55 @@ const reqAgo = (ts) => {
   return new Date(ts).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 };
 
+// Every request still to review is loaded, however many (a page at a time); of the closed ones, the latest
+// (more on demand). The counters come from the server, so they are exact whatever is loaded (12/11/2026).
 async function loadRequests() {
   $("tabRequests").hidden = !reqOn();
   if (!reqOn()) { RQ.list = []; return; }
-  const { data, error } = await sb.from("cdf_order_requests").select("*").order("created_at", { ascending: false }).limit(300);
-  if (error) { if (S.tab === "requests") fill($("requestsBody"), el("p", { class: "err" }, t("reqLoadFail"))); return; }
-  RQ.list = data || [];
+  const open = [];
+  for (let from = 0; ; from += 500) {
+    const { data, error } = await sb.from("cdf_order_requests").select("*").in("status", ["received", "in_review"]).order("created_at", { ascending: false }).range(from, from + 499);
+    if (error) { if (S.tab === "requests") fill($("requestsBody"), el("p", { class: "err" }, t("reqLoadFail"))); return; }
+    open.push(...(data || []));
+    if (!data || data.length < 500) break;
+  }
+  const [closed, counts] = await Promise.all([
+    sb.from("cdf_order_requests").select("*").in("status", CLOSED).order("created_at", { ascending: false }).range(0, RQ.closedLimit),
+    sb.rpc("cdf_request_counts").then((r) => r, () => ({ error: true })),
+  ]);
+  if (closed.error) { if (S.tab === "requests") fill($("requestsBody"), el("p", { class: "err" }, t("reqLoadFail"))); return; }
+  RQ.closedMore = (closed.data || []).length > RQ.closedLimit;
+  RQ.list = [...open, ...(closed.data || []).slice(0, RQ.closedLimit)];
+  RQ.counts = !counts.error && counts.data && typeof counts.data === "object" ? counts.data : null;
+  await loadRequestOrders();
   paintRequestCount();
   if (S.tab === "requests") renderRequests();
+}
+// What became of each accepted request's order: there, in the trash, or deleted (12/11/2026)
+async function loadRequestOrders() {
+  const ids = [...new Set(RQ.list.filter((r) => r.status === "accepted" && r.accepted_order_id).map((r) => r.accepted_order_id))];
+  RQ.orders = new Map();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await sb.from("cdf_orders").select("id,num" + (S.cap.trash ? ",deleted_at" : "")).in("id", ids.slice(i, i + 200));
+    for (const o of data || []) RQ.orders.set(o.id, o);
+  }
+}
+// "Accepted" on its own says nothing once the order is in the trash or gone: say what happened, with its number
+function reqOrderState(r) {
+  if (r.status !== "accepted") return null;
+  const o = r.accepted_order_id ? RQ.orders.get(r.accepted_order_id) : null;
+  const num = o?.num || r.accepted_order_num || null;
+  if (!r.accepted_order_id) return { state: "deleted", num };
+  if (!o) return { state: "unknown", num };
+  return { state: o.deleted_at ? "trash" : "active", num };
+}
+// Counts by status bucket and type: the server's exact ones, else what is loaded
+function reqCount(bucket, kind) {
+  if (RQ.counts) {
+    const k = (m) => RQ.counts[bucket + ":" + m] || 0;
+    return kind === "all" ? k("pickup") + k("delivery") : k(kind);
+  }
+  return RQ.list.filter((r) => reqBucket(r) === bucket && reqKindOk(r, kind)).length;
 }
 
 function paintRequestCount() {
@@ -77,25 +121,48 @@ function renderRequests() {
   paintRequestLink();
   const body = $("requestsBody");
   if (!body) return;
-  const counts = { open: 0, accepted: 0, rejected: 0 };
-  for (const r of RQ.list) counts[reqIsOpen(r) ? "open" : r.status === "accepted" ? "accepted" : "rejected"]++;
+  // Status and type work together: each counter counts within the other filter
   for (const b of $("reqFilter").querySelectorAll("button[data-f]")) {
     b.setAttribute("aria-pressed", String(b.dataset.f === RQ.filter));
-    b.querySelector(".count").textContent = String(counts[b.dataset.f] ?? 0);
+    b.querySelector(".count").textContent = String(reqCount(b.dataset.f, RQ.kind));
   }
-  const shown = RQ.list.filter((r) => (RQ.filter === "open" ? reqIsOpen(r) : RQ.filter === "accepted" ? r.status === "accepted" : r.status === "rejected" || r.status === "expired"))
+  for (const b of $("reqKind")?.querySelectorAll("button[data-k]") || []) {
+    b.setAttribute("aria-pressed", String(b.dataset.k === RQ.kind));
+    b.querySelector(".count").textContent = String(reqCount(RQ.filter, b.dataset.k));
+  }
+  if (typeof placePill === "function") { placePill($("reqFilter")); if ($("reqKind")) placePill($("reqKind")); }
+  const shown = RQ.list.filter((r) => reqBucket(r) === RQ.filter && reqKindOk(r))
     // Open ones by delivery date (the nearest first, past dates on top so they are not missed); the rest newest first
     .sort((a, b) => (RQ.filter === "open" ? a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot) : b.created_at.localeCompare(a.created_at)));
-  if (!shown.length) return fill(body, el("div", { class: "empty req-empty" }, icon("inbox"), el("p", {}, t(RQ.filter === "open" ? "reqNoneOpen" : "reqNone"))));
-  fill(body, el("ul", { class: "req-list" }, shown.map((r) => el("li", {},
-    el("button", { class: "req-card" + (r.status === "received" ? " is-new" : ""), type: "button", "data-id": r.id, onclick: () => openRequest(r) },
-      el("span", { class: "req-top" }, el("b", { class: "req-ref" }, reqRef(r)), reqStatusTag(r), el("span", { class: "spacer" }), el("small", { class: "note" }, reqAgo(r.created_at))),
-      el("span", { class: "req-when" }, icon(r.mode === "pickup" ? "box" : "truck"), " ", reqWhen(r), r.pickup_branch ? " · " + t("pickupAt", { shop: r.pickup_branch }) : null),
-      el("span", { class: "req-who" }, r.buyer_name, r.receiver_name !== r.buyer_name ? " → " + r.receiver_name : null),
-      el("span", { class: "req-what note" }, r.description))))));
+  const more = RQ.filter !== "open" && RQ.closedMore ? el("button", { class: "btn ghost req-more", type: "button", onclick: async (e) => {
+    e.currentTarget.disabled = true; RQ.closedLimit += 300; await loadRequests(); } }, t("reqLoadMore")) : null;
+  if (!shown.length) return fill(body, el("div", { class: "empty req-empty" }, icon("inbox"), el("p", {}, t(RQ.filter === "open" ? "reqNoneOpen" : "reqNone"))), more);
+  fill(body, el("ul", { class: "req-list" }, shown.map((r) => el("li", {}, reqCard(r)))), more);
+}
+
+// One request in the list. The type is written out, and each type shows what matters for it:
+// Pickup: the shop, when, and who comes for it. Delivery: where, when, and buyer → recipient.
+function reqCard(r) {
+  const pickup = r.mode === "pickup", same = r.receiver_name === r.buyer_name;
+  const os = reqOrderState(r);
+  return el("button", { class: "req-card " + (pickup ? "is-pickup" : "is-delivery") + (r.status === "received" ? " is-new" : ""), type: "button", "data-id": r.id, onclick: () => openRequest(r) },
+    el("span", { class: "req-top" }, el("b", { class: "req-ref" }, reqRef(r)), reqKindTag(r), reqStatusTag(r), el("span", { class: "spacer" }), el("small", { class: "note" }, reqAgo(r.created_at))),
+    el("span", { class: "req-when" }, icon("clock"), " ", reqWhen(r)),
+    pickup
+      ? el("span", { class: "req-where" }, icon("flower"), " ", r.pickup_branch ? t("pickupAt", { shop: r.pickup_branch }) : t("reqShopNotChosen"))
+      : el("span", { class: "req-where" }, icon("map"), " ", el("span", { class: "req-addr" }, r.address || "—")),
+    el("span", { class: "req-who" }, pickup ? [t("reqPicksUp") + " ", el("b", {}, r.receiver_name)] : [r.buyer_name, same ? null : " → " + r.receiver_name]),
+    os && os.state !== "active" ? el("span", { class: "req-order " + os.state }, icon(os.state === "trash" ? "trash" : "alert"), " ", reqOrderText(os)) : null,
+    el("span", { class: "req-what note" }, r.description));
+}
+const reqKindTag = (r) => el("span", { class: "tag req-kind " + (r.mode === "pickup" ? "pickup" : "delivery") }, icon(r.mode === "pickup" ? "box" : "truck"), t(r.mode === "pickup" ? "modePickup" : "modeDelivery"));
+function reqOrderText(os) {
+  const num = os.num ? "#" + os.num : "";
+  return os.state === "trash" ? t("reqOrderTrash", { num }) : os.state === "deleted" ? t("reqOrderDeleted", { num }) : os.state === "unknown" ? t("reqOrderUnknown", { num }) : num;
 }
 
 function setRequestFilter(f) { RQ.filter = f; renderRequests(); }
+function setRequestKind(k) { RQ.kind = k; renderRequests(); }
 
 // ---------- one request ----------
 async function openRequest(r) {
@@ -105,11 +172,14 @@ async function openRequest(r) {
     const { data } = await sb.rpc("cdf_request_open", { p_id: r.id });
     if (data) { Object.assign(r, data); const i = RQ.list.findIndex((x) => x.id === r.id); if (i >= 0) RQ.list[i] = r; paintRequestCount(); if (S.tab === "requests") renderRequests(); }
   }
-  const [files, similar, events] = await Promise.all([
+  const [files, similar, events, orderNow] = await Promise.all([
     sb.from("cdf_request_files").select("id,kind,path,width,height").eq("request_id", r.id).order("created_at").then((x) => x.data || []),
     sb.rpc("cdf_request_similar", { p_id: r.id }).then((x) => x.data || { requests: [], orders: [] }, () => ({ requests: [], orders: [] })),
     sb.from("cdf_request_events").select("kind,by_email,detail,created_at").eq("request_id", r.id).order("created_at").then((x) => x.data || []),
+    // Accepted: where its order is now (there, in the trash, deleted), with who, when and why (12/11/2026)
+    r.status === "accepted" && S.cap.trash ? sb.rpc("cdf_request_order", { p_id: r.id }).then((x) => x.error ? null : x.data, () => null) : null,
   ]);
+  const os = orderNow || reqOrderState(r);
   const refs = files.filter((f) => f.kind === "reference"), proof = files.find((f) => f.kind === "payment_proof");
   const tel = (p) => el("a", { href: "tel:+" + intlPhone(p), class: "link-out" }, phoneNice(p));
   const pinUrl = r.lat != null ? `https://www.google.com/maps/search/?api=1&query=${+r.lat},${+r.lng}` : null;
@@ -124,7 +194,9 @@ async function openRequest(r) {
     acts.push(el("button", { class: "btn primary", type: "button", onclick: () => acceptRequest(r) }, icon("check"), " ", t("reqAccept")));
   } else if (r.status === "rejected") {
     acts.push(el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => reopenRequest(r, err) }, icon("refresh"), " ", t("reqReopen")));
-  } else if (r.status === "accepted" && r.accepted_order_id) {
+  } else if (r.status === "accepted" && os?.state === "trash") {
+    acts.push(el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: async () => { if (await closeSheet()) openTrash(); } }, icon("trash"), " ", t("reqSeeTrash")));
+  } else if (r.status === "accepted" && r.accepted_order_id && os?.state !== "deleted") {
     acts.push(el("span", { class: "spacer" }), el("button", { class: "btn primary", type: "button", onclick: async () => {
       const o = byId(r.accepted_order_id) || (await sb.from("cdf_orders").select("*").eq("id", r.accepted_order_id).maybeSingle()).data;
       if (o) openOrder(o); else err.textContent = t("goneMeanwhile");
@@ -132,10 +204,15 @@ async function openRequest(r) {
   } else acts.push(el("span", { class: "spacer" }));
 
   const node = el("div", { class: "sheet req-sheet", role: "dialog", "aria-modal": "true" },
-    el("div", { class: "sheet-head" }, el("h2", {}, t("reqTitle", { ref: reqRef(r) })), reqStatusTag(r), el("span", { class: "spacer" }), closeBtn()),
+    el("div", { class: "sheet-head" }, el("h2", {}, t("reqTitle", { ref: reqRef(r) })), reqKindTag(r), reqStatusTag(r), el("span", { class: "spacer" }), closeBtn()),
     el("div", { class: "sheet-body" },
       r.status === "in_review" && r.reviewed_by && r.reviewed_by !== S.me?.email
         ? el("div", { class: "sheet-note" }, icon("user"), el("span", {}, t("reqBeingReviewed", { who: reqWho(r.reviewed_by) }))) : null,
+      os && os.state === "active" && os.num ? el("div", { class: "sheet-note" }, icon("check"), el("span", {}, t("reqBecameOrder", { num: "#" + os.num }))) : null,
+      os && (os.state === "trash" || os.state === "deleted" || os.state === "unknown") ? el("div", { class: "sheet-note warn req-order-note" }, icon(os.state === "trash" ? "trash" : "alert"),
+        el("span", {}, el("b", {}, reqOrderText(os)), os.by || os.at ? " · " + t("reqOrderWho", { who: os.by ? memberName(os.by) : "?", when: os.at ? new Date(os.at).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "?" }) : "",
+          os.reason ? el("i", {}, " · " + os.reason) : null,
+          os.state === "deleted" && os.logged === false ? el("small", { class: "note", style: "display:block" }, t("reqOrderNoLog")) : null)) : null,
       r.status === "rejected" ? el("div", { class: "sheet-note cancel-note" }, icon("close"), el("span", {}, r.reject_reason ? t("reqRejectedWhy", { why: r.reject_reason }) : t("reqRejectedNoWhy"))) : null,
       reqPast(r) ? el("div", { class: "sheet-note warn" }, icon("alert"), el("span", {}, t("reqPastHint"))) : null,
       dupes.length ? el("div", { class: "sheet-note warn req-dupes" }, icon("alert"), el("span", {}, t("reqSimilar"), " ",

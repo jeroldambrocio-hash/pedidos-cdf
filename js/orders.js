@@ -109,6 +109,7 @@ function renderRisk() {
 function filterMatch(o) {
   const f = S.filter;
   if (S.chan && (o.channel || "") !== S.chan) return false;
+  if (S.kind && (S.kind === "pickup") !== isPickup(o)) return false;
   if (f == null) return true;
   if (f === "pending") return isOpen(o);
   if (f === "unassigned") return !o.vendor_email;
@@ -118,6 +119,7 @@ function filterMatch(o) {
 }
 function setFilter(k) { S.filter = k; flipDay(); }
 function setChan(c) { S.chan = c; flipDay(); }
+function setKind(k) { S.kind = k; flipDay(); }
 // Redraw the day with cards sliding to their new place instead of jumping
 const flipDay = () => flip($("list"), renderDay);
 
@@ -135,7 +137,8 @@ function dayOrders() {
 }
 function renderFilters(day) {
   const box = $("filters"), prev = Object.fromEntries([...box.querySelectorAll("[data-key] .count")].map((c) => [c.parentElement.dataset.key, c.textContent]));
-  const n = (fn) => day.filter((o) => (!S.chan || (o.channel || "") === S.chan) && fn(o)).length;
+  const inKind = (o) => !S.kind || (S.kind === "pickup") === isPickup(o);
+  const n = (fn) => day.filter((o) => (!S.chan || (o.channel || "") === S.chan) && inKind(o) && fn(o)).length;
   const row = (key, label, glyph, count, color, extra = {}) => {
     const c = el("span", { class: "count" + (color ? "" : " neutral"), style: color ? `background:var(--${color}-solid);color:var(--${color}-on)` : null }, String(count));
     if (prev[String(key)] != null && prev[String(key)] !== String(count)) requestAnimationFrame(() => bump(c));
@@ -151,6 +154,11 @@ function renderFilters(day) {
     ...STEPS.map((s, i) => i === CANCELLED && !n((o) => stepOf(o) === i) && S.filter !== i ? null : row(i, stepName(i), STEP_ICON[i], n((o) => stepOf(o) === i), s.k)),
     !S.hits && risky ? row("risk", t("summaryRisk"), "alert", risky, null) : null,
     unassigned ? row("unassigned", t("summaryUnassigned"), "user", unassigned, null) : null,
+    // Type (12/11/2026): delivery or pickup, combined with the status and the channel
+    ...(S.cap.pickupMode ? [el("h3", { class: "grp" }, t("kindH")),
+      ...[["delivery", "truck"], ["pickup", "box"]].map(([k, glyph]) => el("button", { class: "filter kind-filter", type: "button", "data-kind": k, "aria-pressed": String(S.kind === k), onclick: () => setKind(S.kind === k ? null : k) },
+        el("span", { style: "color:var(--faint)" }, icon(glyph)), t(k === "pickup" ? "modePickup" : "modeDelivery"),
+        el("span", { class: "count neutral" }, String(day.filter((o) => (!S.chan || (o.channel || "") === S.chan) && (k === "pickup") === isPickup(o)).length))))] : []),
     el("h3", { class: "grp" }, t("channelH")),
     ...CHANNELS.map((ch) => {
       const c = el("span", { class: "count neutral" }, String(day.filter((o) => o.channel === ch).length));
@@ -390,7 +398,7 @@ async function runSearch() {
  const {data,error}=await sb.rpc("cdf_search_orders",{p_query:q.replace(/^#/,"")});
  if(q!==S.query)return;
  if(error){toast(t("searchFailed"),{type:"error"});S.hits=[];S.hitsTitle=t("searchFailed");flipDay();return;}
- S.hits=(data||[]).slice(0,200);await attachPrices(S.hits);
+ S.hits=(data||[]).filter((o)=>!o.deleted_at).slice(0,200);await attachPrices(S.hits);
  if(q!==S.query)return;
  S.hitsTitle=t("searchTitle",{q});if((data||[]).length>200)toast(t("searchLimit"),{type:"info"});flipDay();
 }
@@ -402,7 +410,9 @@ function clearSearch(draw = true) {
 // Archived orders of the month on screen
 async function showArchived() {
   const m = S.month, from = iso(new Date(m.getFullYear(), m.getMonth(), 1)), to = iso(new Date(m.getFullYear(), m.getMonth() + 1, 0));
-  const { data, error } = await sb.from("cdf_orders").select("*").not("archived_at", "is", null).gte("date", from).lte("date", to).order("date");
+  let query = sb.from("cdf_orders").select("*").not("archived_at", "is", null).gte("date", from).lte("date", to);
+  if (S.cap.trash) query = query.is("deleted_at", null);
+  const { data, error } = await query.order("date");
   if (error) { toast(t("loadFail"), { type: "error" }); return; }
   S.hits = data; S.hitsTitle = t("archivedTitle", { month: $("mLabel").textContent }); S.filter = null;
   renderDay();
@@ -421,6 +431,7 @@ function renderTools() {
       } }, icon("archive"), t("archiveDelivered", { n: delivered.length }))
       : isAdmin() ? el("button", { class: "btn ghost", type: "button", disabled: !delivered.length, onclick: () => purgeDelivered(delivered) }, icon("trash"), t("purge", { n: delivered.length })) : null,
     S.cap.archive ? el("button", { class: "btn ghost", type: "button", onclick: showArchived }, icon("archive"), t("seeArchived")) : null,
+    S.cap.trash && isAdmin() ? el("button", { class: "btn ghost", type: "button", id: "trashBtn", onclick: () => openTrash() }, icon("trash"), t("trashOpen")) : null,
     el("button", { class: "btn ghost", type: "button", onclick: exportDialog }, icon("download"), t("exportCsv")));
 }
 // Before migration 012 there is no archive: deleting stays available to admins, with a clear warning

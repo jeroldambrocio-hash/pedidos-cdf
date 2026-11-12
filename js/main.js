@@ -154,6 +154,7 @@ $("tabStats").onclick = () => setTab("stats");
 $("tabChat").onclick = () => setTab("chat");
 $("tabRequests").onclick = () => { if (reqOn()) setTab("requests"); };
 $("reqFilter").addEventListener("click", (e) => { const b = e.target.closest("button[data-f]"); if (b) setRequestFilter(b.dataset.f); });
+$("reqKind").addEventListener("click", (e) => { const b = e.target.closest("button[data-k]"); if (b) setRequestKind(b.dataset.k); });
 $("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { setStatsPeriod(b.dataset.days); } });
 for (const id of ["statsFrom", "statsTo"]) $(id).addEventListener("change", setStatsDates);
 $("periodSeg").addEventListener("click", (e) => { const b = e.target.closest("button[data-p]"); if (b) { setPeriod(b.dataset.p); if (b.dataset.p === "custom") $("periodFrom").focus({ preventScroll: true }); } });

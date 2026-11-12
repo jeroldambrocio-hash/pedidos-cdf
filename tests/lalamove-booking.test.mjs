@@ -187,16 +187,23 @@ const asAdmin = async (sql, params) => {
   assert(await one("select 1 x from public.cdf_orders where id = $1", [o.id]));
   assert(await rowOf(o.id), "the booking and its history stay");
   await db.query("update public.cdf_lalamove set status = 'CANCELED' where order_id = $1", [o.id]);
-  await asAdmin("delete from public.cdf_orders where id = $1", [o.id]);
-  assert.equal(await one("select 1 x from public.cdf_orders where id = $1", [o.id]), undefined); }
-ok("Deleting an order with a running rider is refused (booking and history kept); once cancelled, it can be deleted");
+  // Since the trash (20261112170000) a plain DELETE is refused anyway; it goes trash → delete for good (owner)
+  await assert.rejects(asAdmin("delete from public.cdf_orders where id = $1", [o.id]), /cdf_delete_use_trash/);
+  if (await one("select to_regprocedure('public.cdf_order_purge(uuid, text)') f").then((r) => r.f)) {
+    await db.query("update public.cdf_members set is_owner = true where email = 'admin@t'");
+    await asAdmin("select public.cdf_order_trash($1, 'Test order')", [o.id]);
+    await asAdmin("select public.cdf_order_purge($1, 'Test order')", [o.id]);
+    assert.equal(await one("select 1 x from public.cdf_orders where id = $1", [o.id]), undefined);
+  } }
+ok("Deleting an order with a running rider is refused (booking and history kept); once cancelled, it can be deleted (through the trash)");
 
 { const o = await order(); lalamove.answer = () => { throw new TypeError("fetch failed"); }; await book(o); lalamove.answer = null;
   await assert.rejects(asAdmin("delete from public.cdf_orders where id = $1", [o.id]), /cdf_order_has_rider/);
-  const plain = await order({ quoted: false });
-  await asAdmin("delete from public.cdf_orders where id = $1", [plain.id]);
-  const quotedOnly = await order();
-  await asAdmin("delete from public.cdf_orders where id = $1", [quotedOnly.id]); }
-ok("An unconfirmed booking also blocks deleting; orders without a rider (or only priced) delete as before");
+  await assert.rejects(asAdmin("select public.cdf_order_trash($1, 'Test order')", [o.id]), /cdf_order_has_rider/);
+  for (const x of [await order({ quoted: false }), await order()]) {
+    await asAdmin("select public.cdf_order_trash($1, 'Test order')", [x.id]);
+    await asAdmin("select public.cdf_order_purge($1, 'Test order')", [x.id]);
+  } }
+ok("An unconfirmed booking also blocks deleting (and trashing); orders without a rider (or only priced) go as usual");
 
 console.log("all booking checks passed");

@@ -86,6 +86,12 @@
    "config": "search_path=\"\"",
    "definer": true
   },
+  "cdf_guard_hard_delete()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
   "cdf_guard_legacy_price()": {
    "anon": false,
    "authenticated": false,
@@ -97,6 +103,12 @@
    "authenticated": false,
    "config": "search_path=\"\"",
    "definer": true
+  },
+  "cdf_guard_owner()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
   },
   "cdf_guard_request_purge()": {
    "anon": false,
@@ -110,6 +122,12 @@
    "config": "search_path=\"\"",
    "definer": true
   },
+  "cdf_guard_trash()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": false
+  },
   "cdf_hook_ok(p_secret text)": {
    "anon": false,
    "authenticated": false,
@@ -117,6 +135,12 @@
    "definer": true
   },
   "cdf_is_admin()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_is_owner()": {
    "anon": false,
    "authenticated": true,
    "config": "search_path=\"\"",
@@ -326,7 +350,31 @@
    "config": "search_path=\"\"",
    "definer": false
   },
+  "cdf_order_purge(p_id uuid, p_reason text)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_order_references(p_order uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_order_restore(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_order_rider_on(p_id uuid)": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_order_trash(p_id uuid, p_reason text)": {
    "anon": false,
    "authenticated": true,
    "config": "search_path=\"\"",
@@ -452,7 +500,25 @@
    "config": "search_path=\"\"",
    "definer": true
   },
+  "cdf_request_counts()": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_keep_num()": {
+   "anon": false,
+   "authenticated": false,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
   "cdf_request_open(p_id uuid)": {
+   "anon": false,
+   "authenticated": true,
+   "config": "search_path=\"\"",
+   "definer": true
+  },
+  "cdf_request_order(p_id uuid)": {
    "anon": false,
    "authenticated": true,
    "config": "search_path=\"\"",
@@ -637,6 +703,7 @@
   "public.cdf_messages.cdf_messages_read": "SELECT authenticated",
   "public.cdf_notifications.cdf_notifications_insert": "INSERT authenticated",
   "public.cdf_notifications.cdf_notifications_read": "SELECT authenticated",
+  "public.cdf_order_audit.cdf_order_audit_admin_read": "SELECT authenticated",
   "public.cdf_order_events.cdf_events_prices_private": "SELECT authenticated",
   "public.cdf_order_events.cdf_order_events_read": "SELECT authenticated",
   "public.cdf_order_prices.cdf_prices_admin": "ALL authenticated",
@@ -689,6 +756,7 @@
   "cdf_messages:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
   "cdf_notifications:anon": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
   "cdf_notifications:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
+  "cdf_order_audit:authenticated": "SELECT",
   "cdf_order_events:anon": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
   "cdf_order_events:authenticated": "DELETE,INSERT,REFERENCES,SELECT,TRIGGER,TRUNCATE,UPDATE",
   "cdf_order_prices:authenticated": "SELECT",
@@ -836,6 +904,7 @@
     "branch:text",
     "created_at:timestamp with time zone!",
     "email:text!",
+    "is_owner:boolean!",
     "name:text!",
     "phone:text!",
     "pickup_address:text",
@@ -902,6 +971,19 @@
    ],
    "rls": true
   },
+  "cdf_order_audit": {
+   "cols": [
+    "action:text!",
+    "at:timestamp with time zone!",
+    "by_email:text!",
+    "id:bigint!",
+    "order_id:uuid!",
+    "order_num:text",
+    "reason:text",
+    "snapshot:jsonb"
+   ],
+   "rls": true
+  },
   "cdf_order_events": {
    "cols": [
     "at:timestamp with time zone!",
@@ -927,6 +1009,7 @@
    "cols": [
     "accepted_key:uuid",
     "accepted_order_id:uuid",
+    "accepted_order_num:text",
     "address:text!",
     "buyer_name:text!",
     "buyer_phone:text!",
@@ -983,6 +1066,9 @@
     "customer_name:text!",
     "customer_phone:text!",
     "date:date!",
+    "delete_reason:text",
+    "deleted_at:timestamp with time zone",
+    "deleted_by:text",
     "delivered_by:text",
     "delivery:text!",
     "delivery_note:text!",
@@ -1090,23 +1176,27 @@
   "cdf_lalamove.cdf_lalamove_track",
   "cdf_lalamove_proofs.cdf_lalamove_proofs_touch",
   "cdf_lalamove_shipments.cdf_lalamove_shipments_touch",
+  "cdf_members.cdf_members_owner_guard",
   "cdf_members.cdf_members_sees_stats",
   "cdf_messages.cdf_message_edited",
   "cdf_messages.cdf_messages_push",
   "cdf_order_prices.cdf_price_against_paid",
   "cdf_order_prices.cdf_price_history",
   "cdf_order_requests.cdf_order_requests_announce",
+  "cdf_order_requests.cdf_order_requests_keep_num",
   "cdf_order_requests.cdf_order_requests_purge_guard",
   "cdf_orders.cdf_legacy_price_guard",
   "cdf_orders.cdf_orders_cancelled_guard",
   "cdf_orders.cdf_orders_credit",
   "cdf_orders.cdf_orders_guard_delete",
+  "cdf_orders.cdf_orders_hard_delete_guard",
   "cdf_orders.cdf_orders_log",
   "cdf_orders.cdf_orders_notify",
   "cdf_orders.cdf_orders_push",
   "cdf_orders.cdf_orders_push_cancelled",
   "cdf_orders.cdf_orders_touch",
   "cdf_orders.cdf_orders_transit",
+  "cdf_orders.cdf_orders_trash_guard",
   "cdf_request_files.cdf_request_files_purge_guard"
  ]
 }

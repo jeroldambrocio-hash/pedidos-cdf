@@ -195,6 +195,11 @@
         <button type="button" data-f="open" aria-pressed="true"><span data-i18n="reqF_open">To review</span> <span class="count"></span></button>
         <button type="button" data-f="accepted" aria-pressed="false"><span data-i18n="reqF_accepted">Accepted</span> <span class="count"></span></button>
         <button type="button" data-f="rejected" aria-pressed="false"><span data-i18n="reqF_rejected">Rejected</span> <span class="count"></span></button>
+      </div>
+      <div class="seg req-filter req-kind-filter" id="reqKind" role="group" data-i18n-aria="reqKindLabel" aria-label="Type">
+        <button type="button" data-k="all" aria-pressed="true"><span data-i18n="reqK_all">All</span> <span class="count"></span></button>
+        <button type="button" data-k="pickup" aria-pressed="false"><span data-i18n="modePickup">Pickup</span> <span class="count"></span></button>
+        <button type="button" data-k="delivery" aria-pressed="false"><span data-i18n="modeDelivery">Delivery</span> <span class="count"></span></button>
       </div></div>
     <div class="req-link" id="reqLink" hidden>
       <span class="req-link-label"><span data-i18n="reqLinkLabel">Link for customers</span> <a id="reqLinkUrl" class="link-out" target="_blank" rel="noopener"></a></span>
@@ -261,6 +266,7 @@
 <script src="/js/stats.js"></script>
 <script src="/js/chat.js"></script>
 <script src="/js/pwa.js"></script>
+<script src="/js/trash.js"></script>
 <script src="/js/changelog.js"></script>
 <script src="/js/main.js"></script>
 </body>

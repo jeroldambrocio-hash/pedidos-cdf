@@ -23,6 +23,76 @@ drop policy if exists cdf_lalamove_proofs_file_read on storage.objects;
 drop policy if exists cdf_solicitudes_read on storage.objects;
 drop trigger if exists cdf_lalamove_track on public.cdf_lalamove;
 
+-- 12/11/2026 trash: first restore or decide every order still in the trash (rolling back makes them visible again,
+-- since the column goes). The log (cdf_order_audit) is dropped too: export it first if it matters.
+drop trigger if exists cdf_orders_hard_delete_guard on public.cdf_orders;
+drop trigger if exists cdf_orders_trash_guard on public.cdf_orders;
+drop trigger if exists cdf_members_owner_guard on public.cdf_members;
+drop trigger if exists cdf_order_requests_keep_num on public.cdf_order_requests;
+drop function if exists public.cdf_request_counts();
+drop function if exists public.cdf_request_order(uuid);
+drop function if exists public.cdf_request_keep_num();
+drop function if exists public.cdf_order_purge(uuid, text);
+drop function if exists public.cdf_order_restore(uuid);
+drop function if exists public.cdf_order_trash(uuid, text);
+drop function if exists public.cdf_order_rider_on(uuid);
+drop function if exists public.cdf_guard_hard_delete();
+drop function if exists public.cdf_guard_trash();
+drop function if exists public.cdf_is_owner();
+drop function if exists public.cdf_guard_owner();
+drop table if exists public.cdf_order_audit;
+delete from public.cdf_order_events where kind in ('trashed', 'untrashed');
+alter table public.cdf_order_events drop constraint cdf_order_events_kind_check;
+alter table public.cdf_order_events add constraint cdf_order_events_kind_check
+  check (kind in ('created', 'updated', 'status', 'rescheduled', 'archived', 'restored', 'cancelled', 'reinstated'));
+create or replace function public.cdf_log_order() returns trigger
+language plpgsql security definer set search_path = '' as $$
+declare
+  v_by text := nullif(lower(coalesce(auth.jwt()->>'email', '')), '');
+  v_changes jsonb := '{}'::jsonb;
+  v_kind text;
+  k text;
+  v_old jsonb; v_new jsonb;
+begin
+  if tg_op = 'INSERT' then
+    insert into public.cdf_order_events (order_id, by_email, kind, changes)
+    values (new.id, v_by, 'created', jsonb_build_object('num', new.num, 'date', new.date, 'slot', new.slot));
+    return new;
+  end if;
+
+  v_old := to_jsonb(old); v_new := to_jsonb(new);
+  foreach k in array array['num', 'date', 'slot', 'channel', 'vendor_email', 'carrier_email', 'customer_name', 'customer_phone',
+    'customer_email', 'buyer_name', 'buyer_phone', 'address', 'card_message', 'notes', 'delivery_note', 'status', 'delivery'] loop
+    if v_new ? k and (v_old->k) is distinct from (v_new->k) then
+      v_changes := v_changes || jsonb_build_object(k, jsonb_build_array(v_old->k, v_new->k));
+    end if;
+  end loop;
+  foreach k in array array['photo_path', 'bouquet_path', 'proof_path'] loop
+    if (v_old->k) is distinct from (v_new->k) then
+      v_changes := v_changes || jsonb_build_object(k, jsonb_build_array(v_old->k is not null and v_old->>k <> '', v_new->k is not null and v_new->>k <> ''));
+    end if;
+  end loop;
+
+  if old.cancelled_at is null and new.cancelled_at is not null then
+    v_kind := 'cancelled'; v_changes := v_changes || jsonb_build_object('cancel_reason', jsonb_build_array(null, new.cancel_reason));
+  elsif old.cancelled_at is not null and new.cancelled_at is null then
+    v_kind := 'reinstated'; v_changes := v_changes || jsonb_build_object('cancel_reason', jsonb_build_array(old.cancel_reason, null));
+  elsif old.archived_at is null and new.archived_at is not null then v_kind := 'archived';
+  elsif old.archived_at is not null and new.archived_at is null then v_kind := 'restored';
+  elsif new.attempts > old.attempts then v_kind := 'rescheduled';
+  elsif v_changes ? 'status' or v_changes ? 'delivery' then v_kind := 'status';
+  elsif v_changes = '{}'::jsonb then return new;
+  else v_kind := 'updated';
+  end if;
+
+  insert into public.cdf_order_events (order_id, by_email, kind, changes) values (new.id, v_by, v_kind, v_changes);
+  return new;
+end $$;
+alter table public.cdf_orders drop constraint if exists cdf_orders_trash_shape;
+drop index if exists public.cdf_orders_trash;
+alter table public.cdf_orders drop column if exists deleted_at, drop column if exists deleted_by, drop column if exists delete_reason;
+alter table public.cdf_members drop column if exists is_owner;
+
 -- 12/11/2026 booking guard (audit F01/F02): the delete guard and the booking functions go, then the columns.
 -- Check first that no order has booking_state 'uncertain' (it would be forgotten).
 drop trigger if exists cdf_orders_guard_delete on public.cdf_orders;

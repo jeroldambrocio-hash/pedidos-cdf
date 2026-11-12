@@ -2478,3 +2478,31 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .ll-uncertain { margin: 0; }
 .ll-uncertain > span { min-width: 0; }
 .ll-uncertain b { color: var(--fg); }
+
+/* Trash (12/11/2026) */
+.trash-explain { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.trash-explain li { display: flex; gap: 10px; align-items: flex-start; }
+.trash-explain .ic { flex: none; width: 28px; height: 28px; display: grid; place-items: center; border-radius: 8px; background: var(--sunk); color: var(--muted); }
+.trash-explain b { display: block; font-size: .875rem; }
+.trash-explain small { color: var(--muted); font-size: .8125rem; line-height: 1.4; }
+.trash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.trash-item { display: grid; gap: 6px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: var(--surface); }
+.trash-item p { margin: 0; }
+.trash-top { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.trash-top .tag { margin: 0; }
+.trash-left.over { color: var(--fail); }
+.tag.delivery { background: var(--sunk); color: var(--fg); font-weight: 500; }
+
+/* Requests: type filter and type-specific cards (12/11/2026) */
+.req-kind-filter { margin-top: 8px; }
+.req-card .req-top .req-kind { margin: 0; }
+.tag.req-kind.pickup { background: color-mix(in srgb, var(--ready-solid, #7aa6c2) 18%, transparent); color: var(--fg); }
+.tag.req-kind.delivery { background: var(--sunk); color: var(--fg); }
+.req-where { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.req-where svg.i { width: 16px; height: 16px; color: var(--muted); flex: none; }
+.req-addr { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.req-order { display: flex; align-items: center; gap: 6px; font-size: .8125rem; font-weight: 550; color: var(--prep); }
+.req-order.deleted, .req-order.unknown { color: var(--fail); }
+.req-order svg.i { width: 15px; height: 15px; }
+.req-more { justify-self: center; margin-top: 12px; }
+.req-top { flex-wrap: wrap; }

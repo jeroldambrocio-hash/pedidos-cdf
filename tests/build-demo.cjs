@@ -39,17 +39,32 @@ const setup = `<script>
   }
   try { if (!localStorage.getItem("cdf-lang")) localStorage.setItem("cdf-lang", "en"); if (!localStorage.getItem("cdf-prices")) localStorage.setItem("cdf-prices", "on"); } catch {}
   try { delete Navigator.prototype.serviceWorker; } catch {}
-  window.__role = "admin"; window.__paymentDemo = true;
+  window.__role = "admin"; window.__paymentDemo = true; window.__owner = true;
+  // Requests from the public form, both types, and one accepted whose order was deleted (like R2 → #0007)
+  const day = (n) => new Date(Date.now() + 8 * 3600e3 + n * 864e5).toISOString().slice(0, 10);
+  let ref = 0;
+  const R = (x) => ({ id: "req-" + (++ref), ref, request_key: "k" + ref, status: "received", lang: "en", buyer_name: "Jose Santos", buyer_phone: "+34612345678",
+    receiver_name: "Maria Santos", receiver_phone: "+639171234567", mode: "delivery", date: day(1), slot: "11:00 - 13:00",
+    address: "Unit 4B, Tower 2, 123 Katipunan Ave, Loyola Heights, Quezon City", lat: 14.6397, lng: 121.0775, location_source: "search",
+    location_confirmed_at: new Date().toISOString(), description: "A dozen red roses, wrapped in kraft paper", special_requests: "", card_message: "Happy birthday!",
+    payment_method: "gcash", created_at: new Date(Date.now() - ref * 37 * 60e3).toISOString(), reviewed_by: null, reject_reason: null,
+    accepted_order_id: null, accepted_key: null, pickup_branch: null, accepted_order_num: null, ...x });
+  const pick = { mode: "pickup", address: "", lat: null, lng: null, location_source: null, location_confirmed_at: null, pickup_branch: "Quezon City" };
+  window.__requests = [R({}), R({ ...pick, buyer_name: "Liza Cruz", receiver_name: "Ana Cruz", slot: "15:00 - 17:00", description: "Sunflower bouquet" }),
+    R({ receiver_name: "Jose Santos", date: day(2), address: "45 Ortigas Ave, Pasig" }),
+    R({ ...pick, buyer_name: "Kober Mananlo", receiver_name: "Kober Mananlo", status: "accepted", accepted_key: "x", accepted_order_num: "0007" }),
+    R({ status: "rejected", reject_reason: "Out of stock that day" })];
+  window.__ana = { branch: "Quezon City", pickup_address: "12 Visayas Ave, Quezon City", pickup_lat: 14.6538, pickup_lng: 121.045 };
 })();
 </script><script src="__mock.js"></script>`;
-const banner = `<div role="note" style="position:sticky;top:0;z-index:5;padding:6px 12px;font:500 13px/1.3 system-ui,sans-serif;text-align:center;background:#f5d76e;color:#1a1a1a">DEMO · Fase 1 (anticipo al crear el pedido) · datos ficticios: nada de lo que hagas aquí llega a Supabase, Lalamove ni a clientes</div>`;
+const banner = `<div role="note" style="position:sticky;top:0;z-index:5;padding:6px 12px;font:500 13px/1.3 system-ui,sans-serif;text-align:center;background:#f5d76e;color:#1a1a1a">DEMO · Papelera y Pickup/Delivery · datos ficticios: nada de lo que hagas aquí llega a Supabase, Lalamove ni a clientes</div>`;
 let html = fs.readFileSync(path.join(root, "index.html"), "utf8");
 const cdn = /<script src="https:\/\/cdn\.jsdelivr[^>]*supabase[^>]*><\/script>/;
 if (!cdn.test(html)) throw new Error("supabase-js tag not found in index.html");
 html = html.replace(cdn, setup)
   .replace(/<link rel="manifest"[^>]*>\n?/, "")
   .replace(/(href|src)="\/(?!\/)/g, '$1="')
-  .replace(/<title>[^<]*<\/title>/, "<title>Pedidos CDF · Demo Fase 1</title>")
+  .replace(/<title>[^<]*<\/title>/, "<title>Pedidos CDF · Demo papelera y tipos</title>")
   .replace(/<body([^>]*)>/, `<body$1>${banner}`);
 fs.writeFileSync(path.join(out, "index.html"), html);
 

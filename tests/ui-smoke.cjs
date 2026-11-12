@@ -147,6 +147,53 @@ window.supabase = { createClient: () => ({
     } };
     return (async () => {
     window.__calls.push({ rpc: name, args });
+    // The trash (migration 20261112170000): same rules and answers as the database functions
+    { const me = email[window.__role] || "admin@example.com", admin = !window.__role || window.__role === "admin";
+      const find = (id) => window.__orders.find((o) => o.id === id);
+      const err = (message, code = "P0001") => ({ data: null, error: { code, message } });
+      if (name === "cdf_is_owner") return { data: admin && window.__owner === true, error: null };
+      if (name === "cdf_order_trash") {
+        if (!admin) return err("not allowed", "42501");
+        const o = find(args.p_id); if (!o) return err("order not found");
+        if (String(args.p_reason || "").trim().length < 3) return err("cdf_trash_reason");
+        if (o.__rider) return err("cdf_order_has_rider");
+        if (!o.deleted_at) Object.assign(o, { deleted_at: new Date().toISOString(), deleted_by: me, delete_reason: args.p_reason.trim() });
+        (window.__audit ||= []).push({ order_id: o.id, action: "trashed", by_email: me, reason: o.delete_reason });
+        return { data: { ...o }, error: null };
+      }
+      if (name === "cdf_order_restore") {
+        if (!admin) return err("not allowed", "42501");
+        const o = find(args.p_id); if (!o) return err("order not found");
+        if (o.deleted_at && Date.parse(o.deleted_at) < Date.now() - 30 * 864e5 && window.__owner !== true) return err("cdf_restore_expired", "42501");
+        Object.assign(o, { deleted_at: null, deleted_by: null, delete_reason: null });
+        (window.__audit ||= []).push({ order_id: o.id, action: "restored", by_email: me });
+        return { data: { ...o }, error: null };
+      }
+      if (name === "cdf_order_purge") {
+        if (!(admin && window.__owner === true)) return err("cdf_owner_only", "42501");
+        const o = find(args.p_id); if (!o) return err("order not found");
+        if (!o.deleted_at) return err("cdf_purge_not_in_trash");
+        if (o.__rider) return err("cdf_order_has_rider");
+        window.__orders.splice(window.__orders.indexOf(o), 1);
+        (window.__requests || []).forEach((r) => { if (r.accepted_order_id === o.id) r.accepted_order_id = null; });
+        (window.__audit ||= []).push({ order_id: o.id, num: o.num, action: "purged", by_email: me, reason: args.p_reason });
+        return { data: { purged: o.id, num: o.num }, error: null };
+      }
+      if (name === "cdf_request_counts") {
+        if (!admin) return { data: null, error: null };
+        const c = {};
+        for (const r of window.__requests || []) { const k = (["received", "in_review"].includes(r.status) ? "open" : r.status === "accepted" ? "accepted" : "rejected") + ":" + r.mode; c[k] = (c[k] || 0) + 1; }
+        return { data: c, error: null };
+      }
+      if (name === "cdf_request_order") {
+        const r = (window.__requests || []).find((x) => x.id === args.p_id);
+        if (!r || r.status !== "accepted") return { data: null, error: null };
+        const o = r.accepted_order_id && find(r.accepted_order_id);
+        if (o) return { data: { state: o.deleted_at ? "trash" : "active", order_id: o.id, num: o.num, at: o.deleted_at, by: o.deleted_by, reason: o.delete_reason }, error: null };
+        const a = (window.__audit || []).filter((x) => x.action === "purged" && x.num === r.accepted_order_num).pop();
+        return { data: { state: "deleted", num: r.accepted_order_num, at: a ? new Date().toISOString() : null, by: a?.by_email || null, reason: a?.reason || null, logged: !!a }, error: null };
+      }
+    }
     // Order + price + first payment in one step (same answers as the database function)
     if (name === "cdf_create_order") {
       if (window.__noCreateRpc) return { error: { code: "PGRST202", message: "Could not find the function public.cdf_create_order" } };

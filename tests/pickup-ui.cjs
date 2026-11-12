@@ -77,10 +77,10 @@ const server = http.createServer((req, res) => {
       assert.match(await c.locator(".tag.pickup").innerText(), /Pickup/);
       assert.match(await c.locator(".o-addr").innerText(), /Pickup at Quezon City/);
       assert.match(await c.locator(".o-addr").getAttribute("href"), /Visayas/);
-      assert.deepEqual(await c.locator(".steps .step .t").allInnerTexts(), ["Preparing", "Ready for pickup", "Picked up"]);
+      assert.deepEqual(await c.locator(".steps .step .t").allInnerTexts(), ["Preparing", "Ready for pickup", "Collected"]);
       const opts = await c.locator(".badge-sel select option").allInnerTexts();
       assert(!opts.some((x) => /on the way/i.test(x)), "no On the way: " + opts); assert(opts.includes("Not collected"));
-      assert.equal(await c.locator(".actions").getByRole("button", { name: "Picked up" }).count(), 1);
+      assert.equal(await c.locator(".actions").getByRole("button", { name: "Collected", exact: true }).count(), 1);
       assert.equal(await c.locator(".actions").getByRole("button", { name: "Not collected" }).count(), 1);
       await c.scrollIntoViewIfNeeded(); await c.screenshot({ path: path.join(out, "pickup-1-card.png") });
       await p.context().close();
@@ -101,11 +101,11 @@ const server = http.createServer((req, res) => {
       assert(r && r.args.p_note === null && r.args.p_set_proof === false);
       // Back to ready: Picked up
       const id2 = await makePickup(p), c2 = card(p, id2);
-      await c2.locator(".actions").getByRole("button", { name: "Picked up" }).click();
+      await c2.locator(".actions").getByRole("button", { name: "Collected", exact: true }).click();
       const ask = p.getByRole("alertdialog");
-      assert.match(await ask.innerText(), /picked up order/);
-      await ask.getByRole("button", { name: "Yes, picked up" }).click();
-      await c2.locator(".badge", { hasText: "Picked up" }).first().waitFor();
+      assert.match(await ask.innerText(), /been collected/);
+      await ask.getByRole("button", { name: "Yes, collected" }).click();
+      await c2.locator(".badge", { hasText: "Collected" }).first().waitFor();
       assert.equal(await p.evaluate((id) => window.__orders.find((o) => o.id === id).delivery, id2), "Delivered");
       await p.context().close();
     });
@@ -146,11 +146,11 @@ const server = http.createServer((req, res) => {
       const w = p.locator(`article.work[data-id="${id}"]`);
       await w.waitFor();
       assert.equal(await w.getByRole("button", { name: /Head out/ }).count(), 0);
-      assert.equal(await w.getByRole("button", { name: "Picked up" }).count(), 1);
+      assert.equal(await w.getByRole("button", { name: "Collected", exact: true }).count(), 1);
       assert.equal(await w.getByRole("button", { name: "Not collected" }).count(), 1);
       assert.match(await w.innerText(), /Pickup at the shop/);
-      await w.getByRole("button", { name: "Picked up" }).click();
-      await p.getByRole("alertdialog").getByRole("button", { name: "Yes, picked up" }).click();
+      await w.getByRole("button", { name: "Collected", exact: true }).click();
+      await p.getByRole("alertdialog").getByRole("button", { name: "Yes, collected" }).click();
       await p.waitForFunction(() => (window.__calls || []).some((c) => c.rpc === "cdf_progress" && c.args.p_step === "done"));
       await w.screenshot({ path: path.join(out, "pickup-3-florist.png") }).catch(() => {});
       await p.context().close();
