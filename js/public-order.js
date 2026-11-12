@@ -38,25 +38,40 @@
   const post = (body) => call(API, { method: "POST", headers: headers({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
   // The anti-abuse check (Cloudflare Turnstile) runs once, the first time the server is needed
   // Shown only when Cloudflare needs the person to tap (fixed at the bottom, so it is seen wherever they are).
-  // A first error is often passing (Cloudflare's 600010): the widget retries on its own, and only after
-  // three errors, or 45 s without an answer, does the form give up and say so.
+  // One deadline covers everything, the script's download included: 45 s after starting, if no pass came,
+  // the form gives up, cleans up and lets the person press Send again. A first error is often passing
+  // (Cloudflare's 600010): the widget retries on its own; three errors also end it. Settles exactly once.
+  const TURNSTILE_JS = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
   const captcha = () => new Promise((ok, fail) => {
     if (!PO.turnstileSiteKey) return ok(undefined);
+    let done = false, id = null, slot = null, script = null, errors = 0;
+    const end = (pass, token) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      try { if (id != null) window.turnstile?.remove(id); } catch { /* already gone */ }
+      slot?.remove();
+      // A download that never finished is dropped, so the next try starts a fresh one
+      if (script && !window.turnstile) script.remove();
+      pass ? ok(token) : fail(new ApiError("captcha"));
+    };
+    const timer = setTimeout(() => end(false), 45000);
     const run = () => {
-      const slot = h("div", { class: "po-captcha", role: "region", "aria-label": t("poCaptchaLabel") });
-      document.body.append(slot);
-      let id = null, errors = 0, done = false;
-      const end = (fn) => { if (done) return; done = true; clearTimeout(timer); try { if (id != null) window.turnstile.remove(id); } catch {} slot.remove(); fn(); };
-      const timer = setTimeout(() => end(() => fail(new ApiError("captcha"))), 45000);
-      id = window.turnstile.render(slot, { sitekey: PO.turnstileSiteKey, action: "order_form", appearance: "interaction-only", retry: "auto", "retry-interval": 2000,
-        callback: (token) => end(() => ok(token)),
-        "error-callback": () => { if (++errors >= 3) end(() => fail(new ApiError("captcha"))); return true; },
-        "expired-callback": () => { try { window.turnstile.reset(id); } catch {} } });
+      if (done) return;
+      try {
+        slot = h("div", { class: "po-captcha", role: "region", "aria-label": t("poCaptchaLabel") });
+        document.body.append(slot);
+        id = window.turnstile.render(slot, { sitekey: PO.turnstileSiteKey, action: "order_form", appearance: "interaction-only", retry: "auto", "retry-interval": 2000,
+          callback: (token) => end(true, token),
+          "error-callback": () => { if (++errors >= 3) end(false); return true; },
+          "expired-callback": () => { try { window.turnstile.reset(id); } catch { /* */ } } });
+      } catch { end(false); }
     };
     if (window.turnstile) return run();
-    const sc = h("script", { src: "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit", async: true });
-    sc.onload = run; sc.onerror = () => fail(new ApiError("captcha"));
-    document.head.append(sc);
+    script = [...document.scripts].find((x) => x.src === TURNSTILE_JS) || null;
+    if (!script) { script = h("script", { src: TURNSTILE_JS, async: true }); document.head.append(script); }
+    script.addEventListener("load", run, { once: true });
+    script.addEventListener("error", () => end(false), { once: true });
   });
   const openSession = () => (sessionWait ||= (async () => {
     const data = await post({ action: "session", captcha: await captcha() });
