@@ -8,10 +8,18 @@
   const API = PO.endpoint || `${CFG.url}/functions/v1/cdf-public-order`;
   const SLOTS = PO.slots || ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"];
   const METHODS = ["gcash", "maya", "bank", "cash", "other"];
-  const MAX = { reference: 6, payment_proof: 1 }, DAYS_AHEAD = 90, SEND_BYTES = 3 * 1024 * 1024, PICK_BYTES = 25 * 1024 * 1024;
+  const MAX = { reference: 6, payment_proof: 1 }, DAYS_AHEAD = 90, SLOT_LEAD = PO.slotLeadMinutes ?? 60, SEND_BYTES = 3 * 1024 * 1024, PICK_BYTES = 25 * 1024 * 1024;
   const root = document.getElementById("orderRoot");
   // The shop's day (Manila, UTC+8 all year), wherever the buyer is
   const manilaDate = (plus = 0) => new Date(Date.now() + 8 * 3600e3 + plus * 86400e3).toISOString().slice(0, 10);
+  // Today's slots are offered while at least SLOT_LEAD minutes remain before they end (the server checks the same)
+  const slotOpen = (date, slot) => {
+    if (date !== manilaDate()) return date > manilaDate();
+    const [hh, mm] = slot.split(" - ")[1].split(":").map(Number), at = new Date(Date.now() + 8 * 3600e3);
+    return at.getUTCHours() * 60 + at.getUTCMinutes() + SLOT_LEAD <= hh * 60 + mm;
+  };
+  // The first day that can still be asked for: tomorrow once today's last slot is gone
+  const firstDate = () => manilaDate(SLOTS.some((s) => slotOpen(manilaDate(), s)) ? 0 : 1);
   const phoneE164 = (raw) => {
     const s = String(raw ?? "").trim(), d = s.replace(/\D/g, "");
     if (!/^[\d\s().+-]{7,24}$/.test(s)) return null;
@@ -268,8 +276,9 @@
     need("buyer_name", 2, "poErrName");
     if (!phoneE164(v.buyer_phone)) errs.buyer_phone = t("poErrPhone");
     if (!v.same) { need("receiver_name", 2, "poErrName"); if (!phoneE164(v.receiver_phone)) errs.receiver_phone = t("poErrPhone"); }
-    if (!v.date || v.date < manilaDate() || v.date > manilaDate(DAYS_AHEAD)) errs.date = t("poErrDate");
+    if (!v.date || v.date < firstDate() || v.date > manilaDate(DAYS_AHEAD)) errs.date = t(v.date === manilaDate() ? "poErrToday" : "poErrDate");
     if (!SLOTS.includes(v.slot)) errs.slot = t("poErrSlot");
+    else if (v.date && !errs.date && !slotOpen(v.date, v.slot)) errs.slot = t("poErrSlotPast");
     if (v.mode === "delivery") {
       need("address", 8, "poErrAddress");
       place = picker?.state() || place;
@@ -305,8 +314,16 @@
     const same = h("input", { type: "checkbox", id: "po-same", checked: v.same, onchange: (e) => { v.same = e.target.checked; receiver.hidden = v.same; touched = true; } });
 
     const mode = (m) => h("button", { type: "button", "aria-pressed": String(v.mode === m), "data-mode": m, onclick: () => { if (v.mode !== m) { place = picker?.state() || place; v.mode = m; touched = true; render(); document.querySelector(`[data-mode=${m}]`)?.focus(); } } }, t(m === "delivery" ? "poDelivery" : "poPickup"));
-    const date = input({ type: "date", min: manilaDate(), max: manilaDate(DAYS_AHEAD), required: true });
+    const date = input({ type: "date", min: firstDate(), max: manilaDate(DAYS_AHEAD), required: true });
     const slot = h("select", {}, h("option", { value: "" }, t("poChoose")), SLOTS.map((s) => h("option", { value: s }, s.replace(" - ", " – "))));
+    // Today's slots that have passed (or are about to) cannot be chosen; a choice made before the day changed is dropped
+    const paintSlots = () => {
+      const day = date.value || v.date;
+      for (const o of slot.options) if (o.value) o.disabled = !!day && !slotOpen(day, o.value);
+      if (v.slot && day && !slotOpen(day, v.slot)) { v.slot = ""; slot.value = ""; }
+    };
+    date.addEventListener("input", paintSlots);
+    slot.addEventListener("focus", paintSlots);
 
     let where = null;
     if (v.mode === "delivery") {
@@ -372,6 +389,7 @@
         h("div", { class: "field po-field", role: "group", "aria-labelledby": "po-proof-label" },
           h("span", { id: "po-proof-label", class: "po-label" }, t("poProof"), h("span", { class: "po-optional" }, " " + t("poOptional"))), fileBox.payment_proof)),
       h("button", { class: "btn primary block", type: "submit" }, t("poReview")));
+    paintSlots();
     root.replaceChildren(form);
     paintFiles("reference"); paintFiles("payment_proof");
     Object.keys(fields).forEach(paintError);
@@ -405,7 +423,7 @@
           const name = e.field === "location" ? "location" : e.field;
           if (name === "pickup_branch") { shops.list = null; v.pickup_branch = ""; }
           view = "form"; topError = t("poFixOne"); render();
-          if (fields[name]) { errs[name] = t("poErrServerField"); paintError(name); fields[name].wrap.scrollIntoView({ block: "center" }); }
+          if (fields[name]) { errs[name] = t(name === "slot" && v.date === manilaDate() ? "poErrSlotPast" : "poErrServerField"); paintError(name); fields[name].wrap.scrollIntoView({ block: "center" }); }
           return;
         }
         if (e.code === "session_lost") { view = "form"; render(); return; }

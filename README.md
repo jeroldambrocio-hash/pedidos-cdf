@@ -138,6 +138,7 @@ Formulario público (función real + SQL real en memoria; solo se simulan Turnst
 ```bash
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order.test.mjs   # imágenes, validación, función, permisos
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/public-order-ui.mjs     # el formulario en el navegador, móvil y escritorio
+# Franjas de hoy (12/11/2026): se pueden pedir mientras falte al menos 1 hora para que acaben (hora de Manila); lo comprueban el formulario y el servidor.
 NODE_PATH=.test-tools/node_modules node --experimental-strip-types tests/lalamove-booking.test.mjs   # auditoría F01/F02: una reserva a la vez, resultado incierto, borrado con rider
 NODE_PATH=.test-tools/node_modules node tests/session-switch-ui.cjs         # auditoría F10: respuestas de la cuenta anterior se descartan al cambiar de usuario
 NODE_PATH=.test-tools/node_modules node tests/photos-merge-db.cjs           # auditoría F12: dos personas añaden fotos a la vez y no se pierde ninguna

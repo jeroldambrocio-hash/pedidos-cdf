@@ -130,7 +130,7 @@ async function open({ feature = true, viewport = { width: 390, height: 844 }, ge
     let status = res.status, body = await res.text();
     return route.fulfill({ status, headers: Object.fromEntries(res.headers), body });
   });
-  if (clock) await page.clock.install();
+  if (clock) await page.clock.install(typeof clock === "string" ? { time: new Date(clock) } : undefined);
   await page.goto(ORIGIN + "/pedido.html");
   return { page, state, ctx };
 }
@@ -642,6 +642,30 @@ await step("Upload interrupted: the photo is marked, can be retried, and is stor
   assert.equal(stored.size, before + 1);
   // Reviewing while a photo is still on its way waits for it
   await page.unroute("**/*");
+  await ctx.close();
+});
+
+await step("Today's slots: those that have passed or end within the hour cannot be chosen; once none is left, the first day is tomorrow", async () => {
+  // 12:30 in Manila: 09–11 has passed, 11–13 ends in half an hour, 13–15 onwards are open
+  let { page, ctx } = await open({ clock: "2026-11-16T12:30:00+08:00" });
+  const off = () => page.locator("#po-slot option").evaluateAll((os) => os.filter((o) => o.disabled).map((o) => o.value));
+  assert.deepEqual(await off(), [], "nothing is closed before a date is chosen");
+  await page.locator("#po-date").fill("2026-11-17"); await page.locator("#po-slot").selectOption("09:00 - 11:00");
+  assert.deepEqual(await off(), [], "any slot of a later day can be chosen");
+  await page.locator("#po-date").fill("2026-11-16");
+  assert.deepEqual(await off(), ["09:00 - 11:00", "11:00 - 13:00"]);
+  assert.equal(await page.locator("#po-slot").inputValue(), "", "a slot chosen for another day is dropped when it has passed today");
+  await page.locator("#po-slot").selectOption("13:00 - 15:00");
+  // The form stays open past the hour: the choice is refused on review, next to the field
+  await page.clock.setFixedTime(new Date("2026-11-16T14:10:00+08:00"));
+  await review(page);
+  assert.match(await page.locator("#po-slot-err").innerText(), /no longer available today/);
+  await ctx.close();
+  // 20:30 in Manila: the last slot ends within the hour, so today cannot be asked for at all
+  ({ page, ctx } = await open({ clock: "2026-11-16T20:30:00+08:00" }));
+  assert.equal(await page.locator("#po-date").getAttribute("min"), "2026-11-17");
+  await page.locator("#po-date").fill("2026-11-16"); await review(page);
+  assert.match(await page.locator("#po-date-err").innerText(), /No time slots are left today/);
   await ctx.close();
 });
 

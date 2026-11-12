@@ -192,6 +192,8 @@ export async function verifyPixels(image: CleanImage, decodeJpeg: DecodeJpeg) {
 export const SLOTS = ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"];
 export const PAYMENT_METHODS = ["gcash", "maya", "bank", "cash", "other"];
 export const MAX_DAYS_AHEAD = 90;
+// Today's slots stop being offered when less than this is left before they end (the owner's choice, 12/11/2026).
+export const SLOT_LEAD_MINUTES = 60;
 const FIELDS = ["request_key", "lang", "buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "mode", "date", "slot",
   "address", "lat", "lng", "location_source", "location_confirmed_at", "description", "special_requests", "card_message",
   "payment_method", "reference_files", "payment_proof", "pickup_branch"];
@@ -200,6 +202,14 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-
 export const inPhilippines = (lat: number, lng: number) => lat >= 4 && lat <= 21.5 && lng >= 116 && lng <= 127;
 // The shop's day, whatever the server's or the visitor's clock zone: Manila is UTC+8 all year.
 export const manilaDate = (now: number, plusDays = 0) => new Date(now + 8 * 3600_000 + plusDays * 86400_000).toISOString().slice(0, 10);
+
+// A slot of today (Manila) can be asked for while at least SLOT_LEAD_MINUTES remain before it ends; one
+// that has passed, or is about to, cannot. Any slot of a later day can.
+export function slotOpen(date: string, slot: string, now: number) {
+  if (date !== manilaDate(now)) return date > manilaDate(now);
+  const [hh, mm] = slot.split(" - ")[1].split(":").map(Number), at = new Date(now + 8 * 3600_000);
+  return at.getUTCHours() * 60 + at.getUTCMinutes() + SLOT_LEAD_MINUTES <= hh * 60 + mm;
+}
 
 // "+639171234567" from what people type. Philippine mobiles may come without the country code; any
 // other country needs it (+ or 00), because the buyer is often abroad.
@@ -236,6 +246,7 @@ export function checkRequest(body: unknown, now: number) {
     && new Date(b.date + "T00:00:00Z").toISOString().slice(0, 10) === b.date ? b.date : fail("date");
   if (date < manilaDate(now) || date > manilaDate(now, MAX_DAYS_AHEAD)) fail("date");
   const slot = typeof b.slot === "string" && SLOTS.includes(b.slot) ? b.slot : fail("slot");
+  if (!slotOpen(date, slot, now)) fail("slot");
   const payment_method = typeof b.payment_method === "string" && PAYMENT_METHODS.includes(b.payment_method) ? b.payment_method : fail("payment_method");
 
   let address = "", lat: number | null = null, lng: number | null = null, location_source: string | null = null, location_confirmed_at: string | null = null;

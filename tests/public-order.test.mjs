@@ -8,7 +8,7 @@ import assert from "node:assert";
 import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { checkRequest, cleanImage, IMAGE_MAX_BYTES, manilaDate, phoneE164, verifyPixels } from "../supabase/functions/cdf-public-order/checks.ts";
+import { checkRequest, cleanImage, IMAGE_MAX_BYTES, manilaDate, phoneE164, slotOpen, verifyPixels } from "../supabase/functions/cdf-public-order/checks.ts";
 import { createRequire as __cr } from "node:module";
 import { deflateSync } from "node:zlib";
 const jpegJs = __cr(import.meta.url)("jpeg-js");
@@ -128,10 +128,16 @@ ok("A buyer abroad and a receiver in the Philippines are both accepted; pickup n
   refused({ request_key: "1" }, "invalid:request_key");
   refused({ reference_files: Array.from({ length: 7 }, randomUUID) }, "invalid:reference_files"); refused({ reference_files: ["../etc/passwd"] }, "invalid:reference_files");
   const twice = randomUUID(); refused({ reference_files: [twice, twice] }, "invalid:reference_files"); refused({ payment_proof: "cdf-pagos/x.jpg" }, "invalid:payment_proof");
-  // The shop's day, not the server's or the buyer's: 23:30 on the 11th in Manila is still "today"
-  const lateManila = Date.parse("2026-11-11T15:30:00Z");
-  assert.equal(checkRequest(good({ date: "2026-11-11", location_confirmed_at: new Date(lateManila).toISOString() }), lateManila).date, "2026-11-11");
-  assert.equal(code(() => checkRequest(good({ date: "2026-11-11", location_confirmed_at: new Date(lateManila + 3600_000).toISOString() }), lateManila + 3600_000)), "invalid:date"); }
+  // The shop's day, not the server's or the buyer's: 19:30 on the 11th in Manila is still "today"
+  const lateManila = Date.parse("2026-11-11T11:30:00Z");
+  assert.equal(checkRequest(good({ date: "2026-11-11", slot: "19:00 - 21:00", location_confirmed_at: new Date(lateManila).toISOString() }), lateManila).date, "2026-11-11");
+  assert.equal(code(() => checkRequest(good({ date: "2026-11-11", slot: "19:00 - 21:00", location_confirmed_at: new Date(lateManila + 5 * 3600_000).toISOString() }), lateManila + 5 * 3600_000)), "invalid:date");
+  // Today's slots: open while an hour or more is left before they end; passed ones and the last hour are refused
+  const at = (hhmm) => Date.parse(`2026-11-11T${hhmm}:00+08:00`), today = (slot, now) => code(() => checkRequest(good({ date: "2026-11-11", slot, location_confirmed_at: new Date(now).toISOString() }), now));
+  assert.equal(today("11:00 - 13:00", at("12:00")), null); assert.equal(today("11:00 - 13:00", at("12:01")), "invalid:slot");
+  assert.equal(today("09:00 - 11:00", at("12:00")), "invalid:slot"); assert.equal(today("13:00 - 15:00", at("12:01")), null);
+  assert.equal(today("19:00 - 21:00", at("20:00")), null); assert.equal(today("19:00 - 21:00", at("20:01")), "invalid:slot"); assert.equal(today("19:00 - 21:00", at("23:30")), "invalid:slot");
+  assert.equal(slotOpen("2026-11-12", "09:00 - 11:00", at("23:30")), true); assert.equal(slotOpen("2026-11-10", "19:00 - 21:00", at("08:00")), false); }
 ok("Price, status, shop and any unknown field are refused; so are points outside the Philippines, unconfirmed pins, bad dates, phones and texts");
 
 // ---------- the function, on the real SQL ----------
