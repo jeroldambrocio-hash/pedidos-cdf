@@ -81,13 +81,19 @@ const CHANGELOG = [
       "Everyone's branch shows on their profile and in Team."] },
 ];
 const CHANGELOG_SEEN = "cdf-changelog-seen";
-const changelogUnseen = () => !!CHANGELOG.length && (pref(CHANGELOG_SEEN) || "") < CHANGELOG[0].date;
+// Changes within one day must also trigger the dot. Include both languages so switching language does not.
+const changelogRevision = () => {
+  let hash = 2166136261;
+  for (const c of JSON.stringify(CHANGELOG)) hash = Math.imul(hash ^ c.charCodeAt(0), 16777619);
+  return (CHANGELOG[0]?.date || "") + ":" + (hash >>> 0).toString(16);
+};
+const changelogUnseen = () => !!CHANGELOG.length && (pref(CHANGELOG_SEEN) || "") !== changelogRevision();
 function paintChangelogDot() {
   const on = changelogUnseen();
   document.querySelectorAll("#accountBtn, #changelogBtn").forEach((b) => b.classList.toggle("has-news", on));
 }
 function openChangelog() {
-  try { localStorage.setItem(CHANGELOG_SEEN, CHANGELOG[0]?.date || ""); } catch {}
+  try { localStorage.setItem(CHANGELOG_SEEN, changelogRevision()); } catch {}
   paintChangelogDot();
   const day = (d) => new Intl.DateTimeFormat(LANG, { dateStyle: "long", timeZone: "UTC" }).format(new Date(d + "T00:00:00Z"));
   const node = el("div", { class: "sheet changelog", role: "dialog", "aria-modal": "true" },
