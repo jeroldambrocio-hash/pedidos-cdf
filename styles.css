@@ -1485,7 +1485,7 @@ form.dialog h2.dialog-text { margin: 0; font-weight: 600; font-size: 1.05rem; }
 .mview.in-back { animation: mview-back 340ms var(--ease-soft) both; }
 @keyframes mview-fwd { from { opacity: 0; transform: translateX(10px); } to { opacity: 1; transform: none; } }
 @keyframes mview-back { from { opacity: 0; transform: translateX(-10px); } to { opacity: 1; transform: none; } }
-.menu.account .mitem > span:not(.svg-icon) { flex: 1; }
+.menu.account .mitem > span[data-i18n] { flex: 1; }
 .menu.account .mitem .mchev { width: 16px; height: 16px; color: var(--faint); transition: transform var(--dur-fast) var(--ease-out); }
 .menu.account .mitem:hover .mchev, .menu.account .mitem:focus-visible .mchev { transform: translateX(2px); }
 .menu.account:has(.mview[data-view="prefs"]:not([hidden])) { width: 344px; }
@@ -2382,8 +2382,12 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 /* ---------- Requests from the public form (Phase 3) ----------
    A short list of cards, the same surfaces as the orders. New ones carry a mark until someone opens them. */
 .rail-count:not([hidden]) { background: var(--transit-solid); color: var(--transit-on); }
-.rail[data-expanded="false"] .rail-count:not([hidden]) { position: absolute; top: 4px; right: 4px; min-width: 18px; padding: 0 5px; font-size: .6875rem; line-height: 18px; }
+.rail[data-expanded="false"] .rail-count:not([hidden]) { position: absolute; top: 4px; right: 4px; left: auto; min-width: 18px; padding: 0 5px; font-size: .6875rem; line-height: 18px; }
 #tabRequests { position: relative; }
+/* The mobile drawer always shows labels, even when desktop navigation is collapsed. */
+@media (max-width: 860px) {
+  .rail.drawer-open .rail-count:not([hidden]) { position: static; flex: none; margin-left: auto; box-shadow: none; }
+}
 .req-filter .count { min-width: 0; padding: 0 6px; margin-left: 2px; background: transparent; }
 .req-link { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap;
   margin: 0 0 14px; padding: 10px 12px; border: 1px solid var(--line, currentColor); border-radius: 12px; }
@@ -2450,7 +2454,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .tag-btn:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
 .tag-btn:disabled { opacity: .6; cursor: progress; }
 /* What's new: a dot on the menu button until the latest entry is opened */
-.news-dot { display: none; width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--step-done); }
+.news-dot { display: none; flex: none; width: 8px; height: 8px; margin-left: auto; border-radius: 50%; background: var(--step-done); }
 #changelogBtn.has-news .news-dot { display: inline-block; }
 #accountBtn { position: relative; }
 #accountBtn.has-news::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--step-done); box-shadow: 0 0 0 2px var(--surface); }
