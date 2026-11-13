@@ -209,13 +209,15 @@ async function openDeepLink(params = new URLSearchParams(location.search)) {
   if (request && reqOn()) {
     setTab("requests");
     let r = RQ.list.find((x) => x.id === request);
-    if (!r) { const { data } = await sb.from("cdf_order_requests").select("*").eq("id", request).maybeSingle(); r = data; }
+    const gen = sessionNow();
+    if (!r) { const { data } = await sb.from("cdf_order_requests").select("*").eq("id", request).maybeSingle(); if (stale(gen)) return; r = data; }
     if (r) openRequest(r);
     return;
   }
   if (order) {
     let o = byId(order);
-    if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("id", order).maybeSingle(); o = data; }
+    const gen = sessionNow();
+    if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("id", order).maybeSingle(); if (stale(gen)) return; o = data; }
     if (o) openOrder(o);
   }
 }

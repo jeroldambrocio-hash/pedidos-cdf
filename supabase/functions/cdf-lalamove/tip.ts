@@ -18,15 +18,22 @@ const ERRORS: Record<string, string> = {
   ERR_INVALID_ORDER_STATUS: "Ya no se puede añadir propina: el rider ya está asignado o el envío ha terminado",
 };
 
-export async function addPriorityFee(ll: (method: string, path: string, data?: unknown) => Promise<any>, llOrderId: string, add: unknown): Promise<TipAnswer> {
+// `base` is the fee the person saw when pressing. If Lalamove's fee is no longer that, nothing is charged and the
+// real fee comes back: an earlier press whose answer was lost may already have been applied, and pressing again
+// must not add the same amount twice (13/11/2026). With no `base`, only the current fee is returned (need_base).
+export async function addPriorityFee(ll: (method: string, path: string, data?: unknown) => Promise<any>, llOrderId: string, add: unknown, base?: unknown): Promise<TipAnswer> {
   const n = typeof add === "number" ? add : typeof add === "string" && /^\d{1,5}$/.test(add.trim()) ? +add : NaN;
   if (!Number.isInteger(n) || n < 1) return { status: 400, body: { error: "Importe de propina no válido (pesos enteros)" } };
   if (n > TIP_MAX_ADD) return { status: 400, body: { error: `Como mucho ₱${TIP_MAX_ADD} de una vez` } };
+  const from = base === undefined || base === null ? null : typeof base === "number" && Number.isInteger(base) && base >= 0 ? base : NaN;
+  if (Number.isNaN(from)) return { status: 400, body: { error: "Propina actual no válida" } };
   let now: any;
   try { now = await ll("GET", `/v3/orders/${llOrderId}`); }
   catch (e) { return { status: 502, body: { error: "No se pudo consultar el envío en Lalamove. No se ha añadido nada: " + ((e as Error)?.message || e) } }; }
   if (now?.status !== "ASSIGNING_DRIVER") return { status: 409, body: { error: ERRORS.ERR_INVALID_ORDER_STATUS }, order: now };
   const had = Math.max(0, Math.round(+now.priceBreakdown?.priorityFee || 0)), total = had + n;
+  if (from === null) return { status: 409, body: { need_base: true, priority_fee: had, error: "Actualiza la app y vuelve a intentarlo. No se ha añadido nada." }, order: now };
+  if (had !== from) return { status: 409, body: { changed: true, priority_fee: had, error: `La propina ya es ₱${had} (puede que la anterior sí se aplicara). No se ha añadido nada: mira el precio y pulsa otra vez si quieres más.` }, order: now };
   try {
     const o = await ll("POST", `/v3/orders/${llOrderId}/priority-fee`, { priorityFee: String(total) });
     return { status: 200, body: { priority_fee: Math.round(+o?.priceBreakdown?.priorityFee || total), added: n }, order: o };

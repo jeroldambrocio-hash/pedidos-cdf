@@ -256,7 +256,8 @@ function paintAwayBanner() {
 }
 async function openConflict(c) {
   let o = S.orders.find((x) => x.id === c.id);
-  if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("id", c.id).maybeSingle(); o = data; }
+  const gen = sessionNow();
+  if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("id", c.id).maybeSingle(); if (stale(gen)) return; o = data; }
   if (o) openOrder(o);
 }
 

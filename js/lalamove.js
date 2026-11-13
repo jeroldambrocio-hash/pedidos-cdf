@@ -8,8 +8,9 @@ const llCall = async (body) => {
   const { data, error } = await sb.functions.invoke("cdf-lalamove", { body });
   if (error) {
     let msg = error.message;
-    try { msg = (await error.context?.json())?.error || msg; } catch {}
-    throw new Error(msg);
+    let body = null;
+    try { body = await error.context?.json(); msg = body?.error || msg; } catch {}
+    const e = new Error(msg); e.body = body; throw e; // the body may carry more (e.g. the real priority fee)
   }
   return data;
 };
@@ -276,7 +277,16 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
   const addTip = async (n) => {
     if (!Number.isInteger(n) || n < 1 || n > 1000) throw new Error(t("llTipBad"));
     if (!(await askConfirm(t("llTipAsk", { amount: peso(n) }), t("llTipYes", { amount: peso(n) }), { detail: t(LL.env === "production" ? "llTipWallet" : "llTipSandbox") }))) return;
-    const r = await llCall({ action: "priority_fee", order_id: o.id, add: n });
+    // It says which fee it adds to: if Lalamove's is no longer that (an earlier press whose answer was lost),
+    // nothing is charged and the real fee is shown, so the same amount is never added twice (13/11/2026)
+    const send = () => llCall({ action: "priority_fee", order_id: o.id, add: n, base: tipNow ?? undefined });
+    let r;
+    try { r = await send(); }
+    catch (e) {
+      if (Number.isInteger(e.body?.priority_fee)) { tipNow = e.body.priority_fee; draw(); }
+      if (!e.body?.need_base) throw e;
+      r = await send(); // the first press only learnt the current fee: ask once more, now with it
+    }
     row = r.row || row; tipNow = r.priority_fee ?? tipNow; draw(); toast(t("llTipAdded", { amount: peso(r.priority_fee) }));
   };
   const tipBox = () => {

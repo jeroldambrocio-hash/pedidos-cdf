@@ -17,15 +17,26 @@ const canSeeProfile = (p) => typeof employeeProfileButton === "function" && S.me
 const ORDER_CHATS = feature("orderChats"), DIRECT_CHATS = feature("directChats");
 const TEAM_ONLY = !ORDER_CHATS; // order conversation block and chips
 const inScopeMsg = (m) => (m.direct_id ? DIRECT_CHATS : m.order_id ? ORDER_CHATS : true);
+// Newest first, a page at a time: the server hands out at most 1000 rows per request, so one request with a
+// higher limit silently dropped the oldest conversations from the list once there was much history (13/11/2026)
+async function allRows(query, max = 20000) {
+  const out = [];
+  for (let from = 0; from < max; from += 1000) {
+    const r = await query().range(from, from + 999);
+    if (r.error) return from ? { data: out } : r;
+    out.push(...(r.data || []));
+    if (!r.data || r.data.length < 1000) break;
+  }
+  return { data: out };
+}
 async function loadChat() {
   const gen = sessionNow();
   const [m, r, x, d, dm] = await Promise.all([
-    ORDER_CHATS ? sb.from("cdf_messages").select("*").order("created_at", { ascending: false }).limit(2000)
-      : sb.from("cdf_messages").select("*").is("order_id", null).order("created_at", { ascending: false }).limit(2000),
+    allRows(() => (ORDER_CHATS ? sb.from("cdf_messages").select("*") : sb.from("cdf_messages").select("*").is("order_id", null)).order("created_at", { ascending: false }).order("id")),
     sb.from("cdf_message_reads").select("*").eq("member_email", S.me.email),
-    sb.from("cdf_message_reactions").select("*").limit(5000),
-    DIRECT_CHATS ? sb.from("cdf_direct_threads").select("*") : { error: true },
-    DIRECT_CHATS ? sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).limit(2000) : { error: true },
+    allRows(() => sb.from("cdf_message_reactions").select("*").order("message_id").order("member_email").order("emoji")),
+    DIRECT_CHATS ? allRows(() => sb.from("cdf_direct_threads").select("*").order("id")) : { error: true },
+    DIRECT_CHATS ? allRows(() => sb.from("cdf_direct_messages").select("*").order("created_at", { ascending: false }).order("id")) : { error: true },
   ]);
   if (stale(gen)) return;
   CH.on = !m.error && !r.error;
@@ -58,7 +69,27 @@ function chatSubscribe() {
     })
     .on("postgres_changes", { event: "INSERT", schema: "public", table: "cdf_direct_messages" }, (p) => receiveDirect(p.new))
     .on("postgres_changes", { event: "UPDATE", schema: "public", table: "cdf_direct_messages" }, (p) => updateMessage(p.new));
-  CH.channel = ch.subscribe();
+  CH.channel = ch.subscribe(onRejoin(() => catchUpChat()));
+}
+// Realtime does not replay what was said while the connection was down: fetch what is newer (or edited) since the
+// last message this screen has, and add it as if it had just arrived, without redrawing the open conversation
+async function catchUpChat() {
+  if (!CH.on) return;
+  const gen = sessionNow();
+  const last = CH.msgs.reduce((a, m) => (m.created_at > a ? m.created_at : a), "1970-01-01T00:00:00Z");
+  const since = new Date(Date.parse(last) - 60e3).toISOString(); // a little earlier: a message saved just before the drop
+  const changed = (table) => sb.from(table).select("*").or(`created_at.gt.${since},edited_at.gt.${since}`).order("created_at").limit(1000);
+  const [m, d, dm] = await Promise.all([
+    changed("cdf_messages"),
+    CH.directOn ? sb.from("cdf_direct_threads").select("*") : { data: [] },
+    CH.directOn ? changed("cdf_direct_messages") : { data: [] },
+  ]);
+  if (stale(gen) || !CH.on) return;
+  for (const thread of d.data || []) CH.directs.set(thread.id, thread);
+  for (const msg of [...(m.data || []), ...(dm.data || [])]) {
+    if (CH.msgs.some((x) => x.id === msg.id)) updateMessage(msg); else addMessage(msg, false);
+  }
+  if (S.tab === "chat") renderChatList();
 }
 function stopChat() {
   if (CH.channel) sb.removeChannel(CH.channel);
@@ -102,8 +133,10 @@ function addMessage(m, live) {
 async function sendMessage(thread, body) {
   const direct = CH.directs.has(thread);
   const target = direct ? { direct_id: thread } : { order_id: thread === TEAM ? null : thread };
+  const gen = sessionNow();
   const { data, error } = await sb.from(direct ? "cdf_direct_messages" : "cdf_messages")
     .insert({ ...target, author_email: S.me.email, body }).select().single();
+  if (stale(gen)) return; // signed out or switched account meanwhile: it belongs to the other session
   if (error || !data) throw new Error(t("chatFail"));
   addMessage(data, false);
   CH.reads.set(thread, data.created_at);
@@ -123,7 +156,9 @@ async function saveMessageEdit(message, body) {
   const table = message.direct_id ? "cdf_direct_messages" : "cdf_messages";
   const request = sb.from(table).update({ body }).eq("id", message.id);
   const unchanged = message.edited_at ? request.eq("edited_at", message.edited_at) : request.is("edited_at", null);
+  const gen = sessionNow();
   const { data, error } = await unchanged.select().maybeSingle();
+  if (stale(gen)) return null;
   if (error || !data) throw new Error(t("chatEditFail"));
   return data;
 }
@@ -166,9 +201,11 @@ async function toggleReact(m, emoji) {
   const row = { message_id: m.id, member_email: S.me.email, emoji }, mine = reactsOf(m.id).some((x) => x.member_email === S.me.email && x.emoji === emoji);
   applyReact(row, !mine); // at once; undone if the server says no
   rememberEmoji(emoji);
+  const gen = sessionNow();
   const { error } = mine
     ? await sb.from("cdf_message_reactions").delete().eq("message_id", m.id).eq("member_email", S.me.email).eq("emoji", emoji)
     : await sb.from("cdf_message_reactions").insert(row);
+  if (stale(gen)) return;
   if (error) { applyReact(row, mine); toast(t("chatFail"), { type: "error" }); }
 }
 function reactsNode(m) {
@@ -254,7 +291,8 @@ function internalChatIcon(o) {
 }
 async function openOrderNum(num) {
   let o = orderByNum(num);
-  if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("num", num).maybeSingle(); o = data; }
+  const gen = sessionNow();
+  if (!o) { const { data } = await sb.from("cdf_orders").select("*").eq("num", num).maybeSingle(); if (stale(gen)) return; o = data; }
   if (o) openOrder(o); else toast(t("chatNoOrder", { num }), { type: "error" });
 }
 // The text as DOM nodes (never HTML): @Name of a team member is highlighted (yours a bit more), #number links to the order.
@@ -341,7 +379,8 @@ function threadView(thread, { autofocus = false, onDraft = null } = {}) {
       save.disabled = cancel.disabled = field.disabled = true;
       error.textContent = "";
       try {
-        updateMessage(await saveMessageEdit(message, body));
+        const saved = await saveMessageEdit(message, body);
+        if (saved) updateMessage(saved);
         finish();
       } catch {
         save.disabled = cancel.disabled = field.disabled = false;
@@ -537,7 +576,9 @@ async function loadThreadInfo(ids) {
   const miss = ids.filter((id) => id !== TEAM && !CH.directs.has(id) && !byId(id) && !CH.info.has(id));
   if (!miss.length) return;
   for (const id of miss) CH.info.set(id, null); // asked once
+  const gen = sessionNow();
   const { data } = await sb.from("cdf_orders").select("id,num,customer_name,status,delivery,date,slot,channel,vendor_email,photo_path,bouquet_path,cancelled_at").in("id", miss);
+  if (stale(gen)) return;
   for (const o of data || []) {
     if (CH.info.get(o.id) === null) CH.info.set(o.id, o);
   }

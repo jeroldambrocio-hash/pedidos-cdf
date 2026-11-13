@@ -295,10 +295,10 @@ async function cancel(orderId: string) {
 }
 
 // Extra pay for the rider while none has accepted (tip.ts). The new price is stored from Lalamove's own answer.
-async function tip(orderId: string, add: unknown) {
+async function tip(orderId: string, add: unknown, base?: unknown) {
   const row = await getRow(orderId);
   if (!row?.ll_order_id) return json({ error: "No hay ningún envío reservado" }, 400);
-  const r = await addPriorityFee(ll, row.ll_order_id, add);
+  const r = await addPriorityFee(ll, row.ll_order_id, add, base);
   const o = r.order, patch: Record<string, unknown> = {};
   if (o?.status) patch.status = o.status;
   if (o?.priceBreakdown?.total) patch.price_total = +o.priceBreakdown.total;
@@ -405,7 +405,7 @@ Deno.serve(async (req) => {
     }
     if (b.action === "refresh") return json({ row: await refresh(orderId) });
     if (b.action === "cancel") return await cancel(orderId);
-    if (b.action === "priority_fee") return await tip(orderId, b.add);
+    if (b.action === "priority_fee") return await tip(orderId, b.add, b.base);
     return json({ error: "Acción desconocida" }, 400);
   } catch (e) {
     const msg = e instanceof LalamoveError

@@ -411,7 +411,9 @@ const readDraft = () => {
 const writeDraft = (v) => { try { const owner = draftOwner(); v && owner ? localStorage.setItem(DRAFT_KEY, JSON.stringify({ owner, at: Date.now(), data: v })) : localStorage.removeItem(DRAFT_KEY); } catch {} };
 // Re-read the team first so the lists never hold an email that was changed in the meantime
 async function openFresh(o, opts) {
+  const gen = sessionNow();
   if (isStaff()) await loadMembers();
+  if (stale(gen)) return; // signed out or switched account while the team loaded (13/11/2026)
   if (isStaff()) openEditor(o, opts); else openOrderView(o);
 }
 function openOrder(o) { return openFresh(o); }
@@ -830,10 +832,12 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     const {data,error}=await sb.rpc("cdf_buyer_history",{p_phone:d,p_exclude:o?.id||null});
     if(generation!==repeatGeneration || !repeatTag.isConnected)return;
     if(error){repeatTag.replaceChildren(el("span",{},t("repeatUnavailable")));repeatTag.classList.remove("is-collapsed");return;}
-    const info=Array.isArray(data)?data[0]:data, n=Number(info?.n||0);
-    const total=pricesOn()?t("repeatSum",{sum:peso(info?.total||0)}):"";
-    repeatTag.replaceChildren(icon("star"),el("span",{},(n===1?t("repeatOne"):t("repeatMany",{n}))+total));
-    repeatTag.classList.toggle("is-collapsed",!n);
+    // Only valid orders count; cancelled ones are said apart and the trash is left out (13/11/2026)
+    const info=Array.isArray(data)?data[0]:data, n=Number(info?.n||0), nc=Number(info?.cancelled||0);
+    const total=n&&pricesOn()?t("repeatSum",{sum:peso(info?.total||0)}):"";
+    const cancelled=nc?(n?" · ":"")+t("repeatCancelled",{n:nc}):"";
+    repeatTag.replaceChildren(icon("star"),el("span",{},(n?(n===1?t("repeatOne"):t("repeatMany",{n}))+total:"")+cancelled));
+    repeatTag.classList.toggle("is-collapsed",!n&&!nc);
    },250);
   };
   iBPhone.addEventListener("input", syncRepeat);
@@ -1092,7 +1096,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const footLeft = isNew ? el("span") : el("div", { class: "btn-row" },
     el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) { await refreshNumTop().catch(() => {}); openEditor(null, { copyFrom: o }); } } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
     S.cap.archive ? el("button", { class: "btn foot-act", type: "button", "aria-label": t(archived ? "restore" : "archive"), onclick: () => setArchived([o], !archived) }, icon("archive"), el("span", { class: "lbl" }, t(archived ? "restore" : "archive"))) : null,
-    isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
+    isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" && !o.fulfilled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
     isAdmin() && o.cancelled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("reinstate"), onclick: async () => { if (await closeSheet()) reinstateOrder(o); } }, icon("refresh"), el("span", { class: "lbl" }, t("reinstate"))) : null,
     // With the trash (12/11/2026), "delete" moves the order there: recoverable, logged, explained
     isRetained(o) ? el("small", { class: "note" }, t("retainSuccessful")) : null,
@@ -1281,7 +1285,7 @@ function cancelDialog(o) {
     if (!reason) { iReason.closest(".field")?.classList.add("invalid"); iReason.focus(); return t("cancelNeedReason"); }
     if (typeof llReleaseRider === "function" && !(await llReleaseRider(o))) return t("llReleaseStopped");
     const { data, error } = await sb.rpc("cdf_cancel_order", { p_id: o.id, p_reason: reason });
-    if (error) return t("saveFail", { msg: error.message });
+    if (error) return (error.message || "").includes("cdf_delivered_not_cancellable") ? t("deliveredNoCancel") : t("saveFail", { msg: error.message });
     Object.assign(o, data); upsertLocal(o);
     await closeSheet(true);
     toast(t("cancelledN", { num: o.num }), { action: t("undo"), onAction: () => reinstateOrder(o) });

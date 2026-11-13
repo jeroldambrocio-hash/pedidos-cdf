@@ -388,7 +388,7 @@ setInterval(() => { checkDay(); if (S.me && S.tab === "orders") renderRisk?.(); 
 document.addEventListener("visibilitychange", () => {
   if (document.hidden) return;
   checkDay();
-  if (S.me) { loadOrders(); if (typeof loadRequests === "function") loadRequests(); }
+  if (S.me) { loadOrders(); if (typeof loadRequests === "function") loadRequests(); if (typeof catchUpChat === "function") catchUpChat(); }
 });
 // Safety net in case a change slips past realtime: a quiet reload every 2 minutes while the app is on screen
 setInterval(() => { if (S.me && !document.hidden && navigator.onLine !== false) loadOrders(); }, 120000);
