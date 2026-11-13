@@ -132,6 +132,7 @@
       <aside class="sidebar">
         <button id="calendarToggle" class="btn cal-toggle" type="button" aria-expanded="false" aria-controls="calendarBody"><span class="svg-icon" aria-hidden="true"><svg class="i" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M4 10h16M9 3v4M15 3v4"/></svg></span><span data-i18n="chooseDate">Choose date</span></button>
         <div id="calendarBody" class="cal-body">
+          <div class="cal-inner">
           <div class="panel" style="display:grid;gap:14px">
             <div class="cal-head">
               <h2 id="mLabel"></h2>
@@ -148,6 +149,7 @@
             <div class="filters" id="filters"></div>
             <p class="note" style="margin:10px 4px 0" data-i18n="flowHint">Preparing → Ready → On the way → Delivered. The customer gets an automatic email when it goes out.</p>
             <div class="side-tools" id="adminTools" hidden></div>
+          </div>
           </div>
         </div>
       </aside>

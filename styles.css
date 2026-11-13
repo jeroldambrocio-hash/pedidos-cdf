@@ -638,12 +638,13 @@ body { background: var(--bg); }
 .tools { grid-template-columns: 1fr 220px auto; align-items: center; }
 .tools > .btn[hidden] { display: none; }
 .cal-toggle { display: none; }
-.cal-body { display: grid; gap: 18px; }
+.cal-body, .cal-inner { display: grid; gap: 18px; }
 @media (max-width: 860px) {
   .cal-toggle { display: inline-flex; width: 100%; }
   .cal-body { grid-template-rows: 0fr; overflow: hidden; opacity: 0; gap: 0; transition: grid-template-rows var(--dur-slow) var(--ease-out), opacity var(--dur-base); }
   .cal-body > * { min-height: 0; overflow: hidden; }
-  .cal-body.expanded { grid-template-rows: 1fr 1fr; gap: 10px; opacity: 1; }
+  .cal-inner { gap: 10px; }
+  .cal-body.expanded { grid-template-rows: 1fr; opacity: 1; }
   .sidebar { gap: 10px; }
   .tools { grid-template-columns: 1fr 124px; }
   .tools > .btn { grid-column: 1 / -1; }
@@ -1010,10 +1011,10 @@ html { scrollbar-color: var(--line) transparent; accent-color: var(--primary); c
 
 /* Fix: el calendario plegado en móvil no debe ocupar espacio (tenía dos bloques y solo se plegaba el primero) */
 @media (max-width: 860px) {
-  .cal-body { grid-template-rows: 0fr 0fr; }
-  .cal-body.expanded { grid-template-rows: 1fr 1fr; }
-  .cal-body > .panel { transition: padding 280ms var(--ease-out), border-width 280ms; }
-  .cal-body:not(.expanded) > .panel { padding-top: 0; padding-bottom: 0; border-width: 0; }
+  .cal-body { grid-template-rows: 0fr; }
+  .cal-body.expanded { grid-template-rows: 1fr; }
+  .cal-inner > .panel { transition: padding 280ms var(--ease-out), border-width 280ms; }
+  .cal-body:not(.expanded) .cal-inner > .panel { padding-top: 0; padding-bottom: 0; border-width: 0; }
 }
 @media (max-width: 560px) {
   .tools { grid-template-columns: minmax(0, 1fr) auto; }
@@ -1229,7 +1230,7 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
 /* Florist: the calendar beside her own list, without the office's filters, tools and view switches */
 #ordersView.florist .density, #ordersView.florist .status-mobile,
 #ordersView.florist .cal-foot { display: none; }
-#ordersView.florist .cal-body > .panel + .panel { display: none !important; } /* its display is set inline */
+#ordersView.florist .cal-inner > .panel + .panel { display: none !important; } /* its display is set inline */
 #ordersView.florist .cal-body.expanded { grid-template-rows: 1fr; }
 .sec-h .count { margin-left: 2px; }
 .agenda-list { display: grid; gap: 4px; }
@@ -1400,11 +1401,12 @@ button.rail-item { font: inherit; font-size: 0.84375rem; font-weight: 500; text-
   .grid { grid-template-columns: minmax(0, 1fr) !important; }
   .sidebar { position: static; gap: 10px; }
   .cal-toggle { display: inline-flex; width: 100%; }
-  .cal-body { grid-template-rows: 0fr 0fr; overflow: hidden; opacity: 0; gap: 0; transition: grid-template-rows var(--dur-slow) var(--ease-out), opacity var(--dur-base); }
+  .cal-body { grid-template-rows: 0fr; overflow: hidden; opacity: 0; gap: 0; transition: grid-template-rows var(--dur-slow) var(--ease-out), opacity var(--dur-base); }
   .cal-body > * { min-height: 0; overflow: hidden; }
-  .cal-body.expanded { grid-template-rows: 1fr 1fr; gap: 10px; opacity: 1; }
-  .cal-body > .panel { transition: padding 280ms var(--ease-out), border-width 280ms; }
-  .cal-body:not(.expanded) > .panel { padding-top: 0; padding-bottom: 0; border-width: 0; }
+  .cal-inner { gap: 10px; }
+  .cal-body.expanded { grid-template-rows: 1fr; opacity: 1; }
+  .cal-inner > .panel { transition: padding 280ms var(--ease-out), border-width 280ms; }
+  .cal-body:not(.expanded) .cal-inner > .panel { padding-top: 0; padding-bottom: 0; border-width: 0; }
   .tools { grid-template-columns: minmax(0, 1fr) 160px auto; }
   .tools .status-mobile { display: block; }
   .tools > .btn { grid-column: 1 / -1; }
@@ -2046,6 +2048,7 @@ svg.i.down { transform: rotate(90deg); width: 15px; height: 15px; }
 .profile-name:hover { text-decoration: underline; text-underline-offset: .2em; }
 .profile-avatar { border-radius: 50%; }
 .profile-avatar:hover { outline: 1px solid var(--muted); }
+.member > .profile-avatar { display: grid; place-items: center; justify-self: center; width: 44px; height: 44px; line-height: 1; text-align: center; }
 .mhead.profile-trigger { width: 100%; border-radius: 8px; }
 .mhead.profile-trigger:hover { background: var(--hover); }
 

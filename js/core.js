@@ -352,7 +352,16 @@ function subscribe() {
       const account=S.me?.email;invalidateStats();
       try { await attachPrices(S.orders);if(S.me?.email===account)render(); } catch(e) { toast(e.message,{type:"error"}); }
     })
-    .subscribe();
+    .subscribe(onRejoin(() => loadOrders()));
+}
+// Realtime does not replay what happened while the connection was down (phone locked, network change):
+// when a channel joins again after a drop, reload so nothing is missed (13/11/2026)
+function onRejoin(reload) {
+  let joined = false, dropped = false;
+  return (status) => {
+    if (status === "SUBSCRIBED") { if (joined && dropped && S.me) reload(); joined = true; dropped = false; }
+    else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") dropped = true;
+  };
 }
 const byId = (id) => S.orders.find((o) => o.id === id);
 // Merge a row the server just returned (after a save) without waiting for realtime
@@ -376,7 +385,13 @@ function checkDay() {
   if (S.me) { if (!inRange(d)) loadOrders(); else render(); }
 }
 setInterval(() => { checkDay(); if (S.me && S.tab === "orders") renderRisk?.(); }, 60000);
-document.addEventListener("visibilitychange", () => { if (document.hidden) return; checkDay(); if (S.me) loadOrders(); });
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) return;
+  checkDay();
+  if (S.me) { loadOrders(); if (typeof loadRequests === "function") loadRequests(); }
+});
+// Safety net in case a change slips past realtime: a quiet reload every 2 minutes while the app is on screen
+setInterval(() => { if (S.me && !document.hidden && navigator.onLine !== false) loadOrders(); }, 120000);
 
 // Every view draws through here; each script registers what it draws
 function render() {

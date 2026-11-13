@@ -93,8 +93,15 @@ function paintRequestCount() {
 function subscribeRequests() {
   if (RQ.channel) { sb.removeChannel(RQ.channel); RQ.channel = null; }
   if (!reqOn()) return;
-  RQ.channel = sb.channel("cdf-requests").on("postgres_changes", { event: "*", schema: "public", table: "cdf_order_requests" }, (p) => {
+  RQ.channel = sb.channel("cdf-requests").on("postgres_changes", { event: "*", schema: "public", table: "cdf_order_requests" }, async (p) => {
     const row = p.new?.id ? p.new : null, id = row?.id || p.old?.id;
+    // Just accepted: its order is new to this screen, so fetch it first (it read "not available" until a reload, 13/11/2026)
+    if (row?.status === "accepted" && row.accepted_order_id && !RQ.orders?.has(row.accepted_order_id)) {
+      const gen = sessionNow();
+      const { data } = await sb.from("cdf_orders").select("id,num" + (S.cap.trash ? ",deleted_at" : "")).eq("id", row.accepted_order_id).maybeSingle();
+      if (stale(gen)) return;
+      if (data) { if (!RQ.orders) RQ.orders = new Map(); RQ.orders.set(data.id, data); }
+    }
     const i = RQ.list.findIndex((r) => r.id === id);
     if (p.eventType === "DELETE") { if (i >= 0) RQ.list.splice(i, 1); }
     else if (i >= 0) RQ.list[i] = { ...RQ.list[i], ...row };
@@ -102,7 +109,7 @@ function subscribeRequests() {
     paintRequestCount();
     if (S.tab === "requests") renderRequests();
     document.dispatchEvent(new CustomEvent("requestchange", { detail: row || { id } }));
-  }).subscribe();
+  }).subscribe(onRejoin(() => loadRequests()));
 }
 
 // The form's address, to paste in WhatsApp, Instagram or the shop (shown while the form is switched on)
