@@ -392,7 +392,8 @@ ok("Neither a visitor nor a signed-in member of staff can write sessions, files 
   assert.equal(logged.length, 1); assert.equal(logged[0].step, "shops"); assert.equal(logged[0].op, "unexpected");
   assert.match(logged[0].cause, /connection to db lost/);
   assert.doesNotMatch(JSON.stringify(logged[0]), /917|maria@|abcdefghijklmnop/);
-  assert.equal(logText({ message: "x ".repeat(300) }).length, 200);
+  assert.equal(logText({ message: "x ".repeat(300) }), "operation failed");
+  assert.equal(logText("saving Maria Santos at 123 Main Street password=shortSecret"), "operation failed");
   assert.doesNotMatch(JSON.stringify(body), /connection/); }
 ok("A failure nobody expected answers “server” with an id, and the log has the step and the cause with phones, emails and tokens taken out");
 

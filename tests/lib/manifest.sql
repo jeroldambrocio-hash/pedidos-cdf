@@ -21,5 +21,34 @@ select jsonb_build_object(
     from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace
     where not t.tgisinternal and n.nspname = 'public' and c.relname like 'cdf\_%'),
   'buckets', (select jsonb_agg(id order by id) from storage.buckets where id like 'cdf%'),
-  'realtime', (select jsonb_agg(tablename order by tablename) from pg_publication_tables where pubname = 'supabase_realtime' and tablename like 'cdf\_%')
+  'realtime', (select jsonb_agg(tablename order by tablename) from pg_publication_tables where pubname = 'supabase_realtime' and tablename like 'cdf\_%'),
+  -- F09: equal names/signatures do not imply equal behavior or access control.
+  'function_definitions', (select jsonb_object_agg(p.proname || '(' || pg_get_function_identity_arguments(p.oid) || ')',
+      jsonb_build_object('source', p.prosrc, 'language', l.lanname, 'returns', pg_get_function_result(p.oid),
+        'volatility', p.provolatile, 'strict', p.proisstrict, 'parallel', p.proparallel,
+        'leakproof', p.proleakproof, 'definer', p.prosecdef, 'config', coalesce(array_to_string(p.proconfig, ','), '')))
+    from pg_proc p join pg_namespace n on n.oid = p.pronamespace join pg_language l on l.oid=p.prolang
+    where n.nspname='public' and p.proname like 'cdf\_%'),
+  'policy_definitions', (select jsonb_object_agg(n.nspname || '.' || c.relname || '.' || p.polname,
+      jsonb_build_object('command',p.polcmd,'permissive',p.polpermissive,
+        'roles',(select jsonb_agg(case when r=0 then 'public' else pg_get_userbyid(r) end order by case when r=0 then 'public' else pg_get_userbyid(r) end) from unnest(p.polroles) r),
+        'using',pg_get_expr(p.polqual,p.polrelid), 'check',pg_get_expr(p.polwithcheck,p.polrelid)))
+    from pg_policy p join pg_class c on c.oid=p.polrelid join pg_namespace n on n.oid=c.relnamespace
+    where (n.nspname='public' and c.relname like 'cdf\_%') or (n.nspname='storage' and p.polname like 'cdf%')),
+  'column_grants', (select jsonb_object_agg(key,privs) from (
+      select c.relname||'.'||a.attname||':'||case when x.grantee=0 then 'PUBLIC' else pg_get_userbyid(x.grantee) end as key,
+        string_agg(x.privilege_type||case when x.is_grantable then '+' else '' end,',' order by x.privilege_type) as privs
+      from pg_attribute a join pg_class c on c.oid=a.attrelid join pg_namespace n on n.oid=c.relnamespace
+      cross join lateral aclexplode(a.attacl) x
+      where n.nspname='public' and c.relname like 'cdf\_%' and a.attnum>0 and not a.attisdropped
+        and (x.grantee=0 or pg_get_userbyid(x.grantee) in ('anon','authenticated','service_role'))
+      group by 1) g),
+  'trigger_definitions', (select jsonb_object_agg(c.relname||'.'||t.tgname,
+      jsonb_build_object('definition',pg_get_triggerdef(t.oid),'enabled',t.tgenabled))
+    from pg_trigger t join pg_class c on c.oid=t.tgrelid join pg_namespace n on n.oid=c.relnamespace
+    where not t.tgisinternal and n.nspname='public' and c.relname like 'cdf\_%'),
+  'relation_security', (select jsonb_object_agg(c.relname,jsonb_build_object('forced_rls',c.relforcerowsecurity,
+      'options',c.reloptions,'view',case when c.relkind='v' then pg_get_viewdef(c.oid) else null end))
+    from pg_class c join pg_namespace n on n.oid=c.relnamespace
+    where n.nspname='public' and c.relkind in ('r','v') and c.relname like 'cdf\_%')
 ) as manifest

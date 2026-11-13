@@ -35,12 +35,12 @@
 
   // ---------- server ----------
   const headers = (extra = {}) => ({ ...(CFG.anonKey ? { apikey: CFG.anonKey, Authorization: "Bearer " + CFG.anonKey } : {}), ...(session ? { "x-cdf-session": session } : {}), ...extra });
-  class ApiError extends Error { constructor(code, field) { super(code); this.code = code; this.field = field; } }
+  class ApiError extends Error { constructor(code, field, rid) { super(code); this.code = code; this.field = field; this.rid = /^[A-Za-z0-9_-]{10}$/.test(rid || "") ? rid : null; } }
   const call = async (url, init) => {
     let res;
     try { res = await fetch(url, init); } catch { throw new ApiError("network"); }
     const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new ApiError(data.error || "server", data.field);
+    if (!res.ok) throw new ApiError(data.error || "server", data.field, data.rid);
     return data;
   };
   const post = (body) => call(API, { method: "POST", headers: headers({ "Content-Type": "application/json" }), body: JSON.stringify(body) });
@@ -102,7 +102,7 @@
   };
   const errorText = (e) => t({ network: "poErrNetwork", slow_down: "poErrSlow", quota: "poErrQuota", captcha: "poErrCaptcha", off: "poNotOpen", requests_not_open: "poNotOpen", conflict: "poErrServer",
     search_unavailable: "locSearchFail", file_too_big: "poErrBig", not_an_image: "poErrNotImage", bad_dimensions: "poErrNotImage", empty_file: "poErrNotImage",
-    session_lost: "poSessionExpired", origin: "poNotOpen", heic: "poErrHeic" }[e?.code] || "poErrServer");
+    session_lost: "poSessionExpired", origin: "poNotOpen", heic: "poErrHeic" }[e?.code] || "poErrServer") + (e?.rid ? " (Ref: " + e.rid + ")" : "");
 
   // ---------- pickup shops ----------
   // The shops come from the team's data (Team → each florist's shop), open or not on the chosen day. No
@@ -315,7 +315,7 @@
 
     const mode = (m) => h("button", { type: "button", "aria-pressed": String(v.mode === m), "data-mode": m, onclick: () => { if (v.mode !== m) { place = picker?.state() || place; v.mode = m; touched = true; render(); document.querySelector(`[data-mode=${m}]`)?.focus(); } } }, t(m === "delivery" ? "poDelivery" : "poPickup"));
     const date = input({ type: "date", min: firstDate(), max: manilaDate(DAYS_AHEAD), required: true });
-    const slot = h("select", {}, h("option", { value: "" }, t("poChoose")), SLOTS.map((s) => h("option", { value: s }, s.replace(" - ", " – "))));
+    const slot = h("select", {}, h("option", { value: "" }, t("poChoose")), SLOTS.map((s) => h("option", { value: s }, formatSlot12(s))));
     // Today's slots that have passed (or are about to) cannot be chosen; a choice made before the day changed is dropped
     const paintSlots = () => {
       const day = date.value || v.date;
@@ -438,7 +438,7 @@
       h("dl", { class: "po-summary" },
         row(t("poBuyer"), `${p.buyer_name} · ${phoneE164(p.buyer_phone)}`),
         row(t("poReceiver"), v.same ? t("poSameShort") : `${p.receiver_name} · ${phoneE164(p.receiver_phone)}`),
-        row(t("poWhen"), `${day} · ${p.slot.replace(" - ", " – ")}`),
+        row(t("poWhen"), `${day} · ${formatSlot12(p.slot)}`),
         row(t(p.mode === "delivery" ? "poDelivery" : "poPickup"), p.mode === "delivery" ? p.address : (() => {
           const x = (shops.list || []).find((y) => y.branch === p.pickup_branch);
           return [h("b", {}, p.pickup_branch), x?.address ? h("span", { class: "po-review-addr" }, " · " + x.address) : null];

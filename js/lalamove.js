@@ -336,7 +336,7 @@ function lalamoveSection(o, { proofsOnly = false } = {}) {
   async function quote(place) {
     await keepPoint(place);
     const vehicle = el("select", {}, ...["MOTORCYCLE", "SEDAN", "MPV"].map((v) => el("option", { value: v, selected: v === (row?.service || o.vehicle || "MOTORCYCLE") }, t("llv_" + v))));
-    const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: o.slot })));
+    const when = el("select", {}, el("option", { value: "now" }, t("llNow")), el("option", { value: "slot", selected: o.date > manilaToday() }, t("llInSlot", { slot: formatSlot12(o.slot) })));
     // Lalamove's delivery type: Regular (cheaper) or Priority (pays the rider more, so one is found sooner and
     // the flowers go straight to the door). The last one used for this order is offered again.
     const tier = el("select", {}, ...["regular", "priority"].map((v) => el("option", { value: v, selected: v === (row?.quote_for?.tier || "regular") }, t("llTier_" + v))));

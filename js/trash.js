@@ -6,6 +6,7 @@
 const TRASH_DAYS = 30;
 const trashError = (e) => {
   const m = e?.message || "";
+  if (m.includes("cdf_successful_order_retained")) return t("retainSuccessful");
   for (const [code, key] of [["cdf_order_has_rider", "deleteHasRider"], ["cdf_trash_reason", "trashReasonShort"], ["cdf_restore_expired", "trashExpired"],
     ["cdf_owner_only", "trashOwnerOnly"], ["cdf_order_in_trash", "trashIsIn"], ["cdf_purge_not_in_trash", "trashIsIn"]]) if (m.includes(code)) return t(key);
   return t("saveFail", { msg: m });
@@ -14,6 +15,7 @@ const daysLeft = (o) => Math.ceil((Date.parse(o.deleted_at) + TRASH_DAYS * 864e5
 
 // Cancel, archive and trash are three different things: say which is which before trashing.
 function trashDialog(o) {
+  if (isRetained(o)) { toast(t("retainSuccessful"), { type: "error", ms: 7000 }); return; }
   const reason = el("textarea", { rows: 2, maxlength: 500, placeholder: t("trashReasonPh") });
   const what = (glyph, title, text) => el("li", {}, el("span", { class: "ic" }, icon(glyph)), el("div", {}, el("b", {}, title), el("small", {}, text)));
   miniSheet(t("trashTitle", { num: o.num }), [
@@ -52,6 +54,7 @@ const purgeCall = async (body) => {
   return { data };
 };
 function purgeDialog(o, after) {
+  if (isRetained(o)) { toast(t("retainSuccessful"), { type: "error", ms: 7000 }); return; }
   const reason = el("textarea", { rows: 2, maxlength: 500, placeholder: t("trashReasonPh") });
   const typed = el("input", { inputmode: "numeric", autocomplete: "off", placeholder: o.num });
   miniSheet(t("purgeTitle", { num: o.num }), [
@@ -82,13 +85,13 @@ async function openTrash() {
     const left = daysLeft(o), canRestore = left > 0 || S.cap.owner;
     return el("li", { class: "trash-item", "data-id": o.id },
       el("div", { class: "trash-top" }, el("b", {}, "#" + o.num), el("span", { class: "tag " + (isPickup(o) ? "pickup" : "delivery") }, icon(isPickup(o) ? "box" : "truck"), t(isPickup(o) ? "modePickup" : "modeDelivery")),
-        el("span", {}, o.customer_name || o.buyer_name || t("noName")), el("span", { class: "spacer" }), el("small", { class: "note" }, shortDate(o.date) + " · " + o.slot)),
-      el("p", { class: "note" }, t("trashBy", { who: memberName(o.deleted_by), when: new Date(o.deleted_at).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) }),
+        el("span", {}, o.customer_name || o.buyer_name || t("noName")), el("span", { class: "spacer" }), el("small", { class: "note" }, shortDate(o.date) + " · " + formatSlot12(o.slot))),
+      el("p", { class: "note" }, t("trashBy", { who: memberName(o.deleted_by), when: formatDateTime12(o.deleted_at) }),
         " · ", el("i", {}, o.delete_reason)),
       el("p", { class: "note trash-left" + (left > 0 ? "" : " over") }, left > 0 ? t("trashDaysLeft", { n: left }) : t("trashExpiredShort")),
       el("div", { class: "btn-row" },
         canRestore ? el("button", { class: "btn", type: "button", onclick: async (e) => { e.currentTarget.disabled = true; if (await restoreFromTrash(o)) { await closeSheet(true); openTrash(); } else e.currentTarget.disabled = false; } }, icon("refresh"), " " + t("trashRestore")) : null,
-        S.cap.owner ? el("button", { class: "btn danger", type: "button", onclick: async () => { await closeSheet(true); purgeDialog(o, openTrash); } }, icon("trash"), " " + t("purgeDo")) : null));
+        S.cap.owner && !isRetained(o) ? el("button", { class: "btn danger", type: "button", onclick: async () => { await closeSheet(true); purgeDialog(o, openTrash); } }, icon("trash"), " " + t("purgeDo")) : null));
   };
   const node = el("div", { class: "sheet trash-sheet", role: "dialog", "aria-modal": "true" },
     el("div", { class: "sheet-head" }, el("h2", {}, t("trashTitleList")), el("span", { class: "tag muted" }, String(list.length)), el("span", { class: "spacer" }), closeBtn()),

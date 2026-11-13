@@ -81,7 +81,7 @@ function workCard(o, withDate, late) {
     el("div", { class: "w-top", role: "button", tabindex: "0", "aria-label": t("order", { num: o.num }), onclick: open, onkeydown: (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); open(); } } },
       thumb(o, "thumb lg"),
       el("div", { class: "o-main" },
-        el("div", { class: "w-head" }, el("span", { class: "time" }, (withDate ? shortDate(o.date) + " · " : "") + o.slot), el("span", {}, "#" + o.num), chanChip(o.channel), badge(cur, o), chatChip(o)),
+        el("div", { class: "w-head" }, el("span", { class: "time" }, (withDate ? shortDate(o.date) + " · " : "") + formatSlot12(o.slot)), el("span", {}, "#" + o.num), chanChip(o.channel), badge(cur, o), chatChip(o)),
         el("div", { class: "w-name" }, o.customer_name || t("noName")),
         retryTag(o),
         // Cancelled: say it plainly so nobody prepares or drives it, with the office's reason

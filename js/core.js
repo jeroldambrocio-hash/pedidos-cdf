@@ -32,8 +32,16 @@ const isOpen = (o) => { const s = stepOf(o); return s !== 3 && s !== CANCELLED; 
 const NEXT = { 0: 1, 1: 2, 2: 3, 4: 2 };
 // A pickup (the customer collects it at the shop) has its own names for the last steps and no On the way
 const isPickup = (o) => !!o?.pickup;
+// Completion closes delivery/collection AND payment; fulfilment is retained even if corrected later.
+const isRetained = (o) => !!o?.fulfilled_at || o?.delivery === "Delivered";
+const isCompleted = (o) => {
+  if (!o || o.cancelled_at || o.delivery !== "Delivered") return false;
+  if (o.amount != null && o.amount !== "" && o.paid != null)
+    return Number.isFinite(+o.amount) && Number.isFinite(+o.paid) && Math.round(+o.paid * 100) >= Math.round(+o.amount * 100);
+  return o.completed === true;
+};
 const PICKUP_NAME = { ready: "st_ready_pickup", done: "st_done_pickup", fail: "st_fail_pickup" };
-const stepName = (i, o) => t((isPickup(o) && PICKUP_NAME[STEPS[i].k]) || "st_" + STEPS[i].k);
+const stepName = (i, o) => t(i === 3 && isCompleted(o) ? "st_completed" : (isPickup(o) && PICKUP_NAME[STEPS[i].k]) || "st_" + STEPS[i].k);
 const NEXT_PICKUP = { 0: 1, 1: 3, 4: 3 };
 const nextOf = (o, cur) => (isPickup(o) ? NEXT_PICKUP : NEXT)[cur];
 const stepIdsOf = (o) => (isPickup(o) ? STEP_IDS.filter((i) => i !== 2) : STEP_IDS);
@@ -212,7 +220,7 @@ addEventListener("online", () => { if (S.me) loadOrders(); });
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
 async function detectSchema() {
   const gen = sessionNow();
-  const [a, c, e, m, p, x, k, d, b, v, pu, tr, ow, pay, mk, rq, rf, br] = await Promise.all([
+  const [a, c, e, m, p, x, k, d, b, v, pu, tr, ow, pay, mk, rq, rf, br, co] = await Promise.all([
     sb.from("cdf_orders").select("archived_at").limit(1),
     sb.from("cdf_orders").select("carrier_email").limit(1),
     sb.from("cdf_order_events").select("id").limit(1),
@@ -234,9 +242,10 @@ async function detectSchema() {
     sb.rpc("cdf_order_references", { p_order: "00000000-0000-0000-0000-000000000000" }).then((r) => r, () => ({ error: true })),
     // Phase 4: nearest shop to a delivery point; asked with no point, it answers by name that a point is needed
     isAdmin() ? sb.rpc("cdf_branch_ranking", { p_lat: null, p_lng: null, p_date: null }).then((r) => r, () => ({})) : {},
+    sb.from("cdf_orders").select("completed,fulfilled_at").limit(1).then((r) => r, () => ({ error: true })),
   ]);
   if (stale(gen)) return;
-  S.cap = { archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, trash: !tr.error, owner: !ow.error && ow.data === true, paid: isAdmin() && !m.error && !pay.error,
+  S.cap = { retention: !co.error, archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, trash: !tr.error, owner: !ow.error && ow.data === true, paid: isAdmin() && !m.error && !pay.error,
     create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: /cdf_invalid_point/.test(br?.error?.message || "") };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
@@ -408,7 +417,7 @@ function paintGapBanner() {
   box.replaceChildren(icon("alert"), el("div", {},
     el("b", {}, t("gapBanner", { n: gaps.length })),
     ...gaps.map(({ o, why }) => el("div", { class: "away-row" },
-      el("button", { class: "linkish", type: "button", onclick: () => openOrder(o) }, "#" + o.num + " · " + (o.date === today ? t("today") : t("tomorrow")) + (o.slot ? " " + o.slot : "")),
+      el("button", { class: "linkish", type: "button", onclick: () => openOrder(o) }, "#" + o.num + " · " + (o.date === today ? t("today") : t("tomorrow")) + (o.slot ? " " + formatSlot12(o.slot) : "")),
       el("span", {}, why)))));
 }
 
@@ -484,13 +493,10 @@ async function savePrice(id,patch,seen) {
 }
 // Exhaust the paginated, RLS-protected history. Never silently accept the API's default row cap.
 async function historyRows() {
- const rows=[], cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone,cancelled_at"+(S.cap.pickupMode?",pickup":"");
- for(let offset=0;;offset+=1000){
-  let query=sb.from("cdf_orders").select(cols).order("id");
-  if(S.cap.trash)query=query.is("deleted_at",null); // the trash is not part of the history or the statistics
-  const paged=typeof query.range==="function";if(paged)query=query.range(offset,offset+999);
-  const {data,error}=await query;if(error)throw new Error(t("loadFail"));rows.push(...(data||[]));
-  if(!paged || !data || data.length<1000)break;
- }
+ const cols="id,num,date,slot,channel,vendor_email,status,delivery,attempts,buyer_phone,buyer_name,customer_phone,cancelled_at"+(S.cap.pickupMode?",pickup":"")+(S.cap.trash?",deleted_at":"")+(S.cap.retention?",completed,fulfilled_at":"");
+ const {data,error}=await allPages(()=>sb.from("cdf_orders").select(cols,{count:"exact"}).order("id"));
+ if(error)throw new Error(t("loadFail"));
+ // An archived order always counts. Legacy successful orders in the trash count as well.
+ const rows=(data||[]).filter(o=>!o.deleted_at||isRetained(o));
  await attachPrices(rows);return rows;
 }

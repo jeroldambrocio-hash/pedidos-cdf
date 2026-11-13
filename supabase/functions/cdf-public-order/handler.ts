@@ -24,9 +24,16 @@ export type Deps = {
   log?: (entry: Record<string, unknown>) => void;   // where failures are written (the function's log by default)
 };
 
-// What a failure's own text may say in the log: no phone or card-like numbers, no emails, no tokens, and short.
-export const logText = (v: unknown) => String((v as { message?: unknown })?.message ?? v ?? "")
-  .replace(/[\w.+-]+@[\w-]+(\.[\w-]+)+/g, "[email]").replace(/[A-Za-z0-9_-]{32,}/g, "[token]").replace(/\+?\d[\d\s().-]{6,}\d/g, "[number]").slice(0, 200);
+// Never log raw exception text: names, addresses and short secrets cannot be safely removed by regex.
+// Only a fixed operational category and a validated database code leave this function.
+export const logText = (v: unknown) => {
+  const m = String((v as { message?: unknown })?.message ?? v ?? "");
+  if (/connection.*lost/i.test(m)) return "connection to db lost";
+  if (/timeout|timed out/i.test(m)) return "operation timed out";
+  if (/network|fetch failed|failed to fetch/i.test(m)) return "network failure";
+  if (/rate/i.test(m)) return "rate check failed";
+  return "operation failed";
+};
 
 // Per hour unless said otherwise. Generous on purpose where many customers may share one address
 // (an office, a mobile carrier): a shared address alone must not lock everyone out.
@@ -67,7 +74,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
   const rid = d.randomToken().slice(0, 10);
   let step = "start";
   const failure = (op: string, cause?: unknown) => {
-    const entry = { fn: "cdf-public-order", rid, step, op, code: (cause as { code?: unknown })?.code ?? null, cause: logText(cause) };
+    const code = String((cause as { code?: unknown })?.code ?? "");
+    const entry = { fn: "cdf-public-order", rid, step, op, code: /^(?:[A-Z0-9]{5}|PGRST\d{3})$/.test(code) ? code : null, cause: logText(cause) };
     try { (d.log || ((e) => console.error(JSON.stringify(e))))(entry); } catch { /* logging never changes the answer */ }
     return json({ error: "server", rid }, 500);
   };

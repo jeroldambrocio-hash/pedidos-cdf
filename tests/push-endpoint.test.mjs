@@ -38,7 +38,7 @@ function db({ fail = {}, members, push }) {
       if (fail["rpc." + name]) return { error: { message: "temporary" } }; return { data: null, error: null }; },
   };
   const app = { subscribe: () => ({ pushTextMessage: async () => { if (push) await push(); } }) };
-  return { calls, deps: { service, server: async () => app, pushOpts: {} } };
+  return { calls, tables, deps: { service, server: async () => app, pushOpts: {} } };
 }
 const notice = () => new Request("https://x/cdf-push", { method: "POST", headers: { "x-cdf-hook": "s" }, body: JSON.stringify({ kind: "request", id: "r1", outbox: 7 }) });
 const confirmed = (calls) => calls.filter((c) => c.rpc === "cdf_outbox_done").length;
@@ -73,3 +73,19 @@ const confirmed = (calls) => calls.filter((c) => c.rpc === "cdf_outbox_done").le
   const res = await handlePush(notice(), w.deps);
   assert.equal(res.status, 503);
   ok("Nobody to tell but the confirmation fails: reported as pending"); }
+
+for (const [kind, table] of [['message','cdf_messages'],['direct','cdf_direct_messages'],['assigned','cdf_orders'],['cancelled','cdf_orders'],['rider','cdf_lalamove'],['rider_failed','cdf_lalamove']]) {
+ const w=db({fail:{[table+'.select']:true}});
+ const res=await handlePush(new Request('https://x/cdf-push',{method:'POST',headers:{'x-cdf-hook':'s'},body:JSON.stringify({kind,id:'o1',to:'flo@t',status:'EXPIRED',outbox:7})}),w.deps);
+ assert.equal(res.status,503,kind+' must retry');assert.equal(confirmed(w.calls),0);
+}
+ok('F08: lookup failures for chats, assignments, cancellations and riders all remain pending');
+for (const kind of ['message','direct','assigned','cancelled','rider','rider_failed']) {
+ const w=db({});
+ const res=await handlePush(new Request('https://x/cdf-push',{method:'POST',headers:{'x-cdf-hook':'s'},body:JSON.stringify({kind,id:'gone',to:'flo@t',outbox:7})}),w.deps);
+ assert.equal(res.status,200);assert.equal(confirmed(w.calls),1,kind+' missing source must close');
+}
+ok('F08: deleted/obsolete sources close their outbox event instead of retrying forever');
+{const w=db({});w.deps.server=async()=>null;const res=await handlePush(notice(),w.deps);assert.equal(res.status,503);assert.equal(confirmed(w.calls),0);}
+ok('F08: missing VAPID configuration is pending, never a successful delivery');
+

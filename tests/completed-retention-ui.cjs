@@ -1,0 +1,23 @@
+const fs=require('fs'),path=require('path'),http=require('http'),assert=require('assert/strict'),{execFileSync}=require('child_process');
+const {chromium}=require('playwright'),root=path.resolve(__dirname,'..');
+const mockFile=path.join(root,'.impeccable/review/mock-completed.js');fs.mkdirSync(path.dirname(mockFile),{recursive:true});
+execFileSync(process.execPath,[path.join(__dirname,'ui-smoke.cjs')],{env:{...process.env,EXPORT_MOCK:mockFile}});
+const mock=fs.readFileSync(mockFile,'utf8'),types={'.html':'text/html','.js':'text/javascript','.css':'text/css','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'};
+const server=http.createServer((req,res)=>{const file=path.join(root,new URL(req.url,'http://x').pathname==='/'?'index.html':new URL(req.url,'http://x').pathname);if(!file.startsWith(root+path.sep))return res.writeHead(403).end();fs.readFile(file,(e,b)=>{if(e)return res.writeHead(404).end();res.setHeader('Content-Type',types[path.extname(file)]||'application/octet-stream');res.end(file.endsWith('.html')?String(b).replace(/ integrity="[^"]+"/g,''):b);});});
+(async()=>{await new Promise(r=>server.listen(0,'127.0.0.1',r));const browser=await chromium.launch({headless:true,channel:'chrome'});const errors=[];
+try{const ctx=await browser.newContext({viewport:{width:1280,height:900},reducedMotion:'reduce'});await ctx.addInitScript(()=>{window.__role='admin';localStorage.setItem('cdf-lang','en')});
+await ctx.route('**/*',r=>r.request().url().includes('supabase.min.js')?r.fulfill({body:mock,contentType:'text/javascript'}):r.request().url().startsWith('http://127.0.0.1')?r.continue():r.fulfill({body:'',contentType:'text/css'}));
+const p=await ctx.newPage();p.setDefaultTimeout(8000);p.on('pageerror',e=>errors.push(e.message));await p.goto('http://127.0.0.1:'+server.address().port+'/');await p.waitForFunction(()=>S.loaded);
+const id=await p.evaluate(async()=>{const o=__orders.find(o=>o.num==='0127');o.delivery='Delivered';o.completed=true;o.fulfilled_at=new Date().toISOString();const pr=__prices.find(p=>p.order_id===o.id);pr.paid=pr.amount;await loadOrders();return o.id;});
+const card=p.locator('article.order[data-order="'+id+'"]');assert.equal(await card.locator('.badge.s-done').innerText(),'Completed');
+await card.locator('.o-name').click();await p.locator('.sheet').waitFor();assert.equal(await p.getByRole('button',{name:'Move to trash',exact:true}).count(),0);assert.equal(await p.getByRole('button',{name:'Delete',exact:true}).count(),0);assert.equal(await p.getByRole('button',{name:'Archive',exact:true}).count(),1);await p.keyboard.press('Escape');
+console.log('ok Completed label, archive available, no trash/delete for successful order');
+await p.evaluate(()=>setFilter('completed'));assert.equal(await p.locator('article.order').count(),1);await p.evaluate(()=>setFilter(null));
+await p.evaluate(async(id)=>{const pr=__prices.find(p=>p.order_id===id);pr.paid=0;await loadOrders()},id);assert.equal(await card.locator('.badge.s-done').innerText(),'Delivered');
+const total=await p.evaluate(async()=>{const before=(await historyRows()).length;const o=__orders.find(o=>o.num==='0127');o.archived_at=new Date().toISOString();await loadOrders();return {before,after:(await historyRows()).length};});
+assert.equal(total.after,total.before);console.log('ok unpaid stays Delivered; completed filter is distinct; archiving does not reduce history/statistics');
+const legacy=await p.evaluate(async()=>{const o=__orders.find(o=>o.num==='0127');o.deleted_at=new Date().toISOString();const n=(await historyRows()).length;__orders.find(o=>o.num==='0124').deleted_at=new Date().toISOString();return {successful:n,incomplete:(await historyRows()).length};});assert.equal(legacy.successful,total.before);assert.equal(legacy.incomplete,total.before-1);console.log('ok legacy successful trash stays in statistics; an unfulfilled trash entry is excluded');
+const derived=await p.evaluate(()=>({paidOnly:isCompleted({delivery:'-',amount:100,paid:100}),missing:isCompleted({delivery:'Delivered',amount:null,paid:null}),private:isCompleted({delivery:'Delivered',completed:true}),pickup:isCompleted({delivery:'Delivered',pickup:true,amount:100,paid:100})}));assert.deepEqual(derived,{paidOnly:false,missing:false,private:true,pickup:true});
+assert.deepEqual(errors,[]);console.log('ok paid alone is not Completed; unknown total is not assumed paid; staff status needs no money fields; pickups work');
+}finally{await browser.close();server.close();}})().catch(e=>{console.error(e);process.exit(1)});
+

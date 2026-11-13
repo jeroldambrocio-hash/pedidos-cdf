@@ -6,7 +6,7 @@ const CH = { on: false, reactOn: false, directOn: false, directs: new Map(), msg
 const threadOf = (m) => m.direct_id || m.order_id || TEAM;
 const msgOrder = (a, b) => (a.created_at < b.created_at ? -1 : a.created_at > b.created_at ? 1 : 0);
 const manilaDay = (ts) => new Intl.DateTimeFormat("en-CA", { timeZone: TZ, year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(ts));
-const clock = (ts) => new Date(ts).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit", timeZone: TZ });
+const clock = (ts) => formatClock12(ts);
 const person = (email) => S.members.find((m) => m.email === email) || { email, name: email?.split("@")[0] || "?" };
 const coarse = () => matchMedia("(pointer: coarse)").matches;
 const canSeeProfile = (p) => typeof employeeProfileButton === "function" && S.members.some((m) => m.email === p.email) && (isAdmin() || p.email === S.me?.email);
@@ -666,7 +666,7 @@ function renderChatPane() {
       o ? el("button", { class: "chat-head-pic", type: "button", "aria-label": t("chatOpenOrder"), onclick: () => openOrder(byId(th) || o) }, thumb(o)) : null,
       el("div", { class: "chat-head-txt" },
         el("b", {}, threadTitle(th)),
-        o ? el("small", {}, [shortDate(o.date), o.slot, o.vendor_email ? memberName(o.vendor_email) : null].filter(Boolean).join(" · ")) : null),
+        o ? el("small", {}, [shortDate(o.date), formatSlot12(o.slot), o.vendor_email ? memberName(o.vendor_email) : null].filter(Boolean).join(" · ")) : null),
       o && k != null ? badge(k, o) : null,
       el("span", { class: "spacer" }),
       o ? el("button", { class: "btn", type: "button", onclick: () => openOrder(byId(th) || o) }, t("chatOpenOrder")) : null);

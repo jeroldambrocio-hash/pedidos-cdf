@@ -6,6 +6,7 @@
 import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import nodemailer from "npm:nodemailer@6.9.14";
 import { customerEmail, stepOf } from "./email.ts";
+import { formatSlot12 } from "../_shared/time.ts";
 
 const APP_URL = Deno.env.get("CDF_APP_URL") || "https://casadeflores-store.netlify.app";
 const FROM = Deno.env.get("CDF_MAIL_FROM") || "Casa de Flores <onboarding@resend.dev>";
@@ -137,7 +138,7 @@ Deno.serve(async (req) => {
   const shopBox = (Deno.env.get("SMTP_USER") || "").toLowerCase();
   if (/@casadeflores\.store$/i.test(m.email) && m.email.toLowerCase() !== shopBox) return json({ skipped: "placeholder address" });
 
-  const when = `${fmtDate(o.date)} · ${o.slot}`;
+  const when = `${fmtDate(o.date)} · ${formatSlot12(o.slot)}`;
   const rows = [
     ["When", when],
     ["Customer", o.customer_name],

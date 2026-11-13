@@ -1,8 +1,31 @@
 // Viewer preferences (language, light/dark, text size, animations) and the Spanish / English texts.
 // Static HTML uses data-i18n (text), data-i18n-ph (placeholder) and data-i18n-aria (aria-label).
 // Messages that go to customers are always taken from the English set (tIn("en", …)).
+// 12-hour display only. Stored slots stay in 24-hour form for validation, ordering and Lalamove.
+function formatSlot12(value) {
+  return String(value ?? "").replace(/\b(\d{1,2}):(\d{2})\b/g, (raw, hs, ms) => {
+    const h = +hs, m = +ms;
+    if (h > 24 || m > 59 || (h === 24 && m !== 0)) return raw;
+    return (h % 12 || 12) + ":" + ms + " " + (h % 24 < 12 ? "AM" : "PM");
+  });
+}
+function formatClock12(value, timeZone = "Asia/Manila") {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "-";
+  const parts = new Intl.DateTimeFormat("en-PH", { timeZone, hour: "numeric", minute: "2-digit", hourCycle: "h12" }).formatToParts(date);
+  const get = k => parts.find(p => p.type === k)?.value || "";
+  return get("hour") + ":" + get("minute") + " " + get("dayPeriod").toUpperCase();
+}
+function formatDateTime12(value, language = locale(), options = { day: "numeric", month: "short" }) {
+  const date = new Date(value);
+  if (!Number.isFinite(date.getTime())) return "-";
+  return date.toLocaleDateString(language, { ...options, timeZone: "Asia/Manila" }) + ", " + formatClock12(date);
+}
+
+
 const I18N = {
   es: {
+    st_completed: "Completado", retainSuccessful: "Este pedido se conserva en las estadísticas. Puedes archivarlo, pero no borrarlo.",
     dropPoint: "Ubicación exacta", dropPh: "Enlace de Google Maps del cliente", dropHint: "Se rellena sola al escribir la dirección. Pega aquí el enlace de Maps solo si el cliente te lo manda.", dropFind: "Buscar en el mapa",
     dropOk: "Punto guardado · comprobar en el mapa ↗", dropBad: "No reconozco esa ubicación. Pega un enlace de Google Maps (en Filipinas) o «lat, lng».", dropResolving: "Abriendo el enlace…",
     llManualOut: "Lo lleva otra persona: marcar «En camino» sin Lalamove", llShopMissingMine: "Tu tienda aún no tiene dirección de recogida. Pídesela al admin.",
@@ -360,6 +383,7 @@ const I18N = {
     msgFail: "Hola{name}, hemos intentado entregar tu pedido #{num} de Casa de Flores pero no había nadie. Más información: {link}",
   },
   en: {
+    st_completed: "Completed", retainSuccessful: "This order stays in statistics. You can archive it, but cannot delete it.",
     dropPoint: "Exact location", dropPh: "Customer's Google Maps link", dropHint: "Filled in by itself from the address. Paste the Maps link here only if the customer sends one.", dropFind: "Find on the map",
     dropOk: "Point saved · check it on the map ↗", dropBad: "Can't read that location. Paste a Google Maps link (in the Philippines) or \"lat, lng\".", dropResolving: "Opening the link…",
     llManualOut: "Someone else is taking it: mark \"In transit\" without Lalamove", llShopMissingMine: "Your shop has no pickup address yet. Ask the admin to add it.",

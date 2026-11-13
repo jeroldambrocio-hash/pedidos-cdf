@@ -86,7 +86,7 @@ async function renderStats(){
  const perTitle=prices?{1:"salesPerDay",7:"salesPerWeek",30:"salesPerMonth"}[step]:{1:"perDay",7:"ordersPerWeek",30:"ordersPerMonth"}[step];
  const periodHint=typeof statsDays==="number"?t("statsPeriodHint",{days}):t("statsRangeHint",{from:yearDate(from),to:yearDate(to),days});
  const daily=card(t(perTitle),periodHint,chart,el("div",{class:"cols-axis"},el("span",{},step===1?shortDate(from):yearDate(from)),el("span",{},to===S.today?t("today"):yearDate(to))),el("table",{class:"sr-only"},el("caption",{},t("perDay")),el("tbody",{},buckets.map(b=>el("tr",{},el("th",{},shortDate(b.start)),el("td",{},fmt(b.value)))))));
- const hours=Array.from({length:24},(_,h)=>({name:pad(h)+":00",value:rows.filter(o=>Math.floor(slotStart(o.slot)/60)===h).length}));
+ const hours=Array.from({length:24},(_,h)=>({name:formatSlot12(pad(h)+":00"),value:rows.filter(o=>Math.floor(slotStart(o.slot)/60)===h).length}));
  // Keep 7–20 visible as in the preview; include earlier/later hours when orders use them.
  const shown=hours.filter((h,i)=>(i>=7&&i<=20)||h.value),hourMax=Math.max(1,...hours.map(h=>h.value));
  const hourChart=el("div",{class:"cols hours with-guides",style:`--n:${shown.length}`},countGuides(hourMax),shown.map(h=>el("button",{type:"button",class:"col",title:h.name+": "+dayCount(h.value),"aria-label":h.name+": "+dayCount(h.value)},el("span",{class:"col-fill",style:`--h:${100*h.value/hourMax}%`}),el("small",{class:"col-x"},h.name))));

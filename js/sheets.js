@@ -213,10 +213,10 @@ function missedDialog(o) {
     setErr = se;
     const slot = iSlot.value();
     if (!iDate.value || !slot) return t("slotInvalid");
-    const at = new Intl.DateTimeFormat("en-PH", { timeZone: TZ, hour: "numeric", minute: "2-digit" }).format(new Date());
+    const at = formatClock12(new Date());
     const when = fromIso(iDate.value).toLocaleDateString("en-PH", { weekday: "long", month: "long", day: "numeric" });
     // With tracking on, the customer reads this on their link; off, it is only the rider's instructions (kept if empty)
-    const text = note.value.trim() || (track ? `We came at ${at} but nobody was home. We'll come back on ${when}, ${slot}.` : null);
+    const text = note.value.trim() || (track ? `We came at ${at} but nobody was home. We'll come back on ${when}, ${formatSlot12(slot)}.` : null);
     if (typeof llReleaseRider === "function" && !(await llReleaseRider(o))) return t("llReleaseStopped");
     const pp = await proof.upload(o.id);
     const { data, error } = await sb.rpc("cdf_reschedule", { p_id: o.id, p_date: iDate.value, p_slot: slot, p_note: text,
@@ -252,7 +252,7 @@ function slotPicker(val) {
   const opts = (sel, from = 0, last = 23 * 60 + 30) => {
     const list = Array.from({ length: 49 }, (_, i) => i * 30).filter((n) => n >= from && n <= last);
     if (sel != null && !list.includes(sel)) list.push(sel), list.sort((x, y) => x - y); // keep an old value off the grid
-    return list.map((n) => el("option", { value: String(n), selected: n === sel }, fmt(n).padStart(5, "0")));
+    return list.map((n) => el("option", { value: String(n), selected: n === sel }, formatSlot12(fmt(n))));
   };
   const a0 = m ? mins(m[1], m[2]) : null, z0 = m ? mins(m[3], m[4]) : null;
   const from = el("select", { "aria-label": t("slotFrom") }, el("option", { value: "" }, "--:--"), ...opts(a0));
@@ -277,7 +277,7 @@ function notifyMsg(o, name, k) {
 async function logOpened(o, channel, recipient, label, message) {
   await sb.from("cdf_notifications").insert({ order_id: o.id, audience: "customer", channel, recipient, detail: label, subject: label, message, by_email: S.me.email });
 }
-const when = (ts) => new Date(ts).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+const when = (ts) => formatDateTime12(ts);
 function historyBlock(o) {
   const box = el("div", { class: "hist-list" });
   const load = async () => {
@@ -313,6 +313,7 @@ const evValue = (k, v) => {
   if (k === "vendor_email" || k === "carrier_email") return memberName(v);
   if (k === "amount" || k === "paid") return paymentPesos(v);
   if (k === "date") return shortDate(v);
+  if (k === "slot") return formatSlot12(v);
   if (k === "status" || k === "delivery") return t("db_" + String(v).replace(/\W/g, "")) || v;
   return String(v);
 };
@@ -367,7 +368,7 @@ function openOrderView(o) {
     el("div", { class: "sheet-body" },
       cancelNote(o),
       el("section", {}, el("dl", { class: "ro" },
-        el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + o.slot),
+        el("dt", {}, t("dateSlot")), el("dd", {}, longDate(o.date) + " · " + formatSlot12(o.slot)),
         el("dt", {}, t("recipient")), el("dd", {}, o.customer_name || t("noName")),
         isPickup(o) ? [el("dt", {}, t("pickupTag")), el("dd", {}, (() => { const shop = pickupShop(o);
             return shop?.branch ? [el("b", {}, shop.branch), shop.address ? el("br") : null, shop.address ? mapLink(shop.address) : null] : t("pickupNoShop"); })())]
@@ -674,7 +675,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const paymentMeta = (entry) => [entry.method ? (PAY_METHODS.includes(entry.method) ? t("pm_" + entry.method) : entry.method) : null,
     entry.reference ? t("payRefShort", { ref: entry.reference }) : null,
     entry.paid_at ? t("payPaidOn", { date: new Intl.DateTimeFormat(LANG, { dateStyle: "medium", timeZone: "UTC" }).format(new Date(entry.paid_at + "T00:00:00Z")) }) : null].filter(Boolean).join(" · ");
-  const paymentDate = (entry) => new Intl.DateTimeFormat(LANG, { dateStyle: "medium", timeStyle: "short", timeZone: TZ }).format(new Date(entry.created_at));
+  const paymentDate = (entry) => formatDateTime12(entry.created_at, LANG, { dateStyle: "medium" });
   function paintPaymentHistory(entries) {
     const reversed = new Set(entries.map((entry) => entry.reverses));
     fill(savedProofs, [...entries].reverse().filter((entry) => entry.proofs?.length).map((entry) =>
@@ -1092,11 +1093,12 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
     isAdmin() && o.cancelled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("reinstate"), onclick: async () => { if (await closeSheet()) reinstateOrder(o); } }, icon("refresh"), el("span", { class: "lbl" }, t("reinstate"))) : null,
     // With the trash (12/11/2026), "delete" moves the order there: recoverable, logged, explained
-    isAdmin() && S.cap.trash ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("trashMove"), onclick: async () => {
+    isRetained(o) ? el("small", { class: "note" }, t("retainSuccessful")) : null,
+    isAdmin() && !isRetained(o) && S.cap.trash ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("trashMove"), onclick: async () => {
       if (typeof llActive === "function" && llActive(o)) { toast(t("deleteHasRider"), { type: "error", ms: 7000 }); return; }
       if (await closeSheet()) trashDialog(o);
     } }, icon("trash"), el("span", { class: "lbl" }, t("trashMove"))) : null,
-    isAdmin() && !S.cap.trash ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
+    isAdmin() && !isRetained(o) && !S.cap.trash ? el("button", { class: "btn danger foot-act", type: "button", "aria-label": t("delete"), onclick: async () => {
       if (!(await askConfirm(t("askDelete", { num: o.num }), t("yesDelete"), { danger: true, detail: S.cap.archive ? t("deleteHintArchive") : null }))) return;
       const { error } = await sb.from("cdf_orders").delete().eq("id", o.id);
       // The database refuses while a Lalamove rider is on it (audit F02): cancel the rider first

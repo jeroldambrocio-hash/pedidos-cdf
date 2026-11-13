@@ -115,6 +115,8 @@ function filterMatch(o) {
   if (f === "unassigned") return !o.vendor_email;
   if (f === "risk") return !!riskOf(o);
   if (f === "attention") return !!attentionOf(o);
+  if (f === "completed") return isCompleted(o);
+  if (f === 3) return stepOf(o) === 3 && !isCompleted(o);
   return stepOf(o) === f;
 }
 function setFilter(k) { S.filter = k; flipDay(); }
@@ -151,7 +153,8 @@ function renderFilters(day) {
     isAdmin() ? row("attention", t("attention"), "alert", n((o) => !!attentionOf(o)), "prep") : null,
     row(null, t("allOrders"), "orders", n(() => true), "all"),
     // "Cancelled" only shows up once there is one (or while it is the active filter)
-    ...STEPS.map((s, i) => i === CANCELLED && !n((o) => stepOf(o) === i) && S.filter !== i ? null : row(i, stepName(i), STEP_ICON[i], n((o) => stepOf(o) === i), s.k)),
+    ...STEPS.map((s, i) => i === CANCELLED && !n((o) => stepOf(o) === i) && S.filter !== i ? null : row(i, stepName(i), STEP_ICON[i], n((o) => stepOf(o) === i && (i !== 3 || !isCompleted(o))), s.k)),
+    n(isCompleted) || S.filter === "completed" ? row("completed", t("st_completed"), "check", n(isCompleted), "done") : null,
     !S.hits && risky ? row("risk", t("summaryRisk"), "alert", risky, null) : null,
     unassigned ? row("unassigned", t("summaryUnassigned"), "user", unassigned, null) : null,
     // Type (12/11/2026): delivery or pickup, combined with the status and the channel
@@ -167,7 +170,7 @@ function renderFilters(day) {
     }));
   // Phones: the same filters as a select next to the search box
   const sel = $("statusMobile");
-  sel.replaceChildren(el("option", { value: "" }, t("allStatuses")), ...STEPS.map((s, i) => el("option", { value: String(i) }, stepName(i))),
+  sel.replaceChildren(el("option", { value: "" }, t("allStatuses")), ...STEPS.map((s, i) => el("option", { value: String(i) }, stepName(i))), el("option", { value: "completed" }, t("st_completed")),
     ...(isAdmin() ? [el("option", { value: "attention" }, t("attention"))] : []), el("option", { value: "risk" }, t("summaryRisk")), el("option", { value: "unassigned" }, t("summaryUnassigned")));
   sel.value = S.filter == null ? "" : String(S.filter);
 }
@@ -202,7 +205,7 @@ function renderDay() {
   if (missedHere.length) box.append(el("div", { class: "missed-banner", role: "status" }, el("span", {}, icon("alert")), el("div", {},
     el("b", {}, t("missedBanner", { n: missedHere.length })),
     ...missedHere.map((o) => el("button", { class: "missed-row", type: "button", onclick: () => { selectDay(o.date); openOrder(o); } },
-      el("b", {}, "#" + o.num), " · " + (o.customer_name || t("noName")) + " → ", el("small", {}, shortDate(o.date) + " · " + o.slot))))));
+      el("b", {}, "#" + o.num), " · " + (o.customer_name || t("noName")) + " → ", el("small", {}, shortDate(o.date) + " · " + formatSlot12(o.slot)))))));
 
   const empty = (title, sub, action) => box.append(el("div", { class: "empty" }, el("img", { src: "/img/emblem.webp", alt: "" }), el("b", {}, title), sub ? el("span", {}, sub) : null, action));
   if (S.loadError && !S.loaded) { empty(t("loadFail"), null, el("button", { class: "btn", type: "button", onclick: () => loadOrders() }, t("retry"))); return; }
@@ -225,7 +228,7 @@ const NEXT_LABEL = { 0: "actReady", 1: "actOut", 2: "actDelivered", 4: "actOutAg
 const NEXT_LABEL_PICKUP = { 0: "actReady", 1: "actPickedUp", 4: "actPickedUp" };
 function timelineEntry(o, withDate) {
   const [a, z] = String(o.slot || "").split(/\s*-\s*/);
-  const fmt = (s) => (s || "").replace(/^(\d):/, "0$1:");
+  const fmt = formatSlot12;
   return el("div", { class: "entry", "data-id": o.id },
     el("div", { class: "when", style: `--c:var(--${STEPS[stepOf(o)].k})` }, el("span", {}, withDate ? el("small", {}, shortDate(o.date)) : null, el("b", {}, fmt(a) || o.slot), el("small", {}, fmt(z)))),
     orderCard(o));
@@ -429,18 +432,15 @@ function renderTools() {
       ? el("button", { class: "btn ghost", type: "button", disabled: !delivered.length, onclick: async () => {
         if (await askConfirm(t("archiveAsk", { n: delivered.length }), t("archive"), { detail: t("archiveHint") })) setArchived(delivered, true);
       } }, icon("archive"), t("archiveDelivered", { n: delivered.length }))
-      : isAdmin() ? el("button", { class: "btn ghost", type: "button", disabled: !delivered.length, onclick: () => purgeDelivered(delivered) }, icon("trash"), t("purge", { n: delivered.length })) : null,
+      : null,
     S.cap.archive ? el("button", { class: "btn ghost", type: "button", onclick: showArchived }, icon("archive"), t("seeArchived")) : null,
     S.cap.trash && isAdmin() ? el("button", { class: "btn ghost", type: "button", id: "trashBtn", onclick: () => openTrash() }, icon("trash"), t("trashOpen")) : null,
     el("button", { class: "btn ghost", type: "button", onclick: exportDialog }, icon("download"), t("exportCsv")));
 }
-// Before migration 012 there is no archive: deleting stays available to admins, with a clear warning
-async function purgeDelivered(done) {
-  if (!(await askConfirm(t("purgeAsk", { n: done.length }), t("yesDelete"), { danger: true }))) return;
-  const { error } = await sb.from("cdf_orders").delete().in("id", done.map((o) => o.id));
-  if (error) { toast(/cdf_order_has_rider/.test(error.message || "") ? t("deleteHasRider") : t("purgeFail"), { type: "error", ms: 7000 }); return; }
-  await removeFiles(done);
-  toast(t("purged", { n: done.length })); loadOrders();
+// Old callers also respect successful-order retention.
+async function purgeDelivered() {
+  // Retained for compatibility with old callers: successful orders are never deleted.
+  toast(t("retainSuccessful"), { type: "error", ms: 7000 });
 }
 function exportDialog() {
   const m = S.month;
@@ -462,7 +462,7 @@ function exportDialog() {
   });
 }
 function downloadCsv(rows, name) {
-  const cols = [["num", "orderNum"], ["date", "date"], ["slot", "slot"], ["channel", "channel"], [(o) => stepName(stepOf(o), o), "status"],
+  const cols = [["num", "orderNum"], ["date", "date"], [(o) => formatSlot12(o.slot), "slot"], ["channel", "channel"], [(o) => stepName(stepOf(o), o), "status"],
     [(o) => memberName(o.vendor_email || ""), "vendor"], ["buyer_name", "buyerName"], ["buyer_phone", "buyerPhone"], ["customer_email", "email"],
     ["customer_name", "customerName"], ["customer_phone", "phone"], ["address", "deliveryAddr"], ["card_message", "cardMsg"], ["notes", "note"],
     ["attempts", "attempts"], ...(pricesOn() ? [["amount", "amount"]] : []), [(o) => (o.cancelled_at ? o.cancel_reason || "1" : ""), "cancelledCol"], [(o) => (o.archived_at ? "1" : ""), "archived"], [(o) => trackUrl(o), "customerLink"]];

@@ -16,13 +16,13 @@ function reqStatusTag(r) {
   if (reqPast(r)) return el("span", { class: "tag req-tag past" }, t("reqDatePassed"));
   return el("span", { class: "tag req-tag " + r.status }, t("reqSt_" + r.status));
 }
-const reqWhen = (r) => longDate(r.date) + " · " + String(r.slot).replace(" - ", " – ");
+const reqWhen = (r) => longDate(r.date) + " · " + formatSlot12(r.slot);
 const reqAgo = (ts) => {
   const m = Math.round((Date.now() - new Date(ts)) / 60e3);
   if (m < 1) return t("reqJustNow");
   if (m < 60) return t("reqMinAgo", { n: m });
   if (m < 24 * 60) return t("reqHourAgo", { n: Math.round(m / 60) });
-  return new Date(ts).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  return formatDateTime12(ts);
 };
 
 // Every request still to review is loaded, however many (a page at a time); of the closed ones, the latest
@@ -216,7 +216,7 @@ async function openRequest(r) {
         ? el("div", { class: "sheet-note" }, icon("user"), el("span", {}, t("reqBeingReviewed", { who: reqWho(r.reviewed_by) }))) : null,
       os && os.state === "active" && os.num ? el("div", { class: "sheet-note" }, icon("check"), el("span", {}, t("reqBecameOrder", { num: "#" + os.num }))) : null,
       os && (os.state === "trash" || os.state === "deleted" || os.state === "unknown") ? el("div", { class: "sheet-note warn req-order-note" }, icon(os.state === "trash" ? "trash" : "alert"),
-        el("span", {}, el("b", {}, reqOrderText(os)), os.by || os.at ? " · " + t("reqOrderWho", { who: os.by ? memberName(os.by) : "?", when: os.at ? new Date(os.at).toLocaleString(locale(), { timeZone: TZ, day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" }) : "?" }) : "",
+        el("span", {}, el("b", {}, reqOrderText(os)), os.by || os.at ? " · " + t("reqOrderWho", { who: os.by ? memberName(os.by) : "?", when: os.at ? formatDateTime12(os.at) : "?" }) : "",
           os.reason ? el("i", {}, " · " + os.reason) : null,
           os.state === "deleted" && os.logged === false ? el("small", { class: "note", style: "display:block" }, t("reqOrderNoLog")) : null)) : null,
       r.status === "rejected" ? el("div", { class: "sheet-note cancel-note" }, icon("close"), el("span", {}, r.reject_reason ? t("reqRejectedWhy", { why: r.reject_reason }) : t("reqRejectedNoWhy"))) : null,

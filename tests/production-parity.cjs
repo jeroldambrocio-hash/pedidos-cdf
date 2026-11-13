@@ -21,7 +21,9 @@ const PHASES = ['cdf_create_order_with_payment', 'cdf_public_uploads', 'cdf_orde
 const manifest = async (db) => (await db.query(MANIFEST)).rows[0].manifest;
 const keys = (o) => Object.keys(o || {}).sort();
 const canon = (v) => JSON.stringify(v, (k, x) => x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((y) => [y, x[y]])) : x);
-const norm = (m) => ({ ...m, tables: Object.fromEntries(Object.entries(m.tables || {}).map(([k, v]) => [k, { rls: v.rls, cols: [...v.cols].sort() }])) });
+// Historical fixture lacks the new F09 fields; only this legacy upgrade/rollback test projects them away.
+// tests/schema-parity.cjs compares the complete catalog, including bodies and access expressions, to production.
+const norm = (m) => ({ ...Object.fromEntries(['tables','policies','functions','table_grants','triggers','buckets','realtime'].map(k=>[k,m[k]])), tables: Object.fromEntries(Object.entries(m.tables || {}).map(([k, v]) => [k, { rls: v.rls, cols: [...v.cols].sort() }])) });
 
 (async () => {
   // 1) The repo up to production's state
@@ -88,7 +90,7 @@ const norm = (m) => ({ ...m, tables: Object.fromEntries(Object.entries(m.tables 
 
   // 4) Fresh install = upgrade
   const fresh = new PGlite();
-  await build((sql) => fresh.exec(sql));
+  await build((sql) => fresh.exec(sql), { until: 'cdf_durable_push' });
   const f = norm(await manifest(fresh));
   for (const part of ['triggers', 'buckets', 'realtime']) { f[part] = [...f[part]].sort(); after[part] = [...after[part]].sort(); }
   assert.equal(canon(f), canon(after));

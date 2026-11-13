@@ -58,7 +58,7 @@ function render() {
     // The shop cancelled it: say so kindly, without the internal reason, and point to the shop's channel
     const [cy, cm, cd] = o.date.split("-").map(Number);
     card.replaceChildren(h("h2", null, t("order", { num: o.num })),
-      h("div", "meta", cap(new Date(cy, cm - 1, cd).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot),
+      h("div", "meta", cap(new Date(cy, cm - 1, cd).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + formatSlot12(o.slot)),
       h("div", "track-cancel", null), h("div", "meta", t("cancelledTrackTxt")));
     card.querySelector(".track-cancel").append(h("b", null, t("cancelledTrackTitle")));
     return;
@@ -67,7 +67,7 @@ function render() {
   const cur = isFailed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
   const [y, m, d] = o.date.split("-").map(Number);
   const head = h("div", "track-head");
-  head.append(h("h2", null, t("order", { num: o.num })), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + o.slot));
+  head.append(h("h2", null, t("order", { num: o.num })), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + formatSlot12(o.slot)));
   if (o.for_name) head.append(h("div", "meta", t("forName", { name: o.for_name })));
   const top = [head];
   if (o.bouquet_url) top.push(photo(o.bouquet_url, t("bouquetPhoto"), t("bouquetCaption")));
@@ -86,7 +86,7 @@ function render() {
   if (o.delivery_note) extra.push(h("div", "note", o.delivery_note));
   if (o.proof_url) extra.push(photo(o.proof_url, t("proofPhoto")));
   // Shop time (Philippines), whatever the viewer's own time zone
-  const when = new Date(o.updated_at).toLocaleString(locale(), { timeZone: "Asia/Manila", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
+  const when = formatDateTime12(o.updated_at);
   const upd = h("div", "meta", t("updated", { when: when + " PHT" }) + (failed ? " · " + t("staleNote") : ""));
   card.replaceChildren(...top, tl, ...extra, upd);
 }

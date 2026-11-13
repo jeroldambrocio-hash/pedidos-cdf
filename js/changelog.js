@@ -1,6 +1,22 @@
 // What's new: the changes made to the app, newest first, shown under the account menu → What's new.
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 const CHANGELOG = [
+  { date: "2026-11-13", es: ["Las horas se muestran en formato de 12 horas: 9:00 AM, 1:30 PM y 9:00 PM. La zona horaria sigue siendo Filipinas. (As requested by Ralph)"],
+    en: ["Times now use the 12-hour format: 9:00 AM, 1:30 PM and 9:00 PM. The time zone remains the Philippines. (As requested by Ralph)"] },
+  { date: "2026-11-13",
+    es: ["Los pedidos entregados o recogidos se conservan: pueden archivarse, pero no borrarse ni enviarse a la papelera, para mantener las estadísticas.",
+      "Completado: un pedido entregado o recogido aparece como completado cuando también está pagado por completo."],
+    en: ["Delivered or collected orders are kept: archive them to clear the list; they cannot be deleted or trashed, so statistics are preserved.",
+      "Completed: a delivered or collected order is shown as Completed once it is also fully paid."] },
+  { date: "2026-11-13",
+    es: ["Notificaciones más fiables: los avisos de chats, pedidos y riders se conservan y se reintentan cuando falla el envío.",
+      "Pedidos: la lista carga todos los pedidos por páginas, también cuando hay muchos.",
+      "Fotos: un corte de conexión al guardar ya no elimina una foto que sí se había guardado.",
+      "Formulario: los errores del servidor muestran una referencia para que la oficina pueda investigarlos."],
+    en: ["More reliable notifications: chat, order and rider notices are kept and retried when sending fails.",
+      "Orders: the list loads every page, including when there are many orders.",
+      "Photos: a connection lost while saving no longer deletes a photo that was already saved.",
+      "Customer form: server errors show a reference the office can use to investigate."] },
   { date: "2026-11-12",
     es: ["Lalamove Regular o Priority: al pedir el precio del rider se elige el tipo de envío. Priority cuesta más, pero se encuentra rider antes y va directo. Hasta ahora todos salían como Regular.",
       "Propina para el rider de Lalamove: mientras se busca rider, se puede añadir propina (+₱20, +₱50, +₱100 u otro importe) para que lo acepten antes. Se cobra del Wallet de Lalamove.",
