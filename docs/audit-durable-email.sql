@@ -1,3 +1,5 @@
+-- APPLIED to production on 13/11/2026 as supabase/migrations/20261113190000_cdf_audit_durable_email.sql,
+-- with one addition: an email is tried at most 3 times. The text below is the original proposal.
 -- REVIEW ONLY: not applied. Once the Supabase CLI is available, create a new
 -- migration with `supabase migration new cdf_audit_durable_email` and use this
 -- content. Deploy the compatible cdf-notify handler before applying it.
