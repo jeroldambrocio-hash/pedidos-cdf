@@ -45,7 +45,7 @@ async function saveSub(sub) {
     ({ error } = await sb.from("cdf_push_subs").upsert(row, { onConflict: "endpoint" }));
   }
   if (error) throw Object.assign(new Error(t("notifFail")), { code: error.code });
-  if (S.me?.email === email) PWA.saved = { email, endpoint: j.endpoint };
+  if (S.me?.email === email) { PWA.saved = { email, endpoint: j.endpoint }; PWA.syncError = null; }
 }
 // This device's subscription, saved for whoever is signed in. The browser's own one is reused; without one it
 // is created (the permission is already granted, so nothing is asked). One still tied to the account that
@@ -98,16 +98,30 @@ async function disablePush() {
 }
 // Every time the app opens on a device that already allowed notifications: keep them on for whoever is signed
 // in, without asking again. Covers a new sign-in, a subscription the phone dropped and one that never got saved.
-let syncing = null;
+let syncing = null, syncingGen = -1;
 function syncPush() {
-  return (syncing ||= (async () => {
+  const gen = sessionNow(), email = S.me?.email;
+  if (syncing && syncingGen === gen) return syncing;
+  syncingGen = gen;
+  const mine = (async () => {
     try {
       if (S.me && pushSupported() && Notification.permission === "granted" && !notifOffByHand()) {
         const reg = PWA.reg || (await Promise.race([navigator.serviceWorker.ready, wait(4000)]));
         if (reg) await linkDevice(reg);
       }
-    } catch {} finally { PWA.synced = true; syncing = null; paintPwa(); }
-  })());
+      if (!stale(gen)) PWA.syncError = null;
+    } catch (e) {
+      if (email && !stale(gen)) {
+        const first = PWA.syncError?.email !== email;
+        PWA.syncError = { email, code: String(e?.code || "registration_failed") };
+        console.warn("CDF push registration failed", PWA.syncError.code);
+        if (first) toast(t("notifFail"), { type: "error", action: t("retry"), onAction: () => syncPush() });
+      }
+    } finally { if (!stale(gen)) { PWA.synced = true; paintPwa(); } }
+  })();
+  syncing = mine;
+  mine.finally(() => { if (syncing === mine) syncing = null; });
+  return mine;
 }
 // A save that failed (no signal when the app opened) is tried again when the app comes back
 const retryPush = () => { if (S.me && PWA.synced && !pushActive() && document.visibilityState === "visible" && navigator.onLine !== false) syncPush(); };
@@ -128,7 +142,7 @@ async function paintPwa() {
   btn.textContent = t({ on: "notifTurnOff", off: "notifTurnOn", needInstall: "installApp", denied: "notifHelp", unsupported: "notifHelp" }[state]);
   paintNotifBanner(state);
   btn.disabled = state === "unsupported";
-  note.textContent = t({ on: "notifIsOn", off: "notifIsOff", needInstall: "notifNeedInstall", denied: "notifIsDenied", unsupported: "notifUnsupported" }[state]);
+  note.textContent = PWA.syncError?.email === S.me?.email && state === "off" ? t("notifFail") : t({ on: "notifIsOn", off: "notifIsOff", needInstall: "notifNeedInstall", denied: "notifIsDenied", unsupported: "notifUnsupported" }[state]);
 }
 async function onNotifBtn() {
   const s = $("notifBtn").dataset.state;

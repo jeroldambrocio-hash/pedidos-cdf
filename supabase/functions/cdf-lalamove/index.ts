@@ -26,6 +26,7 @@ import { call, e164, FINAL, inPhilippines, LalamoveError, orderUpdateFor, parseC
 import { afterRefresh, processEvent, receive, work, type Deps } from "./events.ts";
 import { bookRider, CLAIM_ERRORS, resolveBooking, type BookDeps } from "./booking.ts";
 import { addPriorityFee } from "./tip.ts";
+import { syncDelivery } from "./sync.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -108,12 +109,10 @@ async function refresh(orderId: string) {
       Object.assign(patch, { driver_name: d.name || null, driver_phone: d.phone || null, driver_plate: d.plateNumber || null, driver_photo: d.photo || null });
     } catch { /* rider details only exist close to pickup time */ }
   }
+  // Keep the previous rider status on failure, so the existing reconciliation
+  // queue still retries it even if the provider has already completed delivery.
+  if (SYNC) await syncDelivery(service, orderId, o.status);
   const saved = await save(orderId, patch);
-  if (SYNC && saved.env === "production") {
-    const order = await getOrder(orderId);
-    const upd = order && orderUpdateFor(o.status, order);
-    if (upd) await service.from("cdf_orders").update(upd).eq("id", orderId).eq("delivery", order.delivery);
-  }
   // Proofs (Phase 5): noted now, downloaded after the answer. Without the migration yet, nothing changes.
   later(afterRefresh(deps, row.ll_order_id, o));
   return saved;

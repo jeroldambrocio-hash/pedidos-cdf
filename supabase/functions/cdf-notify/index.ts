@@ -7,6 +7,7 @@ import { createClient } from "npm:@supabase/supabase-js@2.45.4";
 import nodemailer from "npm:nodemailer@6.9.14";
 import { customerEmail, stepOf } from "./email.ts";
 import { formatSlot12 } from "../_shared/time.ts";
+import { emailResult } from "./result.ts";
 
 const APP_URL = Deno.env.get("CDF_APP_URL") || "https://casadeflores-store.netlify.app";
 const FROM = Deno.env.get("CDF_MAIL_FROM") || "Casa de Flores <onboarding@resend.dev>";
@@ -115,28 +116,40 @@ Deno.serve(async (req) => {
   // ---------- from the database triggers: automatic customer email, or vendor alert ----------
   const { data: ok } = await service.rpc("cdf_hook_ok", { p_secret: req.headers.get("x-cdf-hook") || "" });
   if (ok !== true) return json({ error: "unauthorized" }, 401);
+  const finish = async (result: Record<string, unknown>) => {
+    const answer = await emailResult(service, payload.outbox, result);
+    return json(answer.body, answer.status);
+  };
+  if (payload.outbox) {
+    const queued = await service.from("cdf_outbox").select("kind,ref_id,delivered_at").eq("id", Number(payload.outbox)).maybeSingle();
+    if (queued.error) return json({ error: "email_queue_lookup_failed" }, 503);
+    if (!queued.data || queued.data.kind !== "email" || queued.data.ref_id !== orderId) return json({ error: "email_queue_invalid" }, 400);
+    if (queued.data.delivered_at) return json({ skipped: "already delivered" });
+  }
 
-  const { data: o } = await service.from("cdf_orders").select("*").eq("id", orderId).maybeSingle();
-  if (!o) return json({ skipped: "no order" });
+  const { data: o, error: orderError } = await service.from("cdf_orders").select("*").eq("id", orderId).maybeSingle();
+  if (orderError) return json({ error: "email_order_lookup_failed" }, 503);
+  if (!o || o.cancelled_at || o.deleted_at) return finish({ skipped: "order unavailable" });
 
   if (payload.action === "auto_transit") {
     const to = String(o.customer_email || "").trim();
-    if (!to) return json({ skipped: "no customer email" });
+    if (!to) return finish({ skipped: "no customer email" });
     // Worded from the order's state when the email goes out, so it never says "on its way" before it is
     const { subject, html, text } = await orderEmail(service, o);
     const sent = await sendMail(to, subject, html, text);
     await log({ order_id: o.id, audience: "customer", channel: "email", recipient: to, ok: sent.ok, subject, message: text,
       detail: sent.ok ? `${sent.via}: automatic, In transit` : `${sent.via}: ${sent.error}` });
-    return json(sent, sent.ok ? 200 : 502);
+    return finish(sent);
   }
 
-  if (!o.vendor_email) return json({ skipped: "no vendor" });
-  const { data: m } = await service.from("cdf_members").select("email,name").eq("email", o.vendor_email).maybeSingle();
-  if (!m) return json({ skipped: "no member" });
+  if (!o.vendor_email || payload.to && payload.to !== o.vendor_email) return finish({ skipped: "assignment changed" });
+  const { data: m, error: memberError } = await service.from("cdf_members").select("email,name").eq("email", o.vendor_email).maybeSingle();
+  if (memberError) return json({ error: "email_member_lookup_failed" }, 503);
+  if (!m) return finish({ skipped: "no member" });
   // Accounts made with a placeholder address on the shop's domain (no mailbox behind it, 9/11/2026):
   // no email, they see their orders in the app. Giving them their real address turns the alert back on.
   const shopBox = (Deno.env.get("SMTP_USER") || "").toLowerCase();
-  if (/@casadeflores\.store$/i.test(m.email) && m.email.toLowerCase() !== shopBox) return json({ skipped: "placeholder address" });
+  if (/@casadeflores\.store$/i.test(m.email) && m.email.toLowerCase() !== shopBox) return finish({ skipped: "placeholder address" });
 
   const when = `${fmtDate(o.date)} · ${formatSlot12(o.slot)}`;
   const rows = [
@@ -165,5 +178,5 @@ Deno.serve(async (req) => {
   const sent = await sendMail(m.email, subject, html, text);
   await log({ order_id: o.id, audience: "vendor", channel: "email", recipient: m.email, ok: sent.ok, subject, message: text,
     detail: sent.ok ? `${sent.via}: assigned` : `${sent.via}: ${sent.error}` });
-  return json(sent, sent.ok ? 200 : 502);
+  return finish(sent);
 });

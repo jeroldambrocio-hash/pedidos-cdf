@@ -284,10 +284,10 @@ async function allPages(make) {
   return { data: rows, error: null };
 }
 async function loadOrders() {
-  invalidateStats(); awayAt = 0;
   const gen = sessionNow();
   // The same load is shared only within one session: a new account never waits on (or gets) the last one's
   if (loading && loadingGen === gen) return loading;
+  invalidateStats(); awayAt = 0;
   loadingGen = gen;
   const mine = (async () => {
     const [from, to] = wantedRange();
@@ -385,13 +385,19 @@ function checkDay() {
   if (S.me) { if (!inRange(d)) loadOrders(); else render(); }
 }
 setInterval(() => { checkDay(); if (S.me && S.tab === "orders") renderRisk?.(); }, 60000);
+let hiddenAt = 0;
 document.addEventListener("visibilitychange", () => {
-  if (document.hidden) return;
+  if (document.hidden) { hiddenAt = Date.now(); return; }
   checkDay();
-  if (S.me) { loadOrders(); if (typeof loadRequests === "function") loadRequests(); if (typeof catchUpChat === "function") catchUpChat(); }
+  // Brief app switches with a healthy channel need no full reload. A long
+  // suspension can hide a missed heartbeat, so reconcile after that gap.
+  const needsCatchUp = S.loadError || S.channel?.state !== "joined" || (hiddenAt > 0 && Date.now() - hiddenAt > 60000);
+  hiddenAt = 0;
+  if (S.me && needsCatchUp) { loadOrders(); if (typeof loadRequests === "function") loadRequests(); if (typeof catchUpChat === "function") catchUpChat(); }
 });
-// Safety net in case a change slips past realtime: a quiet reload every 2 minutes while the app is on screen
-setInterval(() => { if (S.me && !document.hidden && navigator.onLine !== false) loadOrders(); }, 120000);
+// Recover when realtime is unavailable; a healthy subscription applies changes
+// row by row and must not reset lists and statistics every two minutes.
+setInterval(() => { if (S.me && !document.hidden && navigator.onLine !== false && (S.loadError || S.channel?.state !== "joined")) loadOrders(); }, 120000);
 
 // Every view draws through here; each script registers what it draws
 function render() {

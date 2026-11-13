@@ -10,7 +10,7 @@ const single = at >= 0 ? path.resolve(args.splice(at, 2)[1]) : null;
 const out = path.resolve(args[0] || path.join(root, ".test-tools", "demo"));
 
 const mockFile = path.join(os.tmpdir(), "pedidos-cdf-demo-mock.js");
-execFileSync(process.execPath, [path.join(__dirname, "ui-smoke.cjs")], { env: { ...process.env, EXPORT_MOCK: mockFile, NODE_PATH: path.join(root, ".test-tools", "node_modules") }, stdio: "inherit" });
+execFileSync(process.execPath, [path.join(__dirname, "ui-smoke.cjs")], { env: { ...process.env, EXPORT_MOCK: mockFile, NODE_PATH: process.env.NODE_PATH || path.join(root, ".test-tools", "node_modules") }, stdio: "inherit" });
 
 fs.rmSync(out, { recursive: true, force: true });
 fs.mkdirSync(out, { recursive: true });
@@ -96,6 +96,8 @@ if (single) {
     .replace(/(<img[^>]*\ssrc=")(img\/[^"]+)"/g, (all, head, f) => (images[f] ? head + images[f] + '"' : all))
     .replace(/<script>\n\/\/ Demo:/, () => swap + "<script>\n// Demo:");
   if (/<script src="(?!https?:)/.test(page) || !page.includes(swap)) throw new Error("single file: something was not inlined");
+  // A downloaded demo has no server-side version endpoint.
+  page = page.replace('if (updateFound || !navigator.onLine)', 'if (location.protocol === "file:" || updateFound || !navigator.onLine)');
   fs.writeFileSync(single, page);
   console.log(`Single file: ${single} (${(fs.statSync(single).size / 1048576).toFixed(1)} MB)`);
 }

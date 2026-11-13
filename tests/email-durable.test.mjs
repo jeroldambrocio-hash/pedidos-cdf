@@ -1,0 +1,32 @@
+import assert from "node:assert/strict";
+import { createRequire } from "node:module";
+import { readFileSync } from "node:fs";
+import { emailResult } from "../supabase/functions/cdf-notify/result.ts";
+const require = createRequire(import.meta.url), { PGlite } = require("@electric-sql/pglite");
+const { build, TEAM } = require("./lib/fresh-db.cjs");
+let acknowledgements = 0;
+const service = { async rpc() { acknowledgements++; return { error: null }; } };
+assert.equal((await emailResult(service, 1, { ok: false })).status, 502);
+assert.equal(acknowledgements, 0);
+assert.equal((await emailResult(service, 1, { ok: true })).status, 200);
+assert.equal((await emailResult(service, 2, { skipped: "assignment changed" })).status, 200);
+assert.equal(acknowledgements, 2);
+assert.equal((await emailResult({ rpc: async () => ({ error: true }) }, 1, { ok: true })).status, 503);
+const db = new PGlite();
+try {
+  await build(sql => db.exec(sql)); await db.exec(TEAM);
+  await db.exec(readFileSync(new URL("../docs/audit-durable-email.sql", import.meta.url), "utf8"));
+  await db.exec("insert into cdf_orders(num,date,slot,channel,vendor_email,customer_email) values('audit-email',current_date,'09:00 - 11:00','Web','flo@t','customer@example.invalid')");
+  let rows = (await db.query("select id,payload,delivered_at from cdf_outbox where kind='email' order by id")).rows;
+  assert.equal(rows.length, 1); assert.equal(rows[0].payload.to, "flo@t"); assert.equal(rows[0].delivered_at, null);
+  let calls = (await db.query("select url,body from net.calls where url like '%cdf-notify' order by id")).rows;
+  assert.equal(calls.length, 1); assert.equal(Number(calls[0].body.outbox), Number(rows[0].id));
+  await db.exec("update cdf_orders set status='Ready',delivery='In transit' where num='audit-email'");
+  rows = (await db.query("select id from cdf_outbox where kind='email'")).rows; assert.equal(rows.length, 2);
+  await db.exec("update cdf_outbox set next_attempt_at=now()-interval '1 second' where kind='email'; select cdf_outbox_retry()");
+  calls = (await db.query("select url from net.calls where url like '%cdf-notify'")).rows; assert.equal(calls.length, 4);
+  await db.exec("select cdf_outbox_done(id) from cdf_outbox where kind='email'; select cdf_outbox_retry()");
+  assert.equal((await db.query("select count(*)::integer n from net.calls where url like '%cdf-notify'")).rows[0].n, 4);
+  assert.equal((await db.query("select has_table_privilege('anon','cdf_orders','TRUNCATE') permitted")).rows[0].permitted, false);
+  console.log("ok durable email: failure remains pending, success/obsolete acknowledged, acknowledgement error retried, real SQL trigger routing and retry, least privilege");
+} finally { await db.close(); }

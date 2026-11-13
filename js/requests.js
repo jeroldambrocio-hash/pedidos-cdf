@@ -191,24 +191,36 @@ function setRequestFilter(f) { RQ.filter = f; renderRequests(); }
 function setRequestKind(k) { RQ.kind = k; renderRequests(); }
 
 // ---------- one request ----------
+async function requestResult(query) {
+  const result = await query;
+  if (result.error) throw new Error(t("reqLoadFail"));
+  return result.data;
+}
+function requestLoadError(retry) {
+  toast(t("reqLoadFail"), { type: "error", action: t("retry"), onAction: retry });
+}
 async function openRequest(r) {
   if (!reqOn()) return;
   // Signed out (or another account) while it loaded: never open the customer's details afterwards (13/11/2026)
   const gen = sessionNow();
   // Opening it tells the other admins someone has it (received → in review). Nothing else changes.
   if (r.status === "received") {
-    const { data } = await sb.rpc("cdf_request_open", { p_id: r.id });
+    const result = await sb.rpc("cdf_request_open", { p_id: r.id }).catch(() => ({ error: true }));
     if (stale(gen)) return;
+    if (result.error) { requestLoadError(() => openRequest(r)); return; }
+    const { data } = result;
     if (data) { Object.assign(r, data); const i = RQ.list.findIndex((x) => x.id === r.id); if (i >= 0) RQ.list[i] = r; paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests(); }
   }
-  const [files, similar, events, orderNow] = await Promise.all([
-    sb.from("cdf_request_files").select("id,kind,path,width,height").eq("request_id", r.id).order("created_at").then((x) => x.data || []),
-    sb.rpc("cdf_request_similar", { p_id: r.id }).then((x) => x.data || { requests: [], orders: [] }, () => ({ requests: [], orders: [] })),
-    sb.from("cdf_request_events").select("kind,by_email,detail,created_at").eq("request_id", r.id).order("created_at").then((x) => x.data || []),
+  const loaded = await Promise.all([
+    requestResult(sb.from("cdf_request_files").select("id,kind,path,width,height").eq("request_id", r.id).order("created_at")).then(x => x || []),
+    requestResult(sb.rpc("cdf_request_similar", { p_id: r.id })).then(x => x || { requests: [], orders: [] }),
+    requestResult(sb.from("cdf_request_events").select("kind,by_email,detail,created_at").eq("request_id", r.id).order("created_at")).then(x => x || []),
     // Accepted: where its order is now (there, in the trash, deleted), with who, when and why (12/11/2026)
-    r.status === "accepted" && S.cap.trash ? sb.rpc("cdf_request_order", { p_id: r.id }).then((x) => x.error ? null : x.data, () => null) : null,
-  ]);
+    r.status === "accepted" && S.cap.trash ? requestResult(sb.rpc("cdf_request_order", { p_id: r.id })) : null,
+  ]).catch(() => null);
   if (stale(gen) || !reqOn()) return;
+  if (!loaded) { requestLoadError(() => openRequest(r)); return; }
+  const [files, similar, events, orderNow] = loaded;
   const os = orderNow || reqOrderState(r);
   const refs = files.filter((f) => f.kind === "reference"), proof = files.find((f) => f.kind === "payment_proof");
   const tel = (p) => el("a", { href: "tel:+" + intlPhone(p), class: "link-out" }, phoneNice(p));
@@ -333,14 +345,18 @@ async function acceptRequest(r) {
 // While accepting: the request's photos, to look at while writing the order
 function requestPhotos(r) {
   const box = el("section", { class: "req-on-order", hidden: true });
-  sb.from("cdf_request_files").select("kind,path").eq("request_id", r.id).order("created_at").then(({ data }) => {
+  const gen = sessionNow();
+  const load = () => requestResult(sb.from("cdf_request_files").select("kind,path").eq("request_id", r.id).order("created_at")).then((data) => {
+    if (stale(gen)) return;
+    box.hidden = true; box.replaceChildren();
     const refs = (data || []).filter((f) => f.kind === "reference"), proof = (data || []).find((f) => f.kind === "payment_proof");
     if (!refs.length && !proof) return;
     fill(box, el("h3", {}, t("reqRefs")),
       refs.length ? el("div", { class: "photo-grid ro" }, refs.map((f, i) => el("div", { class: "pic" }, imgOf(f.path, "cdf-solicitudes", t("reqRefN", { n: i + 1 }), true)))) : null,
       proof ? el("p", { class: "note req-unverified" }, icon("alert"), " ", t("reqProofAccepting")) : null);
     box.hidden = false;
-  });
+  }).catch(() => { if (!stale(gen)) requestBlockError(box, load); });
+  load();
   return box;
 }
 
@@ -348,7 +364,10 @@ function requestPhotos(r) {
 function orderReferences(o) {
   const box = el("div", { class: "req-on-order", hidden: true });
   if (!o?.id || !S.cap.requests && !S.cap.references) return box;
-  sb.rpc("cdf_order_references", { p_order: o.id }).then(({ data }) => {
+  const gen = sessionNow();
+  const load = () => requestResult(sb.rpc("cdf_order_references", { p_order: o.id })).then((data) => {
+    if (stale(gen)) return;
+    box.hidden = true; box.replaceChildren();
     if (!data?.length) return;
     const refs = data.filter((f) => f.kind === "reference"), proof = data.find((f) => f.kind === "payment_proof");
     fill(box, el("h3", {}, t("reqOnOrder", { ref: "R" + data[0].request_ref })),
@@ -356,6 +375,16 @@ function orderReferences(o) {
       proof ? el("div", { class: "req-proof-on-order" }, el("div", { class: "pic" }, imgOf(proof.path, "cdf-solicitudes", t("reqProof"), true)),
         el("p", { class: "note" }, t("reqProofOnOrder"))) : null);
     box.hidden = false;
-  }, () => {});
+  }).catch(() => { if (!stale(gen)) requestBlockError(box, load); });
+  load();
   return box;
+}
+
+function requestBlockError(box, retry) {
+  box.hidden = false;
+  fill(box, el("p", { class: "err", role: "alert" }, t("reqLoadFail")),
+    el("button", { class: "btn", type: "button", onclick: async (e) => {
+      e.currentTarget.disabled = true;
+      await retry();
+    } }, t("retry")));
 }

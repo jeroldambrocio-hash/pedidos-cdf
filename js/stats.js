@@ -21,7 +21,22 @@ function setStatsDates(){
 async function ridersCard(rows,sum,prices,card){
  if(!rows.length)return null;
  let data;
- try{if(typeof llDetect==="function"&&(await llDetect())===false)return null;const r=await sb.from("cdf_lalamove").select("order_id,price_total,quote_total,status,ll_order_id");if(r.error)return null;data=(r.data||[]).filter(x=>x.ll_order_id)}catch{return null}
+  try {
+    if (typeof llDetect === "function" && (await llDetect()) === false) return null;
+    data = [];
+    const ids = [...new Set(rows.map(o => o.id))];
+    for (let i = 0; i < ids.length; i += 200) {
+      const part = ids.slice(i, i + 200);
+      const r = await allPages(() => sb.from("cdf_lalamove")
+        .select("order_id,price_total,quote_total,status,ll_order_id", { count: "exact" })
+        .in("order_id", part).order("order_id"));
+      if (r.error) throw new Error(t("loadFail"));
+      data.push(...(r.data || []).filter(x => x.ll_order_id));
+    }
+  } catch {
+    return card(t("statsRiders"), null, el("p", { class: "err", role: "alert" }, t("loadFail")),
+      el("button", { class: "btn", type: "button", onclick: () => { invalidateStats(); renderStats(); } }, t("retry")));
+  }
  const ids=new Set(rows.map(o=>o.id)),trips=data.filter(r=>ids.has(r.order_id)&&r.status!=="CANCELED");
  const spent=trips.reduce((a,r)=>a+(+r.price_total||+r.quote_total||0),0),sales=sum(rows);
  const test=typeof LL!=="undefined"&&LL.env&&LL.env!=="production";

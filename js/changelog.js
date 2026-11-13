@@ -1,6 +1,21 @@
 // What's new: the changes made to the app, newest first, shown under the account menu → What's new.
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 const CHANGELOG = [
+  { date: "2026-11-13", pending: true,
+    es: ["Lalamove: si falla la actualización del pedido, se informa del problema y se vuelve a intentar; ya no se da por sincronizado sin comprobarlo.",
+      "Solicitudes: si no se pueden cargar las fotos, los comprobantes o el historial, aparece un aviso con opción de reintentar en lugar de mostrarlos como vacíos.",
+      "Notificaciones: si el dispositivo no consigue registrarse, se muestra el problema y se puede reintentar.",
+      "Menos recargas: volver brevemente a la app ya no vuelve a cargar toda la lista si la conexión sigue activa. Los cambios siguen llegando en tiempo real.",
+      "Estadísticas: los gastos de Lalamove incluyen todos los registros del periodo, también cuando hay muchos envíos.",
+      "Correos automáticos: preparado el reintento de avisos que no se hayan podido enviar, pendiente de activar en el servidor.",
+      "Accesibilidad: mejoras para navegar por la pantalla de acceso con lector de pantalla."],
+    en: ["Lalamove: if updating the order fails, the problem is reported and retried; the order is no longer treated as synced without checking.",
+      "Requests: if photos, payment proofs or history cannot load, an alert offers a retry instead of showing them as empty.",
+      "Notifications: if the device cannot register, the problem is shown and you can retry.",
+      "Fewer reloads: briefly returning to the app no longer reloads the whole list while the connection is healthy. Changes still arrive in real time.",
+      "Statistics: Lalamove costs include every record in the selected period, including when there are many bookings.",
+      "Automatic emails: retries for notices that could not be sent are prepared, pending activation on the server.",
+      "Accessibility: improved screen reader navigation on the sign-in screen."] },
   { date: "2026-11-13",
     es: ["Solicitudes: los contadores de los filtros se actualizan solos al aceptar, rechazar o reabrir, y una solicitud aceptada muestra su pedido al momento.",
       "Pedidos y solicitudes se ponen al día solos al volver a la app o al recuperar la conexión, sin recargar.",
@@ -116,7 +131,7 @@ function openChangelog() {
   const node = el("div", { class: "sheet changelog", role: "dialog", "aria-modal": "true" },
     el("div", { class: "sheet-head" }, el("h2", {}, t("whatsNew")), el("span", { class: "spacer" }), closeBtn()),
     el("div", { class: "sheet-body" }, CHANGELOG.map((e) => el("section", {},
-      el("h3", {}, day(e.date)),
+      el("h3", {}, day(e.date), e.pending ? " · " + (LANG === "es" ? "Pendiente de publicar" : "Pending release") : ""),
       el("ul", { class: "changelog-list" }, (e[LANG] || e.en).map((line) => el("li", {}, line)))))));
   openLayer(node);
 }
