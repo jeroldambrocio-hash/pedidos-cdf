@@ -12,7 +12,9 @@ export type TipAnswer = { status: number; body: Record<string, unknown>; order?:
 
 const ERRORS: Record<string, string> = {
   ERR_INSUFFICIENT_CREDIT: "No hay saldo suficiente en el Wallet de Lalamove para esta propina",
-  ERR_EXCEED_MIN_TIPS: "Lalamove pide una propina mayor",
+  // The docs call it ERR_EXCEED_MIN_TIPS; the live API answers ERR_BELOW_MIN_TIPS (seen 13/11/2026 on a +amount)
+  ERR_EXCEED_MIN_TIPS: "Lalamove pide una propina mayor: prueba con un importe más alto (por ejemplo +₱50 o +₱100). No se ha añadido nada.",
+  ERR_BELOW_MIN_TIPS: "Lalamove pide una propina mayor: prueba con un importe más alto (por ejemplo +₱50 o +₱100). No se ha añadido nada.",
   ERR_EXCEED_MAX_TIPS: "Lalamove no admite una propina tan alta",
   ERR_INVALID_TIPS: "Lalamove no ha aceptado ese importe (puede que alguien acabe de añadir la misma propina). Actualiza y mira el precio.",
   ERR_INVALID_ORDER_STATUS: "Ya no se puede añadir propina: el rider ya está asignado o el envío ha terminado",
