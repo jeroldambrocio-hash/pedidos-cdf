@@ -82,6 +82,19 @@ function reqCount(bucket, kind) {
   return RQ.list.filter((r) => reqBucket(r) === bucket && reqKindOk(r, kind)).length;
 }
 
+// The filter counts come from the server: ask again after any change (once, if several arrive together).
+// Without this they stayed as they were when the tab was loaded (13/11/2026).
+function refreshRequestCounts() {
+  clearTimeout(refreshRequestCounts.h);
+  refreshRequestCounts.h = setTimeout(async () => {
+    if (!reqOn()) return;
+    const gen = sessionNow();
+    const r = await sb.rpc("cdf_request_counts").then((x) => x, () => ({ error: true }));
+    if (stale(gen) || r.error || !r.data || typeof r.data !== "object") return;
+    RQ.counts = r.data;
+    if (S.tab === "requests") renderRequests();
+  }, 300);
+}
 function paintRequestCount() {
   const n = RQ.list.filter(reqIsOpen).length, c = $("tabRequestsCount");
   c.textContent = n ? String(n) : ""; c.hidden = !n;
@@ -106,7 +119,7 @@ function subscribeRequests() {
     if (p.eventType === "DELETE") { if (i >= 0) RQ.list.splice(i, 1); }
     else if (i >= 0) RQ.list[i] = { ...RQ.list[i], ...row };
     else { RQ.list.unshift(row); if (p.eventType === "INSERT") toast(t("reqNewToast", { ref: reqRef(row) }), { action: t("reqOpenIt"), onAction: () => openRequest(row) }); }
-    paintRequestCount();
+    paintRequestCount(); refreshRequestCounts();
     if (S.tab === "requests") renderRequests();
     document.dispatchEvent(new CustomEvent("requestchange", { detail: row || { id } }));
   }).subscribe(onRejoin(() => loadRequests()));
@@ -180,10 +193,13 @@ function setRequestKind(k) { RQ.kind = k; renderRequests(); }
 // ---------- one request ----------
 async function openRequest(r) {
   if (!reqOn()) return;
+  // Signed out (or another account) while it loaded: never open the customer's details afterwards (13/11/2026)
+  const gen = sessionNow();
   // Opening it tells the other admins someone has it (received → in review). Nothing else changes.
   if (r.status === "received") {
     const { data } = await sb.rpc("cdf_request_open", { p_id: r.id });
-    if (data) { Object.assign(r, data); const i = RQ.list.findIndex((x) => x.id === r.id); if (i >= 0) RQ.list[i] = r; paintRequestCount(); if (S.tab === "requests") renderRequests(); }
+    if (stale(gen)) return;
+    if (data) { Object.assign(r, data); const i = RQ.list.findIndex((x) => x.id === r.id); if (i >= 0) RQ.list[i] = r; paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests(); }
   }
   const [files, similar, events, orderNow] = await Promise.all([
     sb.from("cdf_request_files").select("id,kind,path,width,height").eq("request_id", r.id).order("created_at").then((x) => x.data || []),
@@ -192,13 +208,14 @@ async function openRequest(r) {
     // Accepted: where its order is now (there, in the trash, deleted), with who, when and why (12/11/2026)
     r.status === "accepted" && S.cap.trash ? sb.rpc("cdf_request_order", { p_id: r.id }).then((x) => x.error ? null : x.data, () => null) : null,
   ]);
+  if (stale(gen) || !reqOn()) return;
   const os = orderNow || reqOrderState(r);
   const refs = files.filter((f) => f.kind === "reference"), proof = files.find((f) => f.kind === "payment_proof");
   const tel = (p) => el("a", { href: "tel:+" + intlPhone(p), class: "link-out" }, phoneNice(p));
   const pinUrl = r.lat != null ? `https://www.google.com/maps/search/?api=1&query=${+r.lat},${+r.lng}` : null;
   const err = el("div", { class: "err", role: "alert" });
   const dupes = [...similar.requests.map((x) => ({ label: "R" + x.ref, open: () => { const o = RQ.list.find((y) => y.id === x.id); if (o) openRequest(o); } })),
-    ...similar.orders.map((x) => ({ label: "#" + x.num, open: async () => { const { data } = await sb.from("cdf_orders").select("*").eq("id", x.id).maybeSingle(); if (data) openOrder(data); } }))];
+    ...similar.orders.map((x) => ({ label: "#" + x.num, open: async () => { const { data } = await sb.from("cdf_orders").select("*").eq("id", x.id).maybeSingle(); if (data && !stale(gen)) openOrder(data); } }))];
 
   const acts = [];
   if (reqIsOpen(r)) {
@@ -212,6 +229,7 @@ async function openRequest(r) {
   } else if (r.status === "accepted" && r.accepted_order_id && os?.state !== "deleted") {
     acts.push(el("span", { class: "spacer" }), el("button", { class: "btn primary", type: "button", onclick: async () => {
       const o = byId(r.accepted_order_id) || (await sb.from("cdf_orders").select("*").eq("id", r.accepted_order_id).maybeSingle()).data;
+      if (stale(gen)) return;
       if (o) openOrder(o); else err.textContent = t("goneMeanwhile");
     } }, t("reqSeeOrder")));
   } else acts.push(el("span", { class: "spacer" }));
@@ -263,7 +281,7 @@ function rejectRequest(r) {
     if (error) return reqError(error);
     Object.assign(r, data); await closeSheet(true);
     toast(t("reqRejectedToast", { ref: reqRef(r) }));
-    paintRequestCount(); if (S.tab === "requests") renderRequests();
+    paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests();
   }, { dirty: () => !!why.value.trim() });
 }
 
@@ -271,7 +289,7 @@ async function reopenRequest(r, err) {
   const { data, error } = await sb.rpc("cdf_request_reopen", { p_id: r.id });
   if (error) { err.textContent = reqError(error); return; }
   Object.assign(r, data); await closeSheet(true);
-  paintRequestCount(); if (S.tab === "requests") renderRequests();
+  paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests();
   openRequest(r);
 }
 

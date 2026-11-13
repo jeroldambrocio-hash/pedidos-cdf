@@ -982,7 +982,9 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       if (fromRequest && res.data.request) {
         const i = RQ.list.findIndex((x) => x.id === fromRequest.id);
         if (i >= 0) RQ.list[i] = res.data.request;
-        paintRequestCount();
+        // The order it became is known right away, so the request never reads "not available" (13/11/2026)
+        if (saved?.id) { if (!RQ.orders) RQ.orders = new Map(); RQ.orders.set(saved.id, { id: saved.id, num: saved.num, deleted_at: null }); }
+        paintRequestCount(); refreshRequestCounts();
       }
       const price = res.data.price;
       Object.assign(saved, { amount: price?.amount ?? null, paid: price?.paid ?? null, pay_proofs: price?.pay_proofs || [] });
