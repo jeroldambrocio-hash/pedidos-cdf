@@ -27,13 +27,21 @@ function awayBadge(m, day = S.today) {
 
 // Florists for orders on `days` (one date or several): available first, then those away, each away one labelled
 function vendorChoices(days) {
-  const ds = [].concat(days || []).filter(Boolean), list = S.members.filter((m) => m.role !== "carrier");
+  const ds = [].concat(days || []).filter(Boolean), list = S.members.filter((m) => m.role === "vendor");
   const hit = (m) => ds.find((d) => awayOn(m, d));
   return list.slice().sort((a, b) => !!hit(a) - !!hit(b) || a.name.localeCompare(b.name))
     .map((m) => { const d = hit(m); return [m.email, m.name + (m.role !== "vendor" ? " (" + t("role_" + m.role) + ")" : "") + (d ? " — " + awayText(m, d).toLowerCase() : ""), !!d]; });
 }
 // <option>s for a florist <select>, the away ones marked
-const vendorOptions = (days, selected) => vendorChoices(days).map(([v, l, away]) => el("option", { value: v, selected: v === selected, class: away ? "is-away" : null }, (away ? "⚠ " : "") + l));
+const vendorOptions = (days, selected) => {
+  const choices = vendorChoices(days);
+  const options = choices.map(([v, l, away]) => el("option", { value: v, selected: v === selected, class: away ? "is-away" : null }, (away ? "⚠ " : "") + l));
+  // Keep an existing assignment intact when editing an old order. It cannot be selected for another order.
+  if (selected && !choices.some(([email]) => email === selected)) {
+    options.unshift(el("option", { value: selected, selected: true, disabled: true, hidden: true }, memberName(selected)));
+  }
+  return options;
+};
 // Ask before giving an order to someone away on its date. Resolves true to go ahead.
 async function okToAssign(email, days) {
   const m = S.members.find((x) => x.email === email);
