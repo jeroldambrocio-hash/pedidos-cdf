@@ -1,6 +1,23 @@
 // What's new: the changes made to the app, newest first, shown under the account menu → What's new.
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 const CHANGELOG = [
+  { date: "2026-11-13",
+    es: ["Solicitudes: los contadores de los filtros se actualizan solos al aceptar, rechazar o reabrir, y una solicitud aceptada muestra su pedido al momento.",
+      "Pedidos y solicitudes se ponen al día solos al volver a la app o al recuperar la conexión, sin recargar.",
+      "Calendario en el móvil: ya no se estira; cada panel mantiene su altura.",
+      "Chat: se carga todo el historial, también en conversaciones largas, y al reconectar llegan los mensajes que faltaban.",
+      "Propina de Lalamove: si una pulsación anterior ya se aplicó, no se cobra dos veces y se muestra la propina real.",
+      "Un pedido ya entregado no se puede cancelar, para mantener las estadísticas.",
+      "Buscador: no muestra pedidos de la papelera. El historial del comprador cuenta solo pedidos válidos y muestra los cancelados aparte.",
+      "Al cerrar sesión o cambiar de cuenta ya no se abren pedidos, solicitudes ni mensajes de la cuenta anterior."],
+    en: ["Requests: the filter counts update by themselves after accepting, rejecting or reopening, and an accepted request shows its order right away.",
+      "Orders and requests catch up by themselves when you come back to the app or the connection returns, with no reload.",
+      "Calendar on phones: it is no longer stretched; each panel keeps its own height.",
+      "Chat: the full history loads, including in long conversations, and missed messages arrive after reconnecting.",
+      "Lalamove priority fee: if an earlier tap already went through, it is not charged twice and the real fee is shown.",
+      "An order that was delivered can no longer be cancelled, so statistics are preserved.",
+      "Search: orders in the trash are left out. Buyer history counts only valid orders and shows cancelled ones apart.",
+      "After signing out or switching account, orders, requests and messages from the previous account no longer open."] },
   { date: "2026-11-13", es: ["Las horas se muestran en formato de 12 horas: 9:00 AM, 1:30 PM y 9:00 PM. La zona horaria sigue siendo Filipinas. (As requested by Ralph)"],
     en: ["Times now use the 12-hour format: 9:00 AM, 1:30 PM and 9:00 PM. The time zone remains the Philippines. (As requested by Ralph)"] },
   { date: "2026-11-13",
