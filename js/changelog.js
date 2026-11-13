@@ -1,7 +1,7 @@
 // What's new: the changes made to the app, newest first, shown under the account menu → What's new.
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 const CHANGELOG = [
-  { date: "2026-11-13", pending: true,
+  { date: "2026-11-13",
     es: ["Lalamove: si falla la actualización del pedido, se informa del problema y se vuelve a intentar; ya no se da por sincronizado sin comprobarlo.",
       "Solicitudes: si no se pueden cargar las fotos, los comprobantes o el historial, aparece un aviso con opción de reintentar en lugar de mostrarlos como vacíos.",
       "Notificaciones: si el dispositivo no consigue registrarse, se muestra el problema y se puede reintentar.",
