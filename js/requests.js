@@ -205,7 +205,7 @@ async function openRequest(r) {
   const gen = sessionNow();
   // Opening it tells the other admins someone has it (received → in review). Nothing else changes.
   if (r.status === "received") {
-    const result = await sb.rpc("cdf_request_open", { p_id: r.id }).catch(() => ({ error: true }));
+    const result = await Promise.resolve(sb.rpc("cdf_request_open", { p_id: r.id })).catch(() => ({ error: true }));
     if (stale(gen)) return;
     if (result.error) { requestLoadError(() => openRequest(r)); return; }
     const { data } = result;
