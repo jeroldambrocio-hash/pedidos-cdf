@@ -128,6 +128,12 @@ ok("A buyer abroad and a receiver in the Philippines are both accepted; pickup n
   refused({ request_key: "1" }, "invalid:request_key");
   refused({ reference_files: Array.from({ length: 7 }, randomUUID) }, "invalid:reference_files"); refused({ reference_files: ["../etc/passwd"] }, "invalid:reference_files");
   const twice = randomUUID(); refused({ reference_files: [twice, twice] }, "invalid:reference_files"); refused({ payment_proof: "cdf-pagos/x.jpg" }, "invalid:payment_proof");
+  // A reference photo replaces text; payment proof alone does not.
+  refused({ description: "", reference_files: [] }, "invalid:description");
+  refused({ description: "   ", reference_files: [] }, "invalid:description");
+  refused({ description: "", reference_files: [], payment_proof: randomUUID() }, "invalid:description");
+  assert.equal(checkRequest(good({ description: "", reference_files: [randomUUID()] }), NOW).description, "");
+  assert.equal(checkRequest(good({ description: "Red roses", reference_files: [] }), NOW).description, "Red roses");
   // The shop's day, not the server's or the buyer's: 19:30 on the 11th in Manila is still "today"
   const lateManila = Date.parse("2026-11-11T11:30:00Z");
   assert.equal(checkRequest(good({ date: "2026-11-11", slot: "19:00 - 21:00", location_confirmed_at: new Date(lateManila).toISOString() }), lateManila).date, "2026-11-11");
@@ -304,8 +310,9 @@ const jpg = fixture("gps.jpg");
   assert.equal((await send(body(), { session: other })).error, "files");                                    // someone else's photos
   const fromOther = await send(body({ reference_files: [], payment_proof: null }), { session: other });
   assert.equal(fromOther.status, 200); assert.equal(fromOther.received, true);
-  const full = body(), sent = await send(full, { session: s });
+  const full = body({ description: "" }), sent = await send(full, { session: s });
   assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(sent.ref, fromOther.ref + 1);
+  assert.equal((await rows("select description from public.cdf_order_requests where ref=$1", [sent.ref]))[0].description, "", "a photo-only request keeps the description empty");
   assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "status"], "the visitor learns the reference and nothing else");
   // The same request again (the answer got lost): the same reference, nothing new
   assert.equal((await send(full, { session: s })).ref, sent.ref);

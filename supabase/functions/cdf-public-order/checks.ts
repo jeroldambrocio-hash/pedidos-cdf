@@ -267,12 +267,15 @@ export function checkRequest(body: unknown, now: number) {
   if (!Array.isArray(refs) || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
   if (b.payment_proof != null && (typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))) fail("payment_proof");
 
+  const description = text(b.description, "description", 0, 1000, true);
+  if (description.length < 3 && refs.length === 0) fail("description");
+
   return {
     request_key: (b.request_key as string).toLowerCase(), lang: b.lang === "es" ? "es" : "en",
     buyer_name: text(b.buyer_name, "buyer_name", 2, 80), buyer_phone,
     receiver_name: text(b.receiver_name, "receiver_name", 2, 80), receiver_phone,
     mode, date, slot, address, lat, lng, location_source, location_confirmed_at, pickup_branch,
-    description: text(b.description, "description", 3, 1000, true), special_requests: text(b.special_requests, "special_requests", 0, 500, true),
+    description, special_requests: text(b.special_requests, "special_requests", 0, 500, true),
     card_message: text(b.card_message, "card_message", 0, 300, true), payment_method,
     reference_files: (refs as string[]).map((f) => f.toLowerCase()), payment_proof: b.payment_proof ? (b.payment_proof as string).toLowerCase() : null,
   };

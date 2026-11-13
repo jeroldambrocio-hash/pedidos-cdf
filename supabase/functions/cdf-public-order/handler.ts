@@ -240,6 +240,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (saved.error) {
         const m = saved.error.message;
         if (/cdf_session_invalid/.test(m)) return no("session", 401);
+        if (/cdf_request_description/.test(m)) return no("invalid", 422, "description");
         if (/cdf_request_files/.test(m)) return no("files", 422, "reference_files");
         if (/cdf_pickup_shop/.test(m)) return no("invalid", 422, "pickup_branch");
         if (/cdf_operation_conflict/.test(m)) return no("conflict", 409);

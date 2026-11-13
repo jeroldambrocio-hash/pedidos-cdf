@@ -284,7 +284,7 @@
       place = picker?.state() || place;
       if (!place) errs.location = t("poErrLocation"); else if (!place.confirmedAt) errs.location = t("poErrConfirm");
     } else if (!(shops.list || []).some((x) => x.branch === v.pickup_branch && x.available)) errs.pickup_branch = t("poErrShop");
-    need("description", 3, "poErrDescription");
+    if (v.description.trim().length < 3 && !files.reference.some((f) => f.state === "ready" && f.id)) errs.description = t("poErrDescription");
     if (!METHODS.includes(v.payment_method)) errs.payment_method = t("poErrMethod");
     const all = [...files.reference, ...files.payment_proof];
     if (all.some((f) => f.state === "sending")) errs.reference_files = t("poErrSending");
@@ -381,7 +381,7 @@
         h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
         h("div", { class: "row2" }, field("date", t("poDate"), date, { hint: t("poDateHint") }), field("slot", t("poSlot"), slot)), where),
       section(4, t("poOrderInfo"),
-        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") })),
+        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint") }),
         field("special_requests", t("poSpecial"), area({ rows: 2, maxLength: 500 }), { optional: true }),
         field("card_message", t("poCard"), area({ rows: 2, maxLength: 300 }), { optional: true }),
         refWrap,

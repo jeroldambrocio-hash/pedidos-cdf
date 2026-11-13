@@ -2,6 +2,9 @@
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 // Historical dates follow the Git history; they do not assert production deployment dates.
 const CHANGELOG = [
+  { date: "2026-11-14",
+    es: ["Formulario para clientes: basta con describir el arreglo o añadir una foto de referencia. Ya no es obligatorio escribir una descripción si hay una foto."],
+    en: ["Customer form: describe the arrangement or add a reference photo. A written description is no longer required when a photo is provided."] },
   { date: "2026-11-13",
     es: ["Correcciones: el contador de Requests ya no se estira sobre el texto en móvil y el indicador de What’s new conserva su forma circular.", "Mejoras: historial de novedades ampliado hasta la versión inicial del 27 de octubre, en español e inglés."],
     en: ["Fixed: the Requests count no longer stretches over the text on phones, and the What’s new indicator stays circular.", "Improved: release history expanded back to the initial version on 27 October, in Spanish and English."] },

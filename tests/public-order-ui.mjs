@@ -192,7 +192,7 @@ await step("Empty form: errors appear next to each field, the first one is focus
   await review(page);
   assert.match(await page.locator(".po-top").innerText(), /fields need checking/);
   for (const [id, text] of [["buyer_name", "Enter the name."], ["buyer_phone", "Enter a valid phone number"], ["date", "Choose a date"], ["slot", "Choose a time slot."], ["address", "Enter the full address."],
-    ["location", "Mark the delivery point on the map."], ["description", "Tell us what you'd like."], ["payment_method", "Choose how you'd prefer to pay."]])
+    ["location", "Mark the delivery point on the map."], ["description", "Describe what you would like or add a reference photo."], ["payment_method", "Choose how you'd prefer to pay."]])
     assert((await page.locator(`#po-${id}-err`).innerText()).includes(text), id);
   assert.equal(await page.evaluate(() => document.activeElement.id), "po-buyer_name");
   assert.equal(await page.locator("#po-buyer_name").getAttribute("aria-invalid"), "true");
