@@ -287,20 +287,26 @@ async function openRequest(r) {
 const reqWho = (email) => S.members?.find((m) => m.email === email)?.name || email;
 
 function rejectRequest(r) {
+  const gen = sessionNow();
   const why = el("textarea", { id: "req-reason", rows: 3, maxlength: 500, placeholder: t("reqReasonPh") });
   miniSheet(t("reqRejectTitle", { ref: reqRef(r) }), [el("p", { class: "note", style: "margin:0" }, t("reqRejectHint")), field(t("reqReason"), why)], t("reqReject"), async () => {
     const { data, error } = await sb.rpc("cdf_request_reject", { p_id: r.id, p_reason: why.value.trim() });
+    if (stale(gen)) return;
     if (error) return reqError(error);
     Object.assign(r, data); await closeSheet(true);
+    if (stale(gen)) return;
     toast(t("reqRejectedToast", { ref: reqRef(r) }));
     paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests();
   }, { dirty: () => !!why.value.trim() });
 }
 
 async function reopenRequest(r, err) {
+  const gen = sessionNow();
   const { data, error } = await sb.rpc("cdf_request_reopen", { p_id: r.id });
+  if (stale(gen)) return;
   if (error) { err.textContent = reqError(error); return; }
   Object.assign(r, data); await closeSheet(true);
+  if (stale(gen)) return;
   paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests();
   openRequest(r);
 }
@@ -335,8 +341,11 @@ function requestDraft(r) {
 }
 
 async function acceptRequest(r) {
+  const gen = sessionNow();
   if (!(await closeSheet())) return;
+  if (stale(gen)) return;
   await refreshNumTop().catch(() => {});
+  if (stale(gen)) return;
   // One operation key per request in this tab: saving again after a lost answer returns the same order
   const key = (RQ.keys[r.id] ||= { key: crypto.randomUUID(), id: crypto.randomUUID() });
   await openFresh(null, { draft: requestDraft(r), fromRequest: { ...r, accept: key } });

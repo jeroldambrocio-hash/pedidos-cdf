@@ -246,27 +246,30 @@ const retryTag = (o) => o.attempts > 0 && isOpen(o)
 // Quick pay from the card: records what is left as one payment (the same server check as the order's payment
 // section). Proofs and the method are still added from the details.
 async function quickPay(o) {
+  const gen = sessionNow();
   const due = dueOf(o);
   if (!(due > 0) || S.pending.has(o.id)) return;
   const ok = await askConfirm(t("quickPayAsk", { num: o.num }), t("quickPayOk"),
     { detail: pricesOn() ? t("quickPayDetail", { sum: paymentPesos(due) }) : t("quickPayDetailHidden") });
-  if (!ok || S.pending.has(o.id)) return;
+  if (stale(gen) || !ok || S.pending.has(o.id)) return;
   S.pending.add(o.id); render();
   try {
     const total = +o.amount;
     const { data, error } = await sb.rpc("cdf_record_payment", { p_order: o.id, p_request: crypto.randomUUID(), p_amount: due,
       p_proofs: [], p_price: total, p_seen_price: total, p_reverses: null, p_reason: "" });
+    if (stale(gen)) return;
     if (error || !data) {
       const key = { cdf_payment_above_due: "payAboveDue", cdf_price_changed: "payChangedMeanwhile", cdf_invalid_payment: "payInvalid" }[error?.message];
       if (key) await attachPrices([o]).catch(() => {});
+      if (stale(gen)) return;
       throw new Error(t(key || "payRetry"));
     }
     o.amount = data.amount == null ? null : +data.amount; o.paid = data.paid == null ? null : +data.paid;
     invalidateStats();
     upsertLocal(o);
-    toast(t("quickPayDone", { num: o.num }), { action: t("details"), onAction: () => openOrder(o) });
-  } catch (e) { toastErr(e.message); }
-  finally { S.pending.delete(o.id); render(); }
+    toast(t("quickPayDone", { num: o.num }), { action: t("details"), onAction: () => { if (!stale(gen)) openOrder(o); } });
+  } catch (e) { if (!stale(gen)) toastErr(e.message); }
+  finally { if (!stale(gen)) { S.pending.delete(o.id); render(); } }
 }
 function orderCard(o) {
   const cur = stepOf(o), k = STEPS[cur].k, next = nextOf(o, cur), busy = S.pending.has(o.id), risk = S.filter === "attention" ? attentionOf(o) : riskOf(o);
@@ -443,6 +446,7 @@ async function purgeDelivered() {
   toast(t("retainSuccessful"), { type: "error", ms: 7000 });
 }
 function exportDialog() {
+  const gen = sessionNow();
   const m = S.month;
   const iFrom = el("input", { type: "date", value: iso(new Date(m.getFullYear(), m.getMonth(), 1)) });
   const iTo = el("input", { type: "date", value: iso(new Date(m.getFullYear(), m.getMonth() + 1, 0)) });
@@ -451,14 +455,20 @@ function exportDialog() {
     S.cap.archive ? checkRow(iArch, t("includeArchived")) : null,
     el("div", { class: "hint" }, t("exportHint"))], t("download"), async () => {
     if (!iFrom.value || !iTo.value || iTo.value < iFrom.value) return t("rangeInvalid");
-    let q = sb.from("cdf_orders").select("*").gte("date", iFrom.value).lte("date", iTo.value).order("date");
-    if (S.cap.archive && !iArch.checked) q = q.is("archived_at", null);
-    const { data, error } = await q;
+    if (stale(gen)) return;
+    const { data, error } = await allPages(() => {
+      let q = sb.from("cdf_orders").select("*", { count: "exact" }).gte("date", iFrom.value).lte("date", iTo.value).order("date").order("id");
+      if (S.cap.archive && !iArch.checked) q = q.is("archived_at", null);
+      return S.cap.trash ? q.is("deleted_at", null) : q;
+    });
+    if (stale(gen)) return;
     if (error) return t("loadFail");
-    await attachPrices(data);
-    downloadCsv(data.sort(byTime), `pedidos-cdf_${iFrom.value}_${iTo.value}.csv`);
+    const rows = data.filter((o) => !o.deleted_at);
+    await attachPrices(rows);
+    if (stale(gen)) return;
+    downloadCsv(rows.sort(byTime), `pedidos-cdf_${iFrom.value}_${iTo.value}.csv`);
     await closeSheet(true);
-    toast(t("exported", { n: data.length }));
+    if (!stale(gen)) toast(t("exported", { n: rows.length }));
   });
 }
 function downloadCsv(rows, name) {

@@ -1,7 +1,7 @@
 // Start-up: sign-in, who the person is, the sidebar and account menu, and the controls that live in the page itself.
 
 function show(view) {
-  for (const v of ["login", "noaccess", "ordersView", "teamView", "statsView", "chatView", "requestsView"]) {
+  for (const v of ["login", "noaccess", "startupError", "ordersView", "teamView", "statsView", "chatView", "requestsView"]) {
     const n = $(v), on = v === view;
     if (on && n.hidden) { n.classList.remove("view"); void n.offsetWidth; n.classList.add("view"); }
     n.hidden = !on;
@@ -43,6 +43,9 @@ $("logout").onclick = async () => {
 };
 
 let booted;
+let startingUser = null;
+function retryStartup() { if (startingUser) return start(startingUser); }
+$("startupRetry").onclick = retryStartup;
 sb.auth.onAuthStateChange((ev, session) => {
   if (ev === "PASSWORD_RECOVERY") recovering = true;
   const id = session?.user?.id || null;
@@ -63,6 +66,11 @@ function maybeRecover() {
 
 function stop() {
   newSession(); // anything still on its way for the account that was here is dropped when it arrives (audit F10)
+  startingUser = null; S.uid = null; S.pending = new Set();
+  memberStats = null; memberStatsBusy = false; myStatsP = null; myStatsAt = 0;
+  $("addForm").reset(); $("aBtn").disabled = false; $("aErr").textContent = "";
+  for (const dialog of $("dialogRoot").querySelectorAll(".scrim")) dialog.dispatchEvent(new Event("dismiss"));
+  $("dialogRoot").replaceChildren();
   invalidateStats(); S.prices = {}; stopChat();
   S.me = null; S.email = null; S.orders = []; S.photoUrls = {}; S.filter = null; S.chan = null; S.query = ""; S.hits = null; S.loaded = false; S.range = null;
   S.sel = S.today; S.month = monthOf(S.today); S.period = null; // the next person starts on today, not on the day the last one was looking at
@@ -79,10 +87,14 @@ function stop() {
 
 async function start(user) {
   const gen = newSession();
+  S.pending = new Set();
+  startingUser = user;
   const email = user.email.toLowerCase();
+  try {
   const { data, error } = await sb.from("cdf_members").select("*").eq("email", email).maybeSingle();
   if (stale(gen)) return;
-  if (error || !data) {
+  if (error) throw error;
+  if (!data) {
     S.me = null; S.email = email;
     $("noaccessTxt").textContent = t("noAccessTxt", { email });
     $("tabStats").hidden = $("tabTeam").hidden = true;
@@ -114,6 +126,13 @@ async function start(user) {
   await loadChat();
   if (stale(gen)) return;
   syncPush(); paintPwa(); openDeepLink(); // this device's notifications follow whoever signs in; open what a notification pointed at
+  } catch (error) {
+    if (stale(gen)) return;
+    S.me = null; S.email = email; S.loaded = false; S.orders = []; S.members = [];
+    delete document.body.dataset.role;
+    $("tabStats").hidden = $("tabTeam").hidden = $("tabRequests").hidden = true;
+    renderSub(); show("startupError");
+  }
 }
 
 // Who is signed in: rail footer, account menu and the thin mobile header

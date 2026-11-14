@@ -193,7 +193,7 @@ const server = http.createServer((req, res) => {
       const cards = p.locator(".req-card.is-delivery");
       assert.equal(await cards.count(), 2);
       const texts = await cards.allInnerTexts();
-      assert(texts.every((x) => /Delivery/.test(x) && /Katipunan/.test(x) && /11:00 – 13:00/.test(x)));
+      assert(texts.every((x) => /Delivery/.test(x) && /Katipunan/.test(x) && /11:00 AM.*1:00 PM/.test(x)));
       assert(texts.some((x) => /Jose Santos → Maria Santos/.test(x)) && texts.some((x) => /Jose Santos/.test(x) && !/→/.test(x)));
       assert.equal(await p.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), true, "fits a phone");
       await p.context().close();

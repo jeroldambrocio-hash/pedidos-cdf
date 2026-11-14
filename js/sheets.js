@@ -120,19 +120,23 @@ function setStep(id, k, extra = {}) {
 }
 // Optimistic: the card moves at once and goes back if the server says no.
 async function advance(o, i) {
+  const gen = sessionNow();
   if (S.pending.has(o.id)) return;
   S.pending.add(o.id);
   const step = STEPS[i], prev = { status: o.status, delivery: o.delivery };
   Object.assign(o, { status: step.status, delivery: step.delivery }); render();
   try {
     const { data, error } = await setStep(o.id, step.k);
+    if (stale(gen)) return;
     if (error) throw error;
     if (data) Object.assign(o, data);
     if (step.k === "transit") watchMail(o);
-  } catch (e) { Object.assign(o, prev); toast(t("statusFail") + (e?.message ? " · " + e.message : "")); }
+  } catch (e) { if (stale(gen)) return; Object.assign(o, prev); toast(t("statusFail") + (e?.message ? " · " + e.message : "")); }
   finally {
-    S.pending.delete(o.id); render();
-    if (!prefersReducedMotion()) requestAnimationFrame(() => document.querySelector(`#list .entry[data-id="${o.id}"] .step.cur`)?.classList.add("pop"));
+    if (!stale(gen)) {
+      S.pending.delete(o.id); render();
+      if (!prefersReducedMotion()) requestAnimationFrame(() => document.querySelector(`#list .entry[data-id="${o.id}"] .step.cur`)?.classList.add("pop"));
+    }
   }
 }
 // A tap on a step. Steps with consequences ask first or open their form:
@@ -179,6 +183,7 @@ async function watchMail(o) {
 // Ready: straight to the next step (the bouquet photo was dropped on 8/11/2026)
 function readyDialog(o) { return advance(o, 1); }
 function deliverDialog(o) {
+  const gen = sessionNow();
   let setErr;
   const proof = photoPicker({ current: o.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: (m) => setErr?.(m) });
   const note = el("textarea", { placeholder: t("deliveredNotePh"), rows: 2 });
@@ -186,11 +191,14 @@ function deliverDialog(o) {
   miniSheet(t("deliverTitle", { num: o.num }), [field(t("proofPhoto"), proof.node), feature("tracking") ? field(t("noteOpt"), note) : null], t("confirmDelivered"), async (se) => {
     setErr = se;
     const extra = {}, pp = await proof.upload(o.id);
+    if (stale(gen)) return;
     if (pp !== undefined) extra.proof_path = pp;
     if (note.value.trim()) extra.delivery_note = note.value.trim();
     const { data, error } = await setStep(o.id, "done", extra);
+    if (stale(gen)) return;
     if (error) return t("saveFail", { msg: error.message });
     await proof.cleanup();
+    if (stale(gen)) return;
     upsertLocal(data || { ...o, ...extra, status: "Ready", delivery: "Delivered" });
     await closeSheet(true); toast(t("deliveredOk")); render();
   }, { dirty: () => proof.dirty || !!note.value.trim(), dispose: () => proof.dispose() });
@@ -198,6 +206,7 @@ function deliverDialog(o) {
 // Nobody home: photo of the door, a new date and time, and the order goes back to Ready for that day.
 // The note is for the customer, so it is written in English.
 function missedDialog(o) {
+  const gen = sessionNow();
   if (isPickup(o)) return pickupRescheduleDialog(o);
   let setErr;
   const proof = photoPicker({ current: o.proof_path, hint: t("proofHint"), alt: t("proofPhoto"), onErr: (m) => setErr?.(m) });
@@ -218,11 +227,15 @@ function missedDialog(o) {
     // With tracking on, the customer reads this on their link; off, it is only the rider's instructions (kept if empty)
     const text = note.value.trim() || (track ? `We came at ${at} but nobody was home. We'll come back on ${when}, ${formatSlot12(slot)}.` : null);
     if (typeof llReleaseRider === "function" && !(await llReleaseRider(o))) return t("llReleaseStopped");
+    if (stale(gen)) return;
     const pp = await proof.upload(o.id);
+    if (stale(gen)) return;
     const { data, error } = await sb.rpc("cdf_reschedule", { p_id: o.id, p_date: iDate.value, p_slot: slot, p_note: text,
       p_proof: pp ?? null, p_set_proof: pp !== undefined });
+    if (stale(gen)) return;
     if (error) return t("saveFail", { msg: error.message });
     await proof.cleanup();
+    if (stale(gen)) return;
     if (data) upsertLocal(data);
     await closeSheet(true); toast(t("rescheduled", { date: shortDate(iDate.value) })); loadOrders();
   }, { dirty: () => proof.dirty || !!note.value.trim(), dispose: () => proof.dispose() });
@@ -230,6 +243,7 @@ function missedDialog(o) {
 
 // Not collected: the customer will come another day. New date and time; the order goes back to Ready for pickup.
 function pickupRescheduleDialog(o) {
+  const gen = sessionNow();
   const iDate = el("input", { type: "date", value: addDays(S.today, 1), min: isStaff() ? null : S.today, required: true });
   const iSlot = slotPicker(o.slot);
   miniSheet(t("pickupRescheduleTitle", { num: o.num }), [
@@ -238,6 +252,7 @@ function pickupRescheduleDialog(o) {
     const slot = iSlot.value();
     if (!iDate.value || !slot) return t("slotInvalid");
     const { data, error } = await sb.rpc("cdf_reschedule", { p_id: o.id, p_date: iDate.value, p_slot: slot, p_note: null, p_proof: null, p_set_proof: false });
+    if (stale(gen)) return;
     if (error) return t("saveFail", { msg: error.message });
     if (data) upsertLocal(data);
     await closeSheet(true); toast(t("rescheduled", { date: shortDate(iDate.value) })); loadOrders();
@@ -492,6 +507,7 @@ async function proofsInUse(orderId) {
 }
 
 function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
+  const gen = sessionNow();
   let isNew = !o;
   const newOrderForm = isNew && !copyFrom;
   // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
@@ -704,6 +720,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     }));
   }
   async function recordPayment(reverses = null, reason = "") {
+    if (stale(gen)) return;
     if (!paymentRow || paymentBusy || (saveBtn.disabled && !pendingPayment)) return;
     const amount = iPayment.valueAsNumber;
     const total = iAmount.valueAsNumber;
@@ -733,7 +750,9 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
         };
       }
       const request = pendingPayment;
+      if (stale(gen)) return;
       const { data, error } = await sb.rpc("cdf_record_payment", request);
+      if (stale(gen)) return;
       if (error) {
         const message = { cdf_payment_above_due: "payAboveDue", cdf_invalid_payment: "payInvalid",
           cdf_price_changed: "payChangedMeanwhile", cdf_invalid_correction: "payCorrectionInvalid",
@@ -760,6 +779,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       payMessage.textContent = t(request.p_reverses ? "payCorrectionSaved" : "payApplied");
       if (!request.p_reverses) iPayment.focus();
     } catch (error) {
+      if (stale(gen)) return;
       payMessage.textContent = pendingPayment ? t("payRetry") : error.message;
     } finally {
       paymentBusy = false;
@@ -885,6 +905,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   iSame.addEventListener("change", () => syncSame(true));
 
   const save = async () => {
+    if (stale(gen)) return;
     setErr("");
     for (const x of node.querySelectorAll(".invalid")) x.classList.remove("invalid");
     const row = collect();
@@ -933,11 +954,13 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       if (gaps.length && !same && !(await askConfirm(t("gapAsk"), t("saveAnyway"), { detail: gaps.join(" · ") }))) return;
     }
     const dbRow = { ...row, vendor_email: row.vendor_email || null, carrier_email: row.carrier_email || null };
+    if (stale(gen)) return;
     if (!S.cap.carrier) delete dbRow.carrier_email;
     delete dbRow.amount;
     // Giving it to someone away on that date (or moving it into their absence) asks first
     if (dbRow.vendor_email && (isNew || dbRow.vendor_email !== (initial.vendor_email || null) || dbRow.date !== initial.date)
       && !(await okToAssign(dbRow.vendor_email, [dbRow.date]))) return;
+    if (stale(gen)) return;
 
     let saved, error;
     if (createOn) {
@@ -948,12 +971,14 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       if (payment) {
         try { createReq.proofs ??= (await payProofs.upload(createReq.id)) || []; }
         catch (e) { return e.message; }
+        if (stale(gen)) return;
         payment.proofs = createReq.proofs;
       }
       // From a request: the same order, and the request closed with it in the same transaction
       const args = { p_request: createReq.key, p_order: { id: createReq.id, ...dbRow }, p_price: priceEditable() ? row.amount : null, p_payment: payment };
       const res = await (fromRequest ? sb.rpc("cdf_request_accept", { p_id: fromRequest.id, ...args }) : sb.rpc("cdf_create_order", args))
         .then((r) => r, (e) => ({ error: { message: String(e?.message || e) } }));
+      if (stale(gen)) return;
       if (res.error || !res.data?.order) {
         const e = res.error || { message: "" };
         if (e.code || /^cdf_/.test(e.message)) {
@@ -1005,6 +1030,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       let seen = o;
       for (let tries = 0; ; tries++) {
         const { data: server, error: readErr } = await sb.from("cdf_orders").select("*").eq("id", o.id).maybeSingle();
+        if (stale(gen)) return;
         if (readErr) return t("saveFail", { msg: readErr.message });
         if (!server) return t("goneMeanwhile");
         if (server.updated_at !== seen.updated_at) {
@@ -1013,20 +1039,25 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
           seen = server;
         }
         if (!Object.keys(changed).length) { saved = server; break; }
+        if (stale(gen)) return;
         const r = await sb.from("cdf_orders").update(changed).eq("id", o.id).eq("updated_at", server.updated_at).select();
+        if (stale(gen)) return;
         if (r.error) { error = r.error; break; }
         if (r.data?.length) { saved = r.data[0]; break; }
         if (tries >= 4) return t("busyRetry");
       }
     }
+    if (stale(gen)) return;
     if (error) return error.code === "23505" ? t("dupNum", { num: row.num }) : t("saveFail", { msg: error.message });
 
     // Only a price that was typed or changed is written: an order whose price never loaded keeps it
     if (!createOn && priceEditable() && (isNew || row.amount !== initial.amount)) {
       try {
         await savePrice(saved.id, { amount: row.amount }, isNew ? null : { amount: initial.amount });
+        if (stale(gen)) return;
         saved.amount = row.amount;
       } catch (e) {
+        if (stale(gen)) return;
         upsertLocal(saved);
         if (isNew) { o = saved; isNew = false; initial = { ...row, amount: undefined }; }
         return t("payNotSaved", { msg: e.message });
@@ -1036,7 +1067,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     const pics = {};
     let photoTrouble = false;
     for (const [k, p, dest] of [["photo_path", shot, (id) => id + ".jpg"], ["extra_photos", extras], ["proof_path", proof]]) {
-      try { const v = await p.upload(saved.id, dest); if (v !== undefined) pics[k] = v; } catch { photoTrouble = true; }
+      try { const v = await p.upload(saved.id, dest); if (stale(gen)) return; if (v !== undefined) pics[k] = v; } catch { if (stale(gen)) return; photoTrouble = true; }
     }
     // Audit F12. The extra photos go as "added / removed" and the database applies them to the list as it is
     // now, so two people adding photos at once both keep theirs. A database without that function yet
@@ -1044,6 +1075,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     let photoClash = false;
     if (pics.extra_photos && extras.changes) {
       const m = await sb.rpc("cdf_order_photos_merge", { p_id: saved.id, p_add: extras.changes.add, p_remove: extras.changes.remove });
+      if (stale(gen)) return;
       if (!m.error && m.data) { saved = { ...saved, ...m.data }; delete pics.extra_photos; await extras.cleanup(m.data.extra_photos || []); }
       else if (m.error?.code !== "PGRST202" && !/could not find the function/i.test(m.error?.message || "")) {
         delete pics.extra_photos;
@@ -1058,6 +1090,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
           // it has the change, it was saved; if not, or it cannot be read, the person is told and can save
           // again, and the files stay (a file nobody points at is harmless; a photo pointing at nothing is not).
           const now = await sb.from("cdf_orders").select("extra_photos, updated_at").eq("id", saved.id).maybeSingle();
+          if (stale(gen)) return;
           const list = now.data?.extra_photos || null;
           if (!now.error && list && added.every((p) => list.includes(p)) && extras.changes.remove.every((p) => !list.includes(p))) {
             saved = { ...saved, ...now.data }; await extras.cleanup(list);
@@ -1068,19 +1101,24 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     // The delivery photo is one file: written only if it is still the one this editor opened with. If someone
     // changed it meanwhile, theirs stays, ours is taken back and the person is told.
     if ("proof_path" in pics && !isNew) {
+      if (stale(gen)) return;
       const was = initialProof || null;
       let q = sb.from("cdf_orders").update({ proof_path: pics.proof_path }).eq("id", saved.id);
       q = was ? q.eq("proof_path", was) : q.is("proof_path", null);
       const r = await q.select();
+      if (stale(gen)) return;
       if (r.error) photoTrouble = true;
       else if (!r.data?.length) { photoClash = true; if (pics.proof_path) await sb.storage.from(ENTREGAS).remove([pics.proof_path]); }
       else { saved = { ...saved, ...r.data[0] }; await proof.cleanup(); }
       delete pics.proof_path;
     }
     if (Object.keys(pics).length) {
+      if (stale(gen)) return;
       const r = await sb.from("cdf_orders").update(pics).eq("id", saved.id).select().single();
+      if (stale(gen)) return;
       if (r.error) photoTrouble = true; else { saved = { ...saved, ...r.data }; await Promise.all([shot, ...("extra_photos" in pics ? [extras] : []), ...("proof_path" in pics ? [proof] : [])].map((p) => p.cleanup())); }
     }
+    if (stale(gen)) return;
     if (isNew && !fromRequest) writeDraft(null);
     upsertLocal(saved);
     S.sel = row.date; S.month = monthOf(row.date);
@@ -1274,6 +1312,7 @@ document.addEventListener("orderchange", (e) => {
 // A cancelled order keeps its step; the server refuses any step while cancelled, tells the assigned
 // florist and driver, logs it in the history and shows the customer "cancelled" on the tracking page.
 function cancelDialog(o) {
+  const gen = sessionNow();
   const iReason = el("textarea", { id: "f-cancel", rows: 3, maxlength: 500, "aria-required": "true", placeholder: t("cancelReasonPh") });
   const chips = el("div", { class: "chips" }, ["cancelR1", "cancelR2", "cancelR3"].map((k) =>
     el("button", { class: "chip", type: "button", onclick: () => { iReason.value = t(k); iReason.focus(); } }, t(k))));
@@ -1284,17 +1323,22 @@ function cancelDialog(o) {
     const reason = iReason.value.trim();
     if (!reason) { iReason.closest(".field")?.classList.add("invalid"); iReason.focus(); return t("cancelNeedReason"); }
     if (typeof llReleaseRider === "function" && !(await llReleaseRider(o))) return t("llReleaseStopped");
+    if (stale(gen)) return;
     const { data, error } = await sb.rpc("cdf_cancel_order", { p_id: o.id, p_reason: reason });
+    if (stale(gen)) return;
     if (error) return (error.message || "").includes("cdf_delivered_not_cancellable") ? t("deliveredNoCancel") : t("saveFail", { msg: error.message });
     Object.assign(o, data); upsertLocal(o);
     await closeSheet(true);
-    toast(t("cancelledN", { num: o.num }), { action: t("undo"), onAction: () => reinstateOrder(o) });
+    if (stale(gen)) return;
+    toast(t("cancelledN", { num: o.num }), { action: t("undo"), onAction: () => { if (!stale(gen)) reinstateOrder(o); } });
     invalidateStats(); render();
   }, { dirty: () => !!iReason.value.trim() });
   requestAnimationFrame(() => iReason.focus());
 }
 async function reinstateOrder(o) {
+  const gen = sessionNow();
   const { data, error } = await sb.rpc("cdf_reinstate_order", { p_id: o.id });
+  if (stale(gen)) return;
   if (error) { toast(t("saveFail", { msg: error.message }), { type: "error" }); return; }
   Object.assign(o, data); upsertLocal(o);
   toast(t("reinstatedN", { num: o.num })); invalidateStats(); render();
@@ -1302,14 +1346,17 @@ async function reinstateOrder(o) {
 
 // ---------- archive ----------
 async function setArchived(list, on) {
+  const gen = sessionNow();
   if (!list.length) return;
   const ids = list.map((o) => o.id);
   const { error } = await sb.from("cdf_orders").update({ archived_at: on ? new Date().toISOString() : null }).in("id", ids);
+  if (stale(gen)) return;
   if (error) { toast(t("saveFail", { msg: error.message }), { type: "error" }); return; }
   if (sheet && list.some((o) => o.id === sheet.order?.id)) await closeSheet(true);
+  if (stale(gen)) return;
   if (on) S.orders = S.orders.filter((o) => !ids.includes(o.id));
   S.selected.clear();
-  toast(on ? t("archivedN", { n: list.length }) : t("restoredN", { n: list.length }), on ? { action: t("undo"), onAction: () => setArchived(list, false) } : {});
+  toast(on ? t("archivedN", { n: list.length }) : t("restoredN", { n: list.length }), on ? { action: t("undo"), onAction: () => { if (!stale(gen)) setArchived(list, false); } } : {});
   if (!on) loadOrders(); else render();
   if (S.hits) runSearch();
 }

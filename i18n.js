@@ -275,6 +275,7 @@ const I18N = {
     motion: "Animaciones", motionFull: "Completas", motionReduced: "Reducidas", sounds: "Sonidos", soundOn: "Activados", soundOff: "Desactivados",
     offline: "Sin conexión. Lo que ves puede no estar al día; reconéctate antes de guardar.", loadError: "No se pudieron actualizar los pedidos.", retry: "Reintentar", loading: "Cargando…",
     loadFail: "No se pudieron cargar los pedidos",
+    startupTitle: "No se pudo abrir tu espacio", startupFailed: "No se pudo cargar tu espacio. Comprueba la conexión y vuelve a intentarlo.",
     // calendar and day
     chooseDate: "Cambiar fecha", prevMonth: "Mes anterior", nextMonth: "Mes siguiente", today: "Hoy", tomorrow: "Mañana", newOrder: "Nuevo pedido",
     dow: ["L", "M", "X", "J", "V", "S", "D"], nOrders: "{n} pedidos", oneOrder: "1 pedido", manila: "Hora de Manila",
@@ -633,6 +634,7 @@ const I18N = {
     motion: "Animations", motionFull: "Full", motionReduced: "Reduced", sounds: "Sounds", soundOn: "On", soundOff: "Off",
     offline: "You're offline. What you see may be out of date; reconnect before saving.", loadError: "Orders could not be refreshed.", retry: "Try again", loading: "Loading…",
     loadFail: "Couldn't load the orders",
+    startupTitle: "Could not open your workspace", startupFailed: "Your workspace could not be loaded. Check your connection and try again.",
     chooseDate: "Choose date", prevMonth: "Previous month", nextMonth: "Next month", today: "Today", tomorrow: "Tomorrow", newOrder: "New order",
     dow: ["M", "T", "W", "T", "F", "S", "S"], nOrders: "{n} orders", oneOrder: "1 order", manila: "Manila time",
     quickFilters: "Filters", allOrders: "All", searchAll: "Search all dates", searchPh: "Search all dates — order, name or phone", clearSearch: "Clear search",

@@ -15,6 +15,7 @@ const daysLeft = (o) => Math.ceil((Date.parse(o.deleted_at) + TRASH_DAYS * 864e5
 
 // Cancel, archive and trash are three different things: say which is which before trashing.
 function trashDialog(o) {
+  const gen = sessionNow();
   if (isRetained(o)) { toast(t("retainSuccessful"), { type: "error", ms: 7000 }); return; }
   const reason = el("textarea", { rows: 2, maxlength: 500, placeholder: t("trashReasonPh") });
   const what = (glyph, title, text) => el("li", {}, el("span", { class: "ic" }, icon(glyph)), el("div", {}, el("b", {}, title), el("small", {}, text)));
@@ -26,18 +27,22 @@ function trashDialog(o) {
     reqField(t("trashReason"), reason)], t("trashMove"), async () => {
     if (reason.value.trim().length < 3) { reason.closest(".field").classList.add("invalid"); reason.focus(); return t("trashReasonShort"); }
     const { data, error } = await sb.rpc("cdf_order_trash", { p_id: o.id, p_reason: reason.value.trim() });
+    if (stale(gen)) return;
     if (error) return trashError(error);
     S.orders = S.orders.filter((x) => x.id !== o.id);
     if (S.hits) S.hits = S.hits.filter((x) => x.id !== o.id);
     invalidateStats();
     await closeSheet(true);
-    toast(t("trashMoved", { num: o.num }), { action: t("undo"), onAction: () => restoreFromTrash(data || o) });
+    if (stale(gen)) return;
+    toast(t("trashMoved", { num: o.num }), { action: t("undo"), onAction: () => { if (!stale(gen)) restoreFromTrash(data || o); } });
     render();
   }, { dirty: () => !!reason.value.trim() });
 }
 
 async function restoreFromTrash(o) {
+  const gen = sessionNow();
   const { data, error } = await sb.rpc("cdf_order_restore", { p_id: o.id });
+  if (stale(gen)) return false;
   if (error) { toast(trashError(error), { type: "error", ms: 7000 }); return false; }
   if (data) upsertLocal(data);
   invalidateStats();
@@ -54,6 +59,7 @@ const purgeCall = async (body) => {
   return { data };
 };
 function purgeDialog(o, after) {
+  const gen = sessionNow();
   if (isRetained(o)) { toast(t("retainSuccessful"), { type: "error", ms: 7000 }); return; }
   const reason = el("textarea", { rows: 2, maxlength: 500, placeholder: t("trashReasonPh") });
   const typed = el("input", { inputmode: "numeric", autocomplete: "off", placeholder: o.num });
@@ -65,8 +71,10 @@ function purgeDialog(o, after) {
     if (reason.value.trim().length < 3) { reason.closest(".field").classList.add("invalid"); reason.focus(); return t("trashReasonShort"); }
     if (typed.value.trim().replace(/^#/, "") !== String(o.num)) { typed.closest(".field").classList.add("invalid"); typed.focus(); return t("purgeTypeWrong", { num: o.num }); }
     const { data, error } = await purgeCall({ order_id: o.id, reason: reason.value.trim() });
+    if (stale(gen)) return;
     if (error) return trashError(error);
     await closeSheet(true);
+    if (stale(gen)) return;
     const f = data?.files || {};
     toast(f.failed ? t("purgedFilesLeft", { num: o.num }) : t("purgedOne", { num: o.num }), f.failed ? { type: "error", ms: 8000 } : {});
     after?.();

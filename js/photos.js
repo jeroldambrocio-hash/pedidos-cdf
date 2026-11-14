@@ -2,10 +2,12 @@
 
 // Signed links last an hour; renew them a bit before they run out.
 async function photoUrl(path, bkt = bucket) {
+  const gen = sessionNow();
   if (!path) return null;
   const key = bkt + "/" + path, c = S.photoUrls[key];
   if (c && c.exp > Date.now()) return c.url;
   const { data } = await sb.storage.from(bkt).createSignedUrl(path, 3600);
+  if (stale(gen)) return null;
   if (!data?.signedUrl) return null;
   S.photoUrls[key] = { url: data.signedUrl, exp: Date.now() + 50 * 60e3 };
   return data.signedUrl;
