@@ -2458,7 +2458,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 #changelogBtn.has-news .news-dot { display: inline-block; }
 #accountBtn { position: relative; }
 #accountBtn.has-news::after { content: ""; position: absolute; top: 6px; right: 6px; width: 8px; height: 8px; border-radius: 50%; background: var(--step-done); box-shadow: 0 0 0 2px var(--surface); }
-.changelog-highlight { padding: 16px; border: 1px solid var(--done); border-radius: 12px; background: var(--surface-hover); }
+.changelog .sheet-body section.changelog-highlight { padding: 16px; border: 1px solid var(--done); border-radius: 12px; background: var(--surface-hover); }
 .changelog-highlight h3 { margin-top: 0; }
 .changelog-highlight .changelog-list { font-weight: 600; }
 .changelog-list { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.45; }
