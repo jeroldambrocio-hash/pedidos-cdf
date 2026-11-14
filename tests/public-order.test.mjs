@@ -98,7 +98,7 @@ const good = (extra = {}) => ({ request_key: randomUUID(), lang: "en", buyer_nam
   receiver_name: "Maria Santos", receiver_phone: "0917 123 4567", mode: "delivery", date: manilaDate(NOW, 2), slot: "11:00 - 13:00",
   address: "12 Mabini St, Brgy. Loyola Heights, Quezon City", lat: 14.6397, lng: 121.0775, location_source: "search",
   location_confirmed_at: new Date(NOW - 60_000).toISOString(), description: "A dozen red roses, wrapped", special_requests: "", card_message: "Happy birthday",
-  payment_method: "gcash", reference_files: [], payment_proof: null, ...extra });
+  payment_method: "gcash", reference_files: [randomUUID()], payment_proof: randomUUID(), ...extra });
 const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
 { const r = checkRequest(good(), NOW);
   assert.equal(r.buyer_phone, "+34612345678"); assert.equal(r.receiver_phone, "+639171234567");
@@ -129,11 +129,13 @@ ok("A buyer abroad and a receiver in the Philippines are both accepted; pickup n
   refused({ reference_files: Array.from({ length: 7 }, randomUUID) }, "invalid:reference_files"); refused({ reference_files: ["../etc/passwd"] }, "invalid:reference_files");
   const twice = randomUUID(); refused({ reference_files: [twice, twice] }, "invalid:reference_files"); refused({ payment_proof: "cdf-pagos/x.jpg" }, "invalid:payment_proof");
   // A reference photo replaces text; payment proof alone does not.
-  refused({ description: "", reference_files: [] }, "invalid:description");
-  refused({ description: "   ", reference_files: [] }, "invalid:description");
-  refused({ description: "", reference_files: [], payment_proof: randomUUID() }, "invalid:description");
+  refused({ description: "", reference_files: [] }, "invalid:reference_files");
+  refused({ description: "   ", reference_files: [] }, "invalid:reference_files");
+  refused({ description: "", reference_files: [], payment_proof: randomUUID() }, "invalid:reference_files");
+  refused({ payment_proof: null }, "invalid:payment_proof");
+  refused({ payment_proof: "" }, "invalid:payment_proof");
   assert.equal(checkRequest(good({ description: "", reference_files: [randomUUID()] }), NOW).description, "");
-  assert.equal(checkRequest(good({ description: "Red roses", reference_files: [] }), NOW).description, "Red roses");
+  refused({ description: "Red roses", reference_files: [] }, "invalid:reference_files");
   // The shop's day, not the server's or the buyer's: 19:30 on the 11th in Manila is still "today"
   const lateManila = Date.parse("2026-11-11T11:30:00Z");
   assert.equal(checkRequest(good({ date: "2026-11-11", slot: "19:00 - 21:00", location_confirmed_at: new Date(lateManila).toISOString() }), lateManila).date, "2026-11-11");
@@ -309,9 +311,9 @@ const jpg = fixture("gps.jpg");
   assert.equal((await send(body({ reference_files: [proof] }), { session: s })).error, "files");            // a proof is not a reference
   assert.equal((await send(body(), { session: other })).error, "files");                                    // someone else's photos
   const fromOther = await send(body({ reference_files: [], payment_proof: null }), { session: other });
-  assert.equal(fromOther.status, 200); assert.equal(fromOther.received, true);
+  assert.equal(fromOther.status, 422); assert.equal(fromOther.field, "reference_files");
   const full = body({ description: "" }), sent = await send(full, { session: s });
-  assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(sent.ref, fromOther.ref + 1);
+  assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(typeof sent.ref, "number");
   assert.equal((await rows("select description from public.cdf_order_requests where ref=$1", [sent.ref]))[0].description, "", "a photo-only request keeps the description empty");
   assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "status"], "the visitor learns the reference and nothing else");
   // The same request again (the answer got lost): the same reference, nothing new

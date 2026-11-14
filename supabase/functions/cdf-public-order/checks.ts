@@ -264,11 +264,10 @@ export function checkRequest(body: unknown, now: number) {
   const pickup_branch = mode === "pickup" ? text(b.pickup_branch, "pickup_branch", 1, 60) : b.pickup_branch == null ? null : fail("pickup_branch");
 
   const refs = b.reference_files ?? [];
-  if (!Array.isArray(refs) || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
-  if (b.payment_proof != null && (typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))) fail("payment_proof");
+  if (!Array.isArray(refs) || refs.length === 0 || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
+  if ((typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))) fail("payment_proof");
 
   const description = text(b.description, "description", 0, 1000, true);
-  if (description.length < 3 && refs.length === 0) fail("description");
 
   return {
     request_key: (b.request_key as string).toLowerCase(), lang: b.lang === "es" ? "es" : "en",

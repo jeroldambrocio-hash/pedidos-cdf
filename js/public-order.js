@@ -206,7 +206,11 @@
       // Worth trying again only when the photo itself was fine
       item.retry = !["not_an_image", "heic", "file_too_big", "quota"].includes(e.code);
     }
-    if (files[kind].includes(item)) paintFiles(kind);
+    if (files[kind].includes(item)) {
+      const key = kind === "reference" ? "reference_files" : "payment_proof";
+      if (item.state === "ready" && errs[key]) { delete errs[key]; paintError(key); }
+      paintFiles(kind);
+    }
   }
   function addFiles(kind, list) {
     const room = MAX[kind] - files[kind].length, picked = [...list];
@@ -246,7 +250,7 @@
   const errs = {};
   // Top to bottom, as the form reads: the first of these with an error is the one focused
   const ORDER = ["buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "date", "slot", "pickup_branch", "address", "location",
-    "description", "special_requests", "card_message", "reference_files", "payment_method"];
+    "description", "special_requests", "card_message", "reference_files", "payment_method", "payment_proof"];
   let fields = {};
   function field(name, label, control, { hint, optional } = {}) {
     const id = "po-" + name;
@@ -284,11 +288,13 @@
       place = picker?.state() || place;
       if (!place) errs.location = t("poErrLocation"); else if (!place.confirmedAt) errs.location = t("poErrConfirm");
     } else if (!(shops.list || []).some((x) => x.branch === v.pickup_branch && x.available)) errs.pickup_branch = t("poErrShop");
-    if (v.description.trim().length < 3 && !files.reference.some((f) => f.state === "ready" && f.id)) errs.description = t("poErrDescription");
+    if (!files.reference.some((f) => f.state === "ready" && f.id)) errs.reference_files = t("poErrReference");
+    if (!files.payment_proof.some((f) => f.state === "ready" && f.id)) errs.payment_proof = t("poErrProof");
     if (!METHODS.includes(v.payment_method)) errs.payment_method = t("poErrMethod");
-    const all = [...files.reference, ...files.payment_proof];
-    if (all.some((f) => f.state === "sending")) errs.reference_files = t("poErrSending");
-    else if (all.some((f) => f.state === "failed")) errs.reference_files = t("poErrFailedPhoto");
+    for (const [kind, key] of [["reference", "reference_files"], ["payment_proof", "payment_proof"]]) {
+      if (files[kind].some((f) => f.state === "sending")) errs[key] = t("poErrSending");
+      else if (files[kind].some((f) => f.state === "failed")) errs[key] = t("poErrFailedPhoto");
+    }
     return Object.keys(errs);
   }
   const payload = () => {
@@ -354,9 +360,14 @@
     const method = h("select", {}, h("option", { value: "" }, t("poChoose")), METHODS.map((m) => h("option", { value: m }, t("pm_" + m))));
     fileBox.reference = h("div", { class: "po-files" }); fileBox.payment_proof = h("div", { class: "po-files" });
     const filesErr = h("p", { class: "err", id: "po-reference_files-err", role: "alert" });
-    const refWrap = h("div", { class: "field po-field", role: "group", "aria-labelledby": "po-ref-label" },
-      h("span", { id: "po-ref-label", class: "po-label" }, t("poPhotos"), h("span", { class: "po-optional" }, " " + t("poOptional"))), fileBox.reference, filesErr);
-    fields.reference_files = { wrap: refWrap, control: { focus: () => refWrap.querySelector("button, label")?.focus?.() || refWrap.scrollIntoView() }, err: filesErr };
+    const refWrap = h("div", { class: "field po-field", role: "group", tabIndex: -1, "aria-labelledby": "po-ref-label", "aria-describedby": "po-reference_files-err" },
+      h("span", { id: "po-ref-label", class: "po-label" }, t("poPhotos"), " · " + t("poRequired")), fileBox.reference, filesErr);
+    fields.reference_files = { wrap: refWrap, control: refWrap, err: filesErr };
+
+    const proofErr = h("p", { class: "err", id: "po-payment_proof-err", role: "alert" });
+    const proofWrap = h("div", { class: "field po-field", role: "group", tabIndex: -1, "aria-labelledby": "po-proof-label", "aria-describedby": "po-payment_proof-err" },
+      h("span", { id: "po-proof-label", class: "po-label" }, t("poProof"), " · " + t("poRequired")), fileBox.payment_proof, proofErr);
+    fields.payment_proof = { wrap: proofWrap, control: proofWrap, err: proofErr };
 
     const top = h("p", { class: "err po-top", role: "alert", tabIndex: -1 }, topError);
     const form = h("form", { class: "po-form", noValidate: true, onsubmit: (e) => {
@@ -381,13 +392,12 @@
         h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
         h("div", { class: "row2" }, field("date", t("poDate"), date, { hint: t("poDateHint") }), field("slot", t("poSlot"), slot)), where),
       section(4, t("poOrderInfo"),
-        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint") }),
+        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint"), optional: true }),
         field("special_requests", t("poSpecial"), area({ rows: 2, maxLength: 500 }), { optional: true }),
         field("card_message", t("poCard"), area({ rows: 2, maxLength: 300 }), { optional: true }),
         refWrap,
         field("payment_method", t("poMethod"), method, { hint: t("poMethodHint") }),
-        h("div", { class: "field po-field", role: "group", "aria-labelledby": "po-proof-label" },
-          h("span", { id: "po-proof-label", class: "po-label" }, t("poProof"), h("span", { class: "po-optional" }, " " + t("poOptional"))), fileBox.payment_proof)),
+        proofWrap),
       h("button", { class: "btn primary block", type: "submit" }, t("poReview")));
     paintSlots();
     root.replaceChildren(form);
