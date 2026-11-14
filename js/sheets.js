@@ -21,6 +21,7 @@ document.addEventListener("keydown", trapKeys);
 
 // Ask before something with consequences. Resolves true when confirmed.
 function askConfirm(text, okLabel, { danger = false, detail } = {}) {
+  const gen = sessionNow();
   return new Promise((resolve) => {
     const back = document.activeElement;
     const scrim = el("div", { class: "scrim center-scrim" });
@@ -28,7 +29,9 @@ function askConfirm(text, okLabel, { danger = false, detail } = {}) {
       if (!scrim.isConnected) return;
       scrim.classList.add("leaving");
       if (!prefersReducedMotion()) await wait(330);
-      scrim.remove(); back?.focus?.(); resolve(v);
+      scrim.remove();
+      if (!stale(gen) && back?.isConnected) back.focus();
+      resolve(v && !stale(gen));
     };
     const ok = el("button", { class: "btn " + (danger ? "danger-solid" : "primary"), type: "button", onclick: () => done(true) }, okLabel);
     const box = el("div", { class: "dialog", role: "alertdialog", "aria-modal": "true", tabindex: "-1", "aria-labelledby": "askText" },
@@ -143,6 +146,7 @@ async function advance(o, i) {
 // On the way emails the customer, Delivered asks for the proof, Nobody home asks for a new date,
 // and going back a step says what the customer will see.
 async function requestStep(o, i) {
+  const gen = sessionNow();
   const cur = stepOf(o);
   if (cur === CANCELLED) { toast(t("isCancelled"), { type: "error" }); return; }
   if (i === cur || S.pending.has(o.id)) return;
@@ -152,6 +156,7 @@ async function requestStep(o, i) {
     if (i === 3 && !(await askConfirm(t("confirmPickedUp", { num: o.num }), t("markPickedUp")))) return;
     if (i === 4 && !(await askConfirm(t("confirmNotCollected", { num: o.num }), t("markNotCollected"), { detail: t("notCollectedHint") }))) return;
     if (i < cur && i !== 3 && !(await askConfirm(t("confirmBack", { num: o.num, step: stepName(i, o) }), t("moveBack"), { detail: t("confirmBackHint") }))) return;
+    if (stale(gen)) return;
     return advance(o, i);
   }
   if (i === 3) return deliverDialog(o);
@@ -162,6 +167,7 @@ async function requestStep(o, i) {
       { detail: to ? t("transitMailTo", { to }) : t("transitNoMail") });
     if (!ok) return;
   } else if (i < cur && !(await askConfirm(t("confirmBack", { num: o.num, step: stepName(i) }), t("moveBack"), { detail: t("confirmBackHint") }))) return;
+  if (stale(gen)) return;
   return advance(o, i);
 }
 // The automatic email is sent by the server a moment later: report what really happened.

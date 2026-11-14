@@ -71,6 +71,11 @@ function stop() {
   $("addForm").reset(); $("aBtn").disabled = false; $("aErr").textContent = "";
   for (const dialog of $("dialogRoot").querySelectorAll(".scrim")) dialog.dispatchEvent(new Event("dismiss"));
   $("dialogRoot").replaceChildren();
+  // Native photo dialogs live outside the sheet roots and contain private signed URLs.
+  for (const viewer of document.querySelectorAll("dialog.photo-viewer")) {
+    viewer.close();
+    viewer.remove();
+  }
   invalidateStats(); S.prices = {}; stopChat();
   S.me = null; S.email = null; S.orders = []; S.photoUrls = {}; S.filter = null; S.chan = null; S.query = ""; S.hits = null; S.loaded = false; S.range = null;
   S.sel = S.today; S.month = monthOf(S.today); S.period = null; // the next person starts on today, not on the day the last one was looking at
