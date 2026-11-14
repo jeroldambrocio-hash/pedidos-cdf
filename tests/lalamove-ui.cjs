@@ -46,7 +46,7 @@ const fake = () => {
   // The table: reads return the fake row
   const from = sb.from.bind(sb);
   sb.from = (t) => t !== "cdf_lalamove" ? from(t) : (() => {
-    const q = { select: () => q, limit: () => q, eq: () => q, in: () => q,
+    const q = { select: () => q, limit: () => q, eq: () => q, in: () => q, order: () => q, range: () => q,
       maybeSingle: async () => ({ data: __ll.row && JSON.parse(JSON.stringify(__ll.row)), error: null }),
       then: (res, rej) => Promise.resolve({ data: __ll.row ? [__ll.row] : [], error: null }).then(res, rej) };
     return q;

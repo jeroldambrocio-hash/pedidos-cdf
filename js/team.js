@@ -4,12 +4,14 @@
 // today's count from the orders already loaded. Florists only get their own numbers.
 let memberStats = null, memberStatsAt = 0, memberStatsBusy = false;
 function refreshMemberStats(after) {
+  const gen = sessionNow();
   if (memberStatsBusy || Date.now() - memberStatsAt < 60000) return;
   memberStatsBusy = true;
   sb.rpc("cdf_member_stats").then(({ data, error }) => {
+    if (stale(gen)) return;
     if (!error && Array.isArray(data)) memberStats = new Map(data.map((r) => [r.email, r]));
     memberStatsAt = Date.now(); memberStatsBusy = false; after();
-  }, () => { memberStatsAt = Date.now(); memberStatsBusy = false; });
+  }, () => { if (!stale(gen)) { memberStatsAt = Date.now(); memberStatsBusy = false; } });
 }
 function doneLine(email) {
   if (!memberStats) return null;
@@ -23,6 +25,7 @@ function doneLine(email) {
 // Edit a member's name and role (admins only; RLS allows it). Your own role can't be changed here,
 // so an admin can't lock themselves out. Email stays unchanged; the optional username can be assigned by an admin.
 function editMember(m) {
+  const gen = sessionNow();
   const self = m.email === S.me.email;
   const back = document.activeElement, scrim = el("div", { class: "scrim center-scrim" });
   const iName = el("input", { id: "eName", value: m.name, autocomplete: "off", required: true, maxlength: 80 });
@@ -76,11 +79,12 @@ function editMember(m) {
     if (!basics && !away) { close(); return; }
     save.disabled = true;
     try {
-      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}), ...(stats || {}) }).eq("email", m.email); if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : /cdf_stats_last/.test(error.message || "") ? "statsLastAdmin" : /cdf_stats_/.test(error.message || "") ? "statsForbidden" : "editFail")); }
+      if (basics) { const { error } = await sb.from("cdf_members").update({ name, role, username, ...(pickup || {}), ...(branchChanged ? { branch } : {}), ...(stats || {}) }).eq("email", m.email); if (stale(gen)) return; if (error) throw new Error(t(error.code === "23505" ? "usernameTaken" : /cdf_stats_last/.test(error.message || "") ? "statsLastAdmin" : /cdf_stats_/.test(error.message || "") ? "statsForbidden" : "editFail")); }
       if (away) await saveAvailability(m.email, avail.value());
-    } catch (x) { save.disabled = false; err.textContent = x.message; return; }
+      if (stale(gen)) return;
+    } catch (x) { if (stale(gen)) return; save.disabled = false; err.textContent = x.message; return; }
     save.disabled = false;
-    await close(); toast(t("memberSaved", { name })); await loadMembers();
+    await close(); if (stale(gen)) return; toast(t("memberSaved", { name })); await loadMembers(); if (stale(gen)) return;
     if (self) { Object.assign(S.me, S.members.find((x) => x.email === m.email) || {}); renderSub(); }
     renderTeam(); render(); refreshAwayConflicts(true);
   } },
@@ -142,17 +146,21 @@ function renderTeam() {
       CH.directOn && !self ? el("button", { class: "btn", type: "button", onclick: (e) => openDirect(m.email, e.currentTarget) }, t("chatDirect")) : null,
       el("button", { class: "btn", type: "button", "aria-label": t("editMember") + ": " + m.name, onclick: () => editMember(m) }, t("edit")),
       self ? el("span", { class: "hint" }, t("you")) : el("button", { class: "btn danger", type: "button", onclick: async (e) => {
+        const gen = sessionNow();
         const b = e.currentTarget;
         if (!(await askConfirm(t("removeAsk", { name: m.name }), t("remove"), { danger: true, detail: t("removeHint") }))) return;
+        if (stale(gen)) return;
         b.disabled = true;
         const { data, error } = await sb.functions.invoke("cdf-users", { body: { action: "remove", email: m.email } });
+        if (stale(gen)) return;
         if (error || data?.error) { b.disabled = false; toast(data?.error || t("removeFail"), { type: "error" }); return; }
-        toast(t("removed", { name: m.name })); await loadMembers(); renderTeam();
+        toast(t("removed", { name: m.name })); await loadMembers(); if (!stale(gen)) renderTeam();
       } }, t("remove")))));
   }
   stagger(box);
 }
 $("addForm").addEventListener("submit", async (e) => {
+  const gen = sessionNow();
   e.preventDefault(); $("aErr").textContent = "";
   const body = { action: "add", username: $("aUsername").value.trim().toLowerCase(), name: $("aName").value.trim(), email: $("aEmail").value.trim(), role: $("aRole").value, password: $("aPass").value };
   // Already in the team: say so here, before anything is sent (the server refuses it too)
@@ -160,12 +168,14 @@ $("addForm").addEventListener("submit", async (e) => {
   if (same) { $("aErr").textContent = t("emailTaken", { name: same.name }); $("aEmail").focus(); return; }
   $("aBtn").disabled = true;
   const { data, error } = await sb.functions.invoke("cdf-users", { body });
+  if (stale(gen)) return;
   $("aBtn").disabled = false;
   let msg = data?.error;
   if (error && !msg) { try { const b = await error.context.json(); msg = b.code === "email_taken" ? t("emailTaken", { name: b.name }) : b.error; } catch { msg = t("addFail"); } }
+  if (stale(gen)) return;
   if (msg) { $("aErr").textContent = msg; return; }
   toast(t(data.existed ? "addedExisting" : "added", { name: body.name }));
-  e.target.reset(); await loadMembers(); renderTeam();
+  e.target.reset(); await loadMembers(); if (!stale(gen)) renderTeam();
 });
 
 // Drivers switched off (config.js): new accounts can't be drivers

@@ -116,6 +116,7 @@ function myStats() {
 }
 function openProfile() {
   const me = S.me, florist = me.role === "vendor";
+  const gen = sessionNow(), uid = S.uid;
   let photo = null; // a new picture picked but not saved yet
   const av = avatarNode(me, "avatar xl");
   const file = el("input", { type: "file", accept: "image/*", class: "sr-only", id: "pPhoto" });
@@ -155,6 +156,7 @@ function openProfile() {
   ];
   const dirtyStart = () => iName.value.trim() !== me.name || userNow() !== (me.username || null) || phFull(iPhone) !== (me.phone || "") || !!photo || (avail && avail.changed());
   miniSheet(t("myAccount"), nodes, t("saveChanges"), async () => {
+    if (stale(gen)) return;
     const name = iName.value.trim();
     if (!name) { iName.closest(".field").classList.add("invalid"); return t("fillRequired"); }
     const phone = phFull(iPhone);
@@ -166,23 +168,39 @@ function openProfile() {
     // Username first: "already taken" is the likeliest refusal, so nothing else is saved before it.
     if (username !== (me.username || null)) {
       const { data, error } = await sb.rpc("cdf_set_my_username", { p_username: username });
+      if (stale(gen)) return;
       if (error) { userField.classList.add("invalid"); return t(error.code === "23505" ? "usernameTaken" : "editFail"); }
       Object.assign(S.me, data);
     }
-    let path = me.avatar_path || null;
+    const oldPath = me.avatar_path || null;
+    let path = oldPath;
     if (photo) {
-      const blob = await avatarBlob(photo), next = S.uid + "/avatar-" + Date.now() + ".jpg";
+      const blob = await avatarBlob(photo), next = uid + "/avatar-" + crypto.randomUUID() + ".jpg";
+      if (stale(gen)) return;
       const up = await sb.storage.from(AVATARS).upload(next, blob, { contentType: "image/jpeg" });
+      if (stale(gen)) return;
       if (up.error) return t("photoUploadFail");
-      if (path) sb.storage.from(AVATARS).remove([path]);
       path = next;
     }
     const { data, error } = await sb.rpc("cdf_save_profile", { p_name: name, p_phone: phone, p_avatar: path });
-    if (error) return t("editFail");
+    if (stale(gen)) return;
+    if (error || !data) return t("editFail");
     Object.assign(S.me, data);
-    if (avail?.changed()) Object.assign(S.me, await saveAvailability(me.email, avail.value()));
-    await closeSheet(true); toast(t("profileSaved"));
-    renderSub(); if (isStaff()) { await loadMembers(); } render(); refreshAwayConflicts();
+    // The old image remains valid until the database confirms the replacement. On an ambiguous failure
+    // keep both files: deleting a possibly referenced image is worse than an unreferenced upload.
+    if (oldPath && oldPath !== path && data.avatar_path === path) {
+      await sb.storage.from(AVATARS).remove([oldPath]).catch(() => {});
+      if (stale(gen)) return;
+    }
+    if (avail?.changed()) {
+      const saved = await saveAvailability(me.email, avail.value());
+      if (stale(gen)) return;
+      Object.assign(S.me, saved);
+    }
+    await closeSheet(true);
+    if (stale(gen)) return;
+    toast(t("profileSaved"));
+    renderSub(); if (isStaff()) { await loadMembers(); } if (stale(gen)) return; render(); refreshAwayConflicts();
   }, { dirty: dirtyStart });
 }
 

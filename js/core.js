@@ -46,7 +46,7 @@ const NEXT_PICKUP = { 0: 1, 1: 3, 4: 3 };
 const nextOf = (o, cur) => (isPickup(o) ? NEXT_PICKUP : NEXT)[cur];
 const stepIdsOf = (o) => (isPickup(o) ? STEP_IDS.filter((i) => i !== 2) : STEP_IDS);
 // The shop a pickup is collected from: the assigned florist's (Team → each florist's shop)
-const pickupShop = (o) => { const m = o?.vendor_email && S.members.find((x) => x.email === o.vendor_email); return m ? { branch: m.branch || "", address: m.pickup_address || "" } : null; };
+const pickupShop = (o) => { const m = o?.vendor_email && (S.me?.email === o.vendor_email ? S.me : S.members.find((x) => x.email === o.vendor_email)); return m ? { branch: m.branch || "", address: m.pickup_address || "" } : null; };
 
 // ---------- small helpers ----------
 const $ = (id) => document.getElementById(id);
@@ -214,7 +214,7 @@ function setConnection(kind) {
   c.hidden = false;
 }
 addEventListener("offline", () => S.me && setConnection("offline"));
-addEventListener("online", () => { if (S.me) loadOrders(); });
+addEventListener("online", () => { if (S.me) loadOrders(); else if (typeof retryStartup === "function") retryStartup(); });
 
 // ---------- loading ----------
 // Which columns exist yet (migrations 012/013 add archived_at, carrier_email and the change log)
@@ -236,17 +236,24 @@ async function detectSchema() {
     isAdmin() ? sb.rpc("cdf_is_owner").then((r) => r, () => ({ error: true })) : { error: true }, // who may delete for good
     sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
     // Order + price + first payment in one step: an empty call only says whether the function is there
-    isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, () => ({})) : {},
+    isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, (error) => ({ error })) : {},
     // Phase 3: requests from the public form (admins) and their photos on orders (admins and florists)
     isAdmin() ? sb.from("cdf_order_requests").select("id").limit(1).then((r) => r, () => ({ error: true })) : { error: true },
     sb.rpc("cdf_order_references", { p_order: "00000000-0000-0000-0000-000000000000" }).then((r) => r, () => ({ error: true })),
-    // Phase 4: nearest shop to a delivery point; asked with no point, it answers by name that a point is needed
-    isAdmin() ? sb.rpc("cdf_branch_ranking", { p_lat: null, p_lng: null, p_date: null }).then((r) => r, () => ({})) : {},
+    // A valid read-only lookup detects ranking without deliberately producing HTTP 400 on every sign-in.
+    isAdmin() ? sb.rpc("cdf_branch_ranking", { p_lat: 14.6, p_lng: 121.03, p_date: null }).then((r) => r, (error) => ({ error })) : {},
     sb.from("cdf_orders").select("completed,fulfilled_at").limit(1).then((r) => r, () => ({ error: true })),
   ]);
   if (stale(gen)) return;
+  // Only a missing schema object means an optional feature is absent. Permission, network and service
+  // failures must be retried, never remembered as a browser without payments/requests/etc.
+  const missing = (error) => ["42703", "42P01", "42883", "PGRST202", "PGRST204", "PGRST205"].includes(error?.code);
+  const checks = [a, c, e, m, p, x, k, d, b, v, pu, tr, pay, rf, co,
+    ...(isAdmin() ? [ow, mk, rq, br] : [])];
+  const failed = checks.find((r) => r?.error && !missing(r.error));
+  if (failed) throw new Error(t("startupFailed"));
   S.cap = { retention: !co.error, archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, trash: !tr.error, owner: !ow.error && ow.data === true, paid: isAdmin() && !m.error && !pay.error,
-    create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: /cdf_invalid_point/.test(br?.error?.message || "") };
+    create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: !br?.error && Array.isArray(br?.data?.ranked) };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
