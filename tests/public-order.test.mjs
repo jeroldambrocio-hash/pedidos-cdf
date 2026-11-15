@@ -312,6 +312,7 @@ const jpg = fixture("gps.jpg");
   assert.equal((await send(body(), { session: other })).error, "files");                                    // someone else's photos
   const fromOther = await send(body({ reference_files: [], payment_proof: null }), { session: other });
   assert.equal(fromOther.status, 422); assert.equal(fromOther.field, "reference_files");
+  assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 0, "missing required photos creates no request");
   const full = body({ description: "" }), sent = await send(full, { session: s });
   assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(typeof sent.ref, "number");
   assert.equal((await rows("select description from public.cdf_order_requests where ref=$1", [sent.ref]))[0].description, "", "a photo-only request keeps the description empty");
@@ -319,10 +320,10 @@ const jpg = fixture("gps.jpg");
   // The same request again (the answer got lost): the same reference, nothing new
   assert.equal((await send(full, { session: s })).ref, sent.ref);
   assert.equal((await send({ ...full, description: "Something else entirely" }, { session: s })).status, 409);
-  assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 2);
+  assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 1);
   assert.equal((await rows("select count(*)::int n from public.cdf_request_files where request_id is not null"))[0].n, refs.length + 1);
   assert.equal((await rows("select count(*)::int n from public.cdf_orders"))[0].n, 0, "a request is not an order");
-  assert.equal((await rows("select count(*)::int n from net.calls where body->>'kind' = 'request'"))[0].n, 2, "one notice per request");
+  assert.equal((await rows("select count(*)::int n from net.calls where body->>'kind' = 'request'"))[0].n, 1, "only the valid request sends a notice");
   ok("A complete request is stored once with its photos and announced once; sent again it gets the same reference; it creates no order");
 
   // ---------- limits and expiry ----------

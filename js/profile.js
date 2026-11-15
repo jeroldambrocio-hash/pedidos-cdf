@@ -130,7 +130,7 @@ function openProfile() {
   const iUser = el("input", { id: "pUsername", value: me.username || "", autocomplete: "off", autocapitalize: "none", spellcheck: "false", pattern: "[A-Za-z0-9][A-Za-z0-9._\\-]{2,29}", minlength: 3, maxlength: 30, placeholder: t("usernamePh") });
   const userNow = () => iUser.value.trim().toLowerCase() || null;
   const done = el("b", {}, "…");
-  myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });
+  if (florist) myStats().then((r) => { done.textContent = t("doneOrders", { n: +r?.done_total || 0 }); });
   const avail = florist ? availabilityFields(me) : null;
   const clash = el("div", { class: "notice", hidden: true });
   if (avail) {
@@ -145,7 +145,7 @@ function openProfile() {
     el("div", { class: "identity" }, av,
       el("div", {}, el("b", {}, me.name), el("small", {}, t("role_" + me.role) + (me.branch ? " · " + t("branchOf", { b: me.branch }) : ""))),
       el("label", { class: "btn pic-btn", for: "pPhoto" }, icon("camera"), t("changePhoto")), file),
-    el("div", { class: "completed" }, icon("check"), el("span", {}, done, el("small", {}, t("doneSince")))),
+    florist ? el("div", { class: "completed" }, icon("check"), el("span", {}, done, el("small", {}, t("doneSince")))) : null,
     el("h3", { class: "grp" }, t("personalData")),
     field(t("displayName"), iName),
     field(t("username"), iUser), el("p", { class: "hint" }, t("usernameHint")),
@@ -232,7 +232,7 @@ function renderMyCard() {
   const kind = bloomKind(me.role), nameIc = el("span", { class: "bloom-ic", "aria-hidden": "true" });
   const bloomBtn = kind && S.cap.profiles ? el("button", { class: "my-bloom", type: "button", onclick: () => openBloom() },
     el("span", { class: "mb-ic", "aria-hidden": "true" }, "…"), el("span", { class: "mb-main" }, el("b", {}, bloomT("title")), el("small", {}, "…"), el("span", { class: "mb-bar" }, el("i")))) : null;
-  if (S.cap.profiles) myStats().then((r) => {
+  if (S.cap.profiles && kind) myStats().then((r) => {
     done.textContent = t("doneOrders", { n: +r?.done_total || 0 });
     if (!kind) return;
     const total = bloomTotal(r, kind), stage = bloomStage(total), next = BLOOM_STAGES[stage + 1];
@@ -249,7 +249,7 @@ function renderMyCard() {
       el("div", { class: "my-names" }, el("b", {}, me.name, kind ? nameIc : null), el("small", {}, me.branch ? t("branchOf", { b: me.branch }) : t("myShop"))),
       S.cap.profiles ? el("button", { class: "my-gear", id: "editProfileBtn", type: "button", "aria-label": t("editProfile"), title: t("editProfile"), onclick: () => openProfile() }, icon("gear")) : null),
     S.cap.profiles && me.role === "vendor" ? el("div", { class: "my-avail" }, awayBadge(me)) : null,
-    S.cap.profiles ? el("div", { class: "my-done" }, icon("bouquet"), done) : null, bloomBtn].filter(Boolean)); // DOM replaceChildren would print "null"
+    S.cap.profiles && me.role === "vendor" ? el("div", { class: "my-done" }, icon("bouquet"), done) : null, bloomBtn].filter(Boolean)); // DOM replaceChildren would print "null"
 }
 
 // ---------- the office: pending orders that fall inside an absence ----------
