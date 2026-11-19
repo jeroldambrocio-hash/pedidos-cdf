@@ -54,9 +54,18 @@ const server = http.createServer((req, res) => {
   const browser = await chromium.launch({ headless: true, channel: "chrome" }), errors = [];
   let failed = 0;
   const step = async (name, fn) => { try { await fn(); console.log("ok " + name); } catch (e) { failed++; console.log("FAIL " + name + "\n  " + String(e.stack || e).split("\n").slice(0, 5).join("\n  ")); } };
-  const open = async (role, { width = 1280, query = "", lang = "en" } = {}) => {
+  const open = async (role, { width = 1280, query = "", lang = "en", sharedNumbers = false } = {}) => {
     const ctx = await browser.newContext({ viewport: { width, height: 900 }, locale: "en-PH", reducedMotion: "reduce" });
-    await ctx.addInitScript(([r, s, l]) => { window.__role = r; try { localStorage.setItem("cdf-lang", l); } catch {} (0, eval)("(" + s + ")")(); }, [role, String(seed), lang]);
+    await ctx.addInitScript(([r, s, l, shared]) => {
+      window.__role = r;
+      try { localStorage.setItem("cdf-lang", l); } catch {}
+      (0, eval)("(" + s + ")")();
+      if (shared) {
+        window.__sharedNumbers = true;
+        window.__sharedOrderCounter = 31;
+        Object.assign(window.__requests[0], { ref: 31, shared_number: true });
+      }
+    }, [role, String(seed), lang, sharedNumbers]);
     await ctx.route("**/*", (route) => {
       const u = route.request().url();
       if (u.includes("supabase.min.js")) return route.fulfill({ body: mock, contentType: "text/javascript" });
@@ -159,6 +168,29 @@ const server = http.createServer((req, res) => {
       await p.getByRole("button", { name: "Review again" }).click();
       await p.locator(".req-sheet .req-tag.in_review").waitFor();
       assert.equal(await p.locator("#tabRequestsCount").innerText(), "2");
+      await p.context().close();
+    });
+
+    await step("A new request keeps its shared number in the list, editor and saved order", async () => {
+      const p = await open("admin", { sharedNumbers: true });
+      await p.locator("#newBtn").click();
+      const number = p.locator("#f-num");
+      assert.equal(await number.getAttribute("placeholder"), "Assigned when saved");
+      assert.equal(await number.isEditable(), false);
+      await p.getByRole("button", { name: "Close", exact: true }).click();
+      await toRequests(p);
+      const card = p.locator('.req-card[data-id="req-12"]');
+      assert.equal(await card.locator(".req-ref").innerText(), "#0031");
+      await card.click();
+      await p.getByRole("button", { name: "Accept and create order" }).click();
+      assert.equal(await number.inputValue(), "0031");
+      await p.locator("#f-vendor").selectOption("ana@example.com");
+      assert.equal(await number.isEditable(), false);
+      await p.locator(".sheet button[type=submit]").click();
+      await p.locator(".toast", { hasText: "Request #0031 accepted" }).waitFor();
+      const accepted = (await calls(p)).find((c) => c.rpc === "cdf_request_accept");
+      assert.equal(accepted.args.p_order.num, null);
+      assert.equal(await p.evaluate(() => window.__orders.find((o) => o.id === window.__requests[0].accepted_order_id).num), "0031");
       await p.context().close();
     });
 

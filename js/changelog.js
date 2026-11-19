@@ -2,6 +2,9 @@
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 // Historical dates follow the Git history; they do not assert production deployment dates.
 const CHANGELOG = [
+  { date: "2026-11-19", pending: true,
+    es: ["Pedidos nuevos y solicitudes comparten la numeración. Las nuevas solicitudes conservan su número al aceptarlas."],
+    en: ["New orders and requests share the same numbering. New requests keep their number when accepted."] },
   { date: "2026-11-15", pending: true,
     es: ["Mi cuenta y Editar perfil: el contador de pedidos entregados aparece solo para floristas; ya no se muestra en administradores."],
     en: ["My account and Edit profile: the delivered orders count is shown only for florists; it is no longer shown for admins."] },

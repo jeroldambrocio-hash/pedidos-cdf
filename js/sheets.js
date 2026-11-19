@@ -516,9 +516,8 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const gen = sessionNow();
   let isNew = !o;
   const newOrderForm = isNew && !copyFrom;
-  // Next number: the highest of the orders on screen and the latest ones in the database (orders far ahead or
-  // long ago aren't loaded, and another admin may have just added one). The database still refuses a repeat.
-  const nextNum = String(Math.max(0, S.numTop || 0, ...S.orders.map((x) => (/^\d+$/.test(x.num) ? +x.num : 0))) + 1).padStart(4, "0");
+  const sharedNumbers = !!S.cap.sharedNumbers;
+  const nextNum = sharedNumbers ? "" : String(Math.max(0, S.numTop || 0, ...S.orders.map((x) => (/^\d+$/.test(x.num) ? +x.num : 0))) + 1).padStart(4, "0");
   // No florist by default: an unassigned order shows up as such instead of landing on someone by accident.
   const blank = { num: nextNum, date: S.sel, slot: "", channel: "", vendor_email: "", carrier_email: "", customer_name: "", address: "", customer_phone: "",
     customer_email: "", buyer_name: "", buyer_phone: "", card_message: "", delivery_note: "", notes: "", amount: "" };
@@ -530,7 +529,9 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
 
   const iDate = el("input", { type: "date", id: "f-date", value: f.date, required: true });
   const iSlot = slotPicker(f.slot);
-  const iNum = el("input", { id: "f-num", value: f.num, inputmode: "numeric", class: "num", required: true });
+  const reservedNumber = fromRequest?.shared_number ? String(fromRequest.ref).padStart(4, "0") : "";
+  const orderNumber = sharedNumbers && isNew ? reservedNumber : f.num;
+  const iNum = el("input", { id: "f-num", value: orderNumber, placeholder: sharedNumbers ? t("orderNumberOnSave") : "", class: "num", readonly: sharedNumbers, required: !sharedNumbers });
   const iName = el("input", { id: "f-name", value: f.customer_name, placeholder: t("namePh"), autocomplete: "off" });
   const iAddr = el("input", { id: "f-addr", value: f.address, placeholder: t("addrPh"), autocomplete: "off" });
   // The exact point for Lalamove (033): a Google Maps link or "lat, lng", read once here so booking a rider
@@ -872,7 +873,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const collect = () => {
     const sameNow = iSame.checked;
     const row = {
-      num: iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel, vendor_email: iVend.value,
+      num: sharedNumbers && isNew ? null : iNum.value.trim(), date: iDate.value, slot: iSlot.value(), channel, vendor_email: iVend.value,
       carrier_email: iCarr ? iCarr.value : f.carrier_email,
       customer_name: (sameNow ? iBName.value : iName.value).trim(), address: iAddr.value.trim(),
       customer_phone: phFull(sameNow ? iBPhone : iPhone), customer_email: iEmail.value.trim().toLowerCase(),
@@ -915,9 +916,10 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     setErr("");
     for (const x of node.querySelectorAll(".invalid")) x.classList.remove("invalid");
     const row = collect();
-    // Required: number, date, time, buyer name + (phone or email), recipient name, phone and address
-    const need = [[iNum, row.num], [iDate, row.date], [iSlot, row.slot], [iBName, row.buyer_name],
+    // Required: date, time, buyer name + (phone or email), recipient name, phone and address
+    const need = [[iDate, row.date], [iSlot, row.slot], [iBName, row.buyer_name],
       [iBPhone, iSame.checked ? row.buyer_phone : row.buyer_phone || row.customer_email], ...(row.pickup ? [] : [[iAddr, row.address]])];
+    if (!sharedNumbers) need.unshift([iNum, row.num]);
     if (!iSame.checked) need.push([iName, row.customer_name], [iPhone, row.customer_phone]);
     const miss = need.filter(([, v]) => !v).map(([x]) => x.closest(".field"));
     // The channel is required too: where every order came from is what the statistics are built on
@@ -1129,7 +1131,11 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     upsertLocal(saved);
     S.sel = row.date; S.month = monthOf(row.date);
     await closeSheet(true);
-    toast(photoClash ? t("photoClash") : photoTrouble ? t("partialSave") : fromRequest ? t("reqAcceptedToast", { ref: "R" + fromRequest.ref, num: saved.num }) : t(isNew ? "created" : "saved"), photoTrouble || photoClash ? { type: "error", ms: 7000 } : {});
+    const savedMessage = fromRequest
+      ? t(fromRequest.shared_number ? "reqAcceptedSharedToast" : "reqAcceptedToast", { ref: reqRef(fromRequest), num: saved.num })
+      : t(isNew ? (sharedNumbers ? "createdNumber" : "created") : "saved", { num: saved.num });
+    toast(photoClash ? t("photoClash") : photoTrouble ? t("partialSave") : savedMessage,
+      photoTrouble || photoClash ? { type: "error", ms: 7000 } : {});
     if (!inRange(row.date)) loadOrders(); else render();
     // The new order glows for a moment where it landed
     if (!isNew) requestAnimationFrame(()=>{const card=document.querySelector(`#list .entry[data-id="${saved.id}"]`);card?.classList.add("flash")});
@@ -1138,7 +1144,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
 
   const archived = !!o?.archived_at;
   const footLeft = isNew ? el("span") : el("div", { class: "btn-row" },
-    el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) { await refreshNumTop().catch(() => {}); openEditor(null, { copyFrom: o }); } } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
+    el("button", { class: "btn foot-act", type: "button", "aria-label": t("duplicate"), onclick: async () => { if (await closeSheet()) { if (!sharedNumbers) await refreshNumTop().catch(() => {}); openEditor(null, { copyFrom: o }); } } }, icon("copy"), el("span", { class: "lbl" }, t("duplicate"))),
     S.cap.archive ? el("button", { class: "btn foot-act", type: "button", "aria-label": t(archived ? "restore" : "archive"), onclick: () => setArchived([o], !archived) }, icon("archive"), el("span", { class: "lbl" }, t(archived ? "restore" : "archive"))) : null,
     isAdmin() && !o.cancelled_at && o.delivery !== "Delivered" && !o.fulfilled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("cancelOrder"), onclick: async () => { if (await closeSheet()) cancelDialog(o); } }, icon("close"), el("span", { class: "lbl" }, t("cancelOrder"))) : null,
     isAdmin() && o.cancelled_at ? el("button", { class: "btn foot-act", type: "button", "aria-label": t("reinstate"), onclick: async () => { if (await closeSheet()) reinstateOrder(o); } }, icon("refresh"), el("span", { class: "lbl" }, t("reinstate"))) : null,
@@ -1197,18 +1203,18 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     saveBtn.disabled = false; saveBtn.classList.remove("busy");
     if (msg) setErr(msg);
   } },
-    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? (fromRequest ? t("reqAcceptTitle", { ref: "R" + fromRequest.ref }) : t(copyFrom ? "duplicateTitle" : "newOrderTitle")) : t("editOrder", { num: f.num })),
+    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? (fromRequest ? t("reqAcceptTitle", { ref: reqRef(fromRequest) }) : t(copyFrom ? "duplicateTitle" : "newOrderTitle")) : t("editOrder", { num: f.num })),
       o ? badge(cur, o) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
     el("div", { class: "sheet-body" },
       isNew ? null : cancelNote(o),
       newOrderForm ? null : chanWarn,
       copyFrom ? el("div", { class: "sheet-note" }, icon("copy"), el("span", {}, t("duplicateHint"))) : null,
-      fromRequest ? el("div", { class: "sheet-note req-from" }, icon("inbox"), el("span", {}, t("reqFromSheet", { ref: "R" + fromRequest.ref }))) : null,
+      fromRequest ? el("div", { class: "sheet-note req-from" }, icon("inbox"), el("span", {}, t("reqFromSheet", { ref: reqRef(fromRequest) }))) : null,
       fromRequest ? requestPhotos(fromRequest) : null,
       draft && !fromRequest ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
       el("section", {},
         el("div", { class: "row2 when-row" }, reqField(t("date"), iDate), reqField(t("slot"), iSlot)),
-        el("div", { class: newOrderForm ? "row2 new-order-assignment" : "row2" }, reqField(t("orderNum"), iNum), field(t("vendor"), iVend)),
+        el("div", { class: newOrderForm ? "row2 new-order-assignment" : "row2" }, (sharedNumbers ? field : reqField)(t("orderNum"), iNum), field(t("vendor"), iVend)),
         shops ? shops.node : null,
         !newOrderForm && iCarr ? field(t("carrier"), iCarr, el("small", { class: "note" }, t("carrierHint"))) : null),
       el("section", {}, el("h3", {}, t("buyerH")), newOrderForm ? null : el("p", { class: "note", style: "margin:0" }, t("buyerHint")),
@@ -1297,7 +1303,7 @@ async function refreshNumTop() {
   S.numTop = Math.max(0, ...(data || []).map((x) => (/^\d+$/.test(x.num) ? +x.num : 0)));
 }
 async function newOrder() {
-  if (isStaff()) await Promise.all([loadMembers(), refreshNumTop().catch(() => {})]);
+  if (isStaff()) await Promise.all([loadMembers(), S.cap.sharedNumbers ? null : refreshNumTop().catch(() => {})]);
   const d = readDraft();
   if (d && (d.buyer_name || d.customer_name || d.address || d.notes)) {
     const restore = await askConfirm(t("draftFound"), t("draftRestore"), { detail: [d.buyer_name || d.customer_name, d.address].filter(Boolean).join(" · ") });

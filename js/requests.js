@@ -8,7 +8,7 @@ const CLOSED = ["accepted", "rejected", "expired"];
 const reqBucket = (r) => (reqIsOpen(r) ? "open" : r.status === "accepted" ? "accepted" : "rejected");
 const reqKindOk = (r, kind = RQ.kind) => kind === "all" || r.mode === kind;
 const reqIsOpen = (r) => r.status === "received" || r.status === "in_review";
-const reqRef = (r) => "R" + r.ref;
+const reqRef = (r) => r.shared_number ? "#" + String(r.ref).padStart(4, "0") : "R" + r.ref;
 const reqPast = (r) => reqIsOpen(r) && r.date < manilaToday();
 const reqOn = () => isAdmin() && !!S.cap.requests;
 
@@ -226,7 +226,7 @@ async function openRequest(r) {
   const tel = (p) => el("a", { href: "tel:+" + intlPhone(p), class: "link-out" }, phoneNice(p));
   const pinUrl = r.lat != null ? `https://www.google.com/maps/search/?api=1&query=${+r.lat},${+r.lng}` : null;
   const err = el("div", { class: "err", role: "alert" });
-  const dupes = [...similar.requests.map((x) => ({ label: "R" + x.ref, open: () => { const o = RQ.list.find((y) => y.id === x.id); if (o) openRequest(o); } })),
+  const dupes = [...similar.requests.map((x) => ({ label: reqRef(x), open: () => { const o = RQ.list.find((y) => y.id === x.id); if (o) openRequest(o); } })),
     ...similar.orders.map((x) => ({ label: "#" + x.num, open: async () => { const { data } = await sb.from("cdf_orders").select("*").eq("id", x.id).maybeSingle(); if (data && !stale(gen)) openOrder(data); } }))];
 
   const acts = [];
@@ -344,7 +344,7 @@ async function acceptRequest(r) {
   const gen = sessionNow();
   if (!(await closeSheet())) return;
   if (stale(gen)) return;
-  await refreshNumTop().catch(() => {});
+  if (!S.cap.sharedNumbers) await refreshNumTop().catch(() => {});
   if (stale(gen)) return;
   // One operation key per request in this tab: saving again after a lost answer returns the same order
   const key = (RQ.keys[r.id] ||= { key: crypto.randomUUID(), id: crypto.randomUUID() });
@@ -379,7 +379,7 @@ function orderReferences(o) {
     box.hidden = true; box.replaceChildren();
     if (!data?.length) return;
     const refs = data.filter((f) => f.kind === "reference"), proof = data.find((f) => f.kind === "payment_proof");
-    fill(box, el("h3", {}, t("reqOnOrder", { ref: "R" + data[0].request_ref })),
+    fill(box, el("h3", {}, t("reqOnOrder", { ref: reqRef({ ref: data[0].request_ref, shared_number: data[0].shared_number }) })),
       refs.length ? el("div", { class: "photo-grid ro" }, refs.map((f, i) => el("div", { class: "pic" }, imgOf(f.path, "cdf-solicitudes", t("reqRefN", { n: i + 1 }), true)))) : null,
       proof ? el("div", { class: "req-proof-on-order" }, el("div", { class: "pic" }, imgOf(proof.path, "cdf-solicitudes", t("reqProof"), true)),
         el("p", { class: "note" }, t("reqProofOnOrder"))) : null);

@@ -2,6 +2,9 @@
 import { sendNotice, type Sub } from "./send.ts";
 import { formatSlot12 } from "../_shared/time.ts";
 
+const requestReference = (r: { ref: number; shared_number?: boolean }) =>
+  r.shared_number ? "#" + String(r.ref).padStart(4, "0") : "R" + r.ref;
+
 export const APP_URL = "https://casadeflores-store.netlify.app";
 const json = (v: unknown, status = 200) => new Response(JSON.stringify(v), { status, headers: { "Content-Type": "application/json" } });
 const handle = (name: string) => (name || "").trim().split(/\s+/)[0].toLowerCase();
@@ -127,20 +130,20 @@ export async function handlePush(req: Request, d: PushDeps): Promise<Response> {
   } else if (body.kind === "request") {
     // A new request from the public form (migration 20261111110000): every admin hears it. Nothing personal
     // goes in the notice (it may show on a locked screen): only that there is one, and its reference.
-    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status,shared_number").eq("id", body.id).maybeSingle();
     if (rErr) return json({ sent: 0, pending: true }, 503); // looked up again on the next retry
     if (!r || !["received", "in_review"].includes(r.status)) return obsolete();
     to = team.filter((p) => p.role === "admin").map((p) => p.email);
-    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Nueva solicitud recibida · R" : "New order request · R") + r.ref,
+    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Nueva solicitud recibida · " : "New order request · ") + requestReference(r),
       body: lang === "es" ? "Ábrela en el panel para revisarla" : "Open it in the panel to review it",
       url: APP_URL_ + "/?request=" + r.id, tag: "request-" + r.id });
   } else if (body.kind === "request_expired") {
     // A request nobody accepted or rejected before its delivery day (migration 20261112090000)
-    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status").eq("id", body.id).maybeSingle();
+    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status,shared_number").eq("id", body.id).maybeSingle();
     if (rErr) return json({ sent: 0, pending: true }, 503); // looked up again on the next retry
     if (!r || r.status !== "expired") return obsolete();
     to = team.filter((p) => p.role === "admin").map((p) => p.email);
-    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Solicitud caducada sin revisar · R" : "Request expired unreviewed · R") + r.ref,
+    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Solicitud caducada sin revisar · " : "Request expired unreviewed · ") + requestReference(r),
       body: lang === "es" ? "Pasó su día sin aceptarla ni rechazarla" : "Its day passed before anyone accepted or rejected it",
       url: APP_URL_ + "/?request=" + r.id, tag: "request-" + r.id });
   } else return json({ error: "kind" }, 400);

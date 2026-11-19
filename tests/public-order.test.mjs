@@ -314,9 +314,9 @@ const jpg = fixture("gps.jpg");
   assert.equal(fromOther.status, 422); assert.equal(fromOther.field, "reference_files");
   assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 0, "missing required photos creates no request");
   const full = body({ description: "" }), sent = await send(full, { session: s });
-  assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(typeof sent.ref, "number");
+  assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(typeof sent.ref, "number"); assert.equal(sent.shared_number, true);
   assert.equal((await rows("select description from public.cdf_order_requests where ref=$1", [sent.ref]))[0].description, "", "a photo-only request keeps the description empty");
-  assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "status"], "the visitor learns the reference and nothing else");
+  assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "shared_number", "status"], "the visitor learns the reference and its format");
   // The same request again (the answer got lost): the same reference, nothing new
   assert.equal((await send(full, { session: s })).ref, sent.ref);
   assert.equal((await send({ ...full, description: "Something else entirely" }, { session: s })).status, 409);

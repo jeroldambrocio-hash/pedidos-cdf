@@ -217,7 +217,7 @@ window.supabase = { createClient: () => ({
     if (name === "cdf_create_order") {
       if (window.__noCreateRpc) return { error: { code: "PGRST202", message: "Could not find the function public.cdf_create_order" } };
       if (window.__role && window.__role !== "admin") return { error: { code: "42501", message: "Forbidden" } };
-      if (!args.p_request && !args.p_order) return { data: { available: true } };
+      if (!args.p_request && !args.p_order) return { data: { available: true, ...(window.__sharedNumbers ? { shared_numbers: true } : {}) } };
       if (!args.p_request || !args.p_order) return { error: { code: "P0001", message: "cdf_invalid_order" } };
       if (window.__createOffline) return { error: { message: "TypeError: Failed to fetch" } };
       const keys = (window.__opKeys ||= {}), print = JSON.stringify([args.p_order, args.p_price, args.p_payment]);
@@ -226,8 +226,10 @@ window.supabase = { createClient: () => ({
       const pay = args.p_payment;
       if (pay && (!(pay.amount > 0) || Math.round(pay.amount * 100) !== pay.amount * 100 || !pay.method || !/^\d{4}-\d{2}-\d{2}$/.test(pay.paid_at || "") || args.p_price == null)) return { error: { code: "P0001", message: "cdf_invalid_payment" } };
       if (pay && pay.amount > args.p_price) return { error: { code: "P0001", message: "cdf_payment_above_due" } };
-      if (window.__orders.some((o) => o.num === args.p_order.num)) return { error: { code: "23505", message: 'duplicate key value violates unique constraint "cdf_orders_num_key"' } };
-      const order = { ...base, proof_path: null, ...args.p_order, code: "new" + String(Date.now()).slice(-7), updated_at: new Date().toISOString() };
+      const num = window.__sharedNumbers && args.p_order.num == null
+        ? String(++window.__sharedOrderCounter).padStart(4, "0") : args.p_order.num;
+      if (window.__orders.some((o) => o.num === num)) return { error: { code: "23505", message: 'duplicate key value violates unique constraint "cdf_orders_num_key"' } };
+      const order = { ...base, proof_path: null, ...args.p_order, num, code: "new" + String(Date.now()).slice(-7), updated_at: new Date().toISOString() };
       window.__orders.push(order);
       if (args.p_price != null) window.__prices.push({ order_id: order.id, amount: args.p_price, paid: pay ? pay.amount : null, pay_proofs: [],
         payment_history: pay ? [{ id: args.p_request, kind: "payment", amount: pay.amount, created_at: new Date().toISOString(), by_email: "admin@example.com",
@@ -259,7 +261,7 @@ window.supabase = { createClient: () => ({
       if (name === "cdf_order_references") {
         const r = reqs.find((x) => x.accepted_order_id === args.p_order), o = window.__orders.find((x) => x.id === args.p_order);
         if (!r || !o) return { data: [], error: null };
-        return { data: files.filter((f) => f.request_id === r.id && (admin || (f.kind === "reference" && o.vendor_email === me))).map((f) => ({ ...f, request_ref: r.ref })), error: null };
+        return { data: files.filter((f) => f.request_id === r.id && (admin || (f.kind === "reference" && o.vendor_email === me))).map((f) => ({ ...f, request_ref: r.ref, shared_number: r.shared_number })), error: null };
       }
       if (!admin) return { data: null, error: { code: "42501", message: "Forbidden" } };
       const r = reqs.find((x) => x.id === args.p_id);
@@ -287,7 +289,8 @@ window.supabase = { createClient: () => ({
         if (r.status !== "accepted" && !open()) return { data: null, error: { code: "P0001", message: "cdf_request_closed" } };
         const lost = window.__acceptLost; window.__acceptLost = false;
         window.__createResponseLost = false;
-        return sb.rpc("cdf_create_order", { p_request: args.p_request, p_order: args.p_order, p_price: args.p_price, p_payment: args.p_payment }).then((made) => {
+        const order = r.shared_number ? { ...args.p_order, num: String(r.ref).padStart(4, "0") } : args.p_order;
+        return sb.rpc("cdf_create_order", { p_request: args.p_request, p_order: order, p_price: args.p_price, p_payment: args.p_payment }).then((made) => {
           if (made.error) return made;
           if (r.status !== "accepted") { Object.assign(r, { status: "accepted", accepted_key: args.p_request, accepted_order_id: made.data.order.id, reviewed_by: me }); ev("accepted", { order_id: made.data.order.id, num: made.data.order.num }); }
           if (lost) return { data: null, error: { message: "TypeError: Failed to fetch" } };

@@ -249,8 +249,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       }
       // Notices that did not get through earlier go again now; never holds up the answer
       await d.rpc("cdf_outbox_retry", {}).catch(() => null);
-      const { ref } = saved.data as { ref: number };
-      return json({ received: true, ref });
+      const { ref, shared_number } = saved.data as { ref: number; shared_number?: boolean };
+      return json({ received: true, ref, ...(shared_number ? { shared_number } : {}) });
     }
     return no("invalid");
   } catch (e) {

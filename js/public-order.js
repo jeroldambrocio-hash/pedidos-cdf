@@ -418,7 +418,7 @@
       sending = true; sendBtn.disabled = back.disabled = true; sendBtn.classList.add("busy"); msg.textContent = ""; sendBtn.textContent = t("poSending");
       try {
         const answer = await withSession(() => post({ action: "submit", ...p }));
-        doneRef = answer?.ref ? "R" + answer.ref : "";
+        doneRef = answer?.ref ? (answer.shared_number ? "#" + String(answer.ref).padStart(4, "0") : "R" + answer.ref) : "";
         view = "done"; touched = false;
         // Nothing of the request stays in the page once it is sent
         for (const k of Object.keys(v)) v[k] = typeof v[k] === "boolean" ? false : k === "mode" ? "delivery" : "";

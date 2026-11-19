@@ -77,7 +77,7 @@ const I18N = {
     reqRejectTitle: "Rechazar {ref}", reqRejectHint: "El cliente no recibe ningún aviso automático: escríbele por vuestro canal habitual.", reqReason: "Motivo (opcional, solo lo ve el equipo)",
     reqReasonPh: "Sin stock ese día, fuera de zona…", reqRejectedToast: "{ref} rechazada", reqTaken: "Otra persona del equipo ya aceptó esta solicitud.", reqClosed: "Esta solicitud ya no está abierta: otra persona la cambió.",
     reqAcceptTitle: "Crear pedido desde {ref}", reqFromSheet: "Datos tomados de la solicitud {ref}. Revisa, pon precio y florista: al guardar se crea el pedido y la solicitud queda aceptada.",
-    reqAcceptedToast: "{ref} aceptada · pedido #{num}", reqProofAccepting: "El cliente envió un comprobante de pago. Si lo dais por bueno, registra el anticipo abajo.",
+    reqAcceptedToast: "{ref} aceptada · pedido #{num}", reqAcceptedSharedToast: "Solicitud {ref} aceptada", reqProofAccepting: "El cliente envió un comprobante de pago. Si lo dais por bueno, registra el anticipo abajo.",
     reqSpecialNote: "Peticiones: {text}", reqPickupNote: "RECOGIDA EN TIENDA", reqFromNote: "Desde la solicitud {ref} · pago preferido: {method}", reqPickupAddress: "Recogida en tienda",
     reqOnOrder: "Fotos del cliente · {ref}", reqProofOnOrder: "Comprobante enviado por el cliente con la solicitud (sin verificar).",
     // Public order form (pedido.html) and its location picker
@@ -307,7 +307,7 @@ const I18N = {
     // order sheet
     close: "Cerrar", cancel: "Cancelar", save: "Guardar", order: "Pedido #{num}", newOrderTitle: "Nuevo pedido", editOrder: "Pedido #{num}", duplicateTitle: "Copia de pedido",
     date: "Fecha", slot: "Hora de entrega", slotFrom: "Desde", slotTo: "Hasta", slotInvalid: "Elige la hora: «hasta» tiene que ser después de «desde».",
-    orderNum: "Nº pedido", vendor: "Florista", carrier: "Repartidor", anyCarrier: "Cualquier repartidor", carrierHint: "Si eliges uno, solo esa persona lo ve. Si no, lo coge quien salga a repartirlo.",
+    orderNum: "Nº pedido", orderNumberOnSave: "Se asigna al guardar", createdNumber: "Pedido #{num} creado", vendor: "Florista", carrier: "Repartidor", anyCarrier: "Cualquier repartidor", carrierHint: "Si eliges uno, solo esa persona lo ve. Si no, lo coge quien salga a repartirlo.",
     unassigned: "Sin asignar", buyerH: "Quién compra", buyerHint: "Recibe el correo cuando el pedido sale. Pon al menos teléfono o email.", buyerNamePh: "Quien hizo el pedido",
     buyerName: "Comprador", buyerPhone: "Teléfono del comprador", name: "Nombre", phone: "Teléfono", phoneShort: "Teléfono",
     autoMailHint: "Con email, recibe un correo automático cuando el pedido sale.",
@@ -436,7 +436,7 @@ const I18N = {
     reqRejectTitle: "Reject {ref}", reqRejectHint: "The customer gets no automatic message: write to them on your usual channel.", reqReason: "Reason (optional, only the team sees it)",
     reqReasonPh: "No stock that day, out of area…", reqRejectedToast: "{ref} rejected", reqTaken: "Someone else on the team already accepted this request.", reqClosed: "This request is no longer open: someone else changed it.",
     reqAcceptTitle: "Create order from {ref}", reqFromSheet: "Filled in from request {ref}. Check it, add the price and florist: saving creates the order and marks the request accepted.",
-    reqAcceptedToast: "{ref} accepted · order #{num}", reqProofAccepting: "The customer sent a proof of payment. If you accept it, record the down payment below.",
+    reqAcceptedToast: "{ref} accepted · order #{num}", reqAcceptedSharedToast: "Request {ref} accepted", reqProofAccepting: "The customer sent a proof of payment. If you accept it, record the down payment below.",
     reqSpecialNote: "Requests: {text}", reqPickupNote: "PICKUP AT THE SHOP", reqFromNote: "From request {ref} · preferred payment: {method}", reqPickupAddress: "Pickup at the shop",
     reqOnOrder: "Customer's photos · {ref}", reqProofOnOrder: "Proof sent by the customer with the request (not verified).",
     // Public order form (pedido.html) and its location picker
@@ -662,7 +662,7 @@ const I18N = {
     emptyVendor: "You have no orders for today or the next few days.", emptyVendorDay: "You have no orders assigned for this day.", backToToday: "Back to today", emptyCarrier: "Orders ready to deliver will show up here.",
     close: "Close", cancel: "Cancel", save: "Save", order: "Order #{num}", newOrderTitle: "New order", editOrder: "Order #{num}", duplicateTitle: "Copy of an order",
     date: "Date", slot: "Delivery time", slotFrom: "From", slotTo: "To", slotInvalid: "Pick the time slot: the end must be after the start.",
-    orderNum: "Order no.", vendor: "Florist", carrier: "Driver", anyCarrier: "Any driver", carrierHint: "Pick one and only they see it. Otherwise whoever heads out with it takes it.",
+    orderNum: "Order no.", orderNumberOnSave: "Assigned when saved", createdNumber: "Order #{num} created", vendor: "Florist", carrier: "Driver", anyCarrier: "Any driver", carrierHint: "Pick one and only they see it. Otherwise whoever heads out with it takes it.",
     unassigned: "Unassigned", buyerH: "Who's buying", buyerHint: "Gets the email when the order goes out. Add at least a phone or an email.", buyerNamePh: "Who placed the order",
     buyerName: "Buyer", buyerPhone: "Buyer's phone", name: "Name", phone: "Phone", phoneShort: "Phone",
     autoMailHint: "With an email, they get an automatic email when the order goes out.",

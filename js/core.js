@@ -236,7 +236,7 @@ async function detectSchema() {
     isAdmin() ? sb.rpc("cdf_is_owner").then((r) => r, () => ({ error: true })) : { error: true }, // who may delete for good
     sb.from("cdf_order_prices").select("paid,pay_proofs").limit(1), // 037: down payments and proofs (admins)
     // Order + price + first payment in one step: an empty call only says whether the function is there
-    isAdmin() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, (error) => ({ error })) : {},
+    isStaff() ? sb.rpc("cdf_create_order", { p_request: null, p_order: null, p_price: null, p_payment: null }).then((r) => r, (error) => ({ error })) : {},
     // Phase 3: requests from the public form (admins) and their photos on orders (admins and florists)
     isAdmin() ? sb.from("cdf_order_requests").select("id").limit(1).then((r) => r, () => ({ error: true })) : { error: true },
     sb.rpc("cdf_order_references", { p_order: "00000000-0000-0000-0000-000000000000" }).then((r) => r, () => ({ error: true })),
@@ -253,7 +253,7 @@ async function detectSchema() {
   const failed = checks.find((r) => r?.error && !missing(r.error));
   if (failed) throw new Error(t("startupFailed"));
   S.cap = { retention: !co.error, archive: !a.error, carrier: !c.error, events: !e.error, amount: isAdmin() && !m.error, profiles: !p.error, extra: !x.error, pickup: !k.error, drop: !d.error, branch: !b.error, vehicle: !v.error, pickupMode: !pu.error, trash: !tr.error, owner: !ow.error && ow.data === true, paid: isAdmin() && !m.error && !pay.error,
-    create: mk?.data?.available === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: !br?.error && Array.isArray(br?.data?.ranked) };
+    create: isAdmin() && mk?.data?.available === true, sharedNumbers: mk?.data?.shared_numbers === true, requests: isAdmin() && !rq?.error && mk?.data?.available === true, references: !rf?.error, ranking: !br?.error && Array.isArray(br?.data?.ranked) };
 }
 // Staff load the weeks around the month on screen; florists and drivers the days around today.
 // Anything still undelivered from before that window comes too, so late orders never vanish.
