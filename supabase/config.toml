@@ -1,3 +1,6 @@
+# Local test stack (scripts/supabase-local.sh). Production deploys use --project-ref, not this id.
+project_id = "cdf-paymongo-test"
+
 [functions.cdf-login]
 # Public login entry point; credentials are verified inside the handler.
 verify_jwt = false
