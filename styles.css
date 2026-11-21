@@ -2520,3 +2520,19 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 .req-order svg.i { width: 15px; height: 15px; }
 .req-more { justify-self: center; margin-top: 12px; }
 .req-top { flex-wrap: wrap; }
+
+/* Payment page (/pagar.html, PayMongo for requests) */
+.pay-card { gap: 14px; }
+.pay-dl { display: grid; gap: 10px; width: 100%; margin: 4px 0; text-align: left; }
+.pay-dl > div { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; }
+.pay-dl dt { color: var(--muted); } .pay-dl dd { margin: 0; text-align: right; }
+.pay-total { border-top: 1px solid var(--line); padding-top: 10px; }
+.pay-total dt, .pay-total dd { color: var(--fg); font-size: 1.2rem; font-weight: 600; font-variant-numeric: tabular-nums; }
+.pay-wait { color: var(--muted); animation: pay-pulse 1.6s ease-in-out infinite; }
+.pay-check { width: 56px; height: 56px; border-radius: 50%; display: grid; place-items: center; font-size: 28px; background: var(--primary-tint); color: var(--primary-text); animation: pay-pop 280ms cubic-bezier(.2, .7, .3, 1); }
+.pay-test { font-size: .8rem; }
+@keyframes pay-pulse { 50% { opacity: .55; } }
+@keyframes pay-pop { from { transform: scale(.85); opacity: 0; } }
+[data-motion="reduced"] .pay-wait, [data-motion="reduced"] .pay-check { animation: none; }
+
+.req-tag.paying { background: var(--primary-tint); color: var(--primary-soft-text); }

@@ -2,6 +2,9 @@
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 // Historical dates follow the Git history; they do not assert production deployment dates.
 const CHANGELOG = [
+  { date: "2026-11-21",
+    es: ["Solicitudes (prueba, aún no publicado): «Cobrar con PayMongo». Pones el precio, el cliente recibe un enlace y paga con GCash, Maya, tarjeta o QR Ph; al confirmarse el pago la solicitud se acepta y el pedido se crea solo, con el pago apuntado."],
+    en: ["Requests (test, not published yet): “Charge with PayMongo”. You set the price, the customer gets a link and pays with GCash, Maya, card or QR Ph; once the payment is confirmed the request is accepted and the order is created by itself, with the payment recorded."] },
   { date: "2026-11-19",
     es: ["Pedidos nuevos y solicitudes comparten la numeración. Las nuevas solicitudes conservan su número al aceptarlas. Requested by Kober"],
     en: ["New orders and requests share the same numbering. New requests keep their number when accepted. Requested by Kober"] },

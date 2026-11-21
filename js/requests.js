@@ -13,6 +13,7 @@ const reqPast = (r) => reqIsOpen(r) && r.date < manilaToday();
 const reqOn = () => isAdmin() && !!S.cap.requests;
 
 function reqStatusTag(r) {
+  if (reqIsOpen(r) && RQ.paying?.has(r.id)) return el("span", { class: "tag req-tag paying" }, t("plTag"));
   if (reqPast(r)) return el("span", { class: "tag req-tag past" }, t("reqDatePassed"));
   return el("span", { class: "tag req-tag " + r.status }, t("reqSt_" + r.status));
 }
@@ -50,6 +51,8 @@ async function loadRequests() {
   RQ.counts = !counts.error && counts.data && typeof counts.data === "object" ? counts.data : null;
   await loadRequestOrders();
   if (stale(gen)) return;
+  // PayMongo: which open requests have a payment link waiting
+  if (pmOn()) { const { data } = await sb.from("cdf_request_payments").select("request_id").eq("status", "open"); if (stale(gen)) return; RQ.paying = new Set((data || []).map((x) => x.request_id)); }
   paintRequestCount();
   if (S.tab === "requests") renderRequests();
 }
@@ -217,10 +220,13 @@ async function openRequest(r) {
     requestResult(sb.from("cdf_request_events").select("kind,by_email,detail,created_at").eq("request_id", r.id).order("created_at")).then(x => x || []),
     // Accepted: where its order is now (there, in the trash, deleted), with who, when and why (12/11/2026)
     r.status === "accepted" && S.cap.trash ? requestResult(sb.rpc("cdf_request_order", { p_id: r.id })) : null,
+    // PayMongo (feature paymongo): its payment links, newest first
+    pmOn() ? requestResult(sb.from("cdf_request_payments").select("id,status,amount,token,created_by,created_at,checkout_expires_at,issue").eq("request_id", r.id).order("created_at", { ascending: false }).limit(5)).then((x) => x || []) : [],
   ]).catch(() => null);
   if (stale(gen) || !reqOn()) return;
   if (!loaded) { requestLoadError(() => openRequest(r)); return; }
-  const [files, similar, events, orderNow] = loaded;
+  const [files, similar, events, orderNow, links] = loaded;
+  const link = links.find((p) => p.status === "open"), issues = links.filter((p) => p.issue);
   const os = orderNow || reqOrderState(r);
   const refs = files.filter((f) => f.kind === "reference"), proof = files.find((f) => f.kind === "payment_proof");
   const tel = (p) => el("a", { href: "tel:+" + intlPhone(p), class: "link-out" }, phoneNice(p));
@@ -233,7 +239,8 @@ async function openRequest(r) {
   if (reqIsOpen(r)) {
     acts.push(el("button", { class: "btn danger foot-act", type: "button", onclick: () => rejectRequest(r) }, icon("close"), el("span", { class: "lbl" }, t("reqReject"))));
     acts.push(el("span", { class: "spacer" }));
-    acts.push(el("button", { class: "btn primary", type: "button", onclick: () => acceptRequest(r) }, icon("check"), " ", t("reqAccept")));
+    acts.push(el("button", { class: pmOn() ? "btn" : "btn primary", type: "button", onclick: () => acceptRequest(r) }, icon("check"), " ", t("reqAccept")));
+    if (pmOn()) acts.push(el("button", { class: "btn primary", type: "button", onclick: () => payRequest(r) }, icon("card"), " ", t(link ? "plChange" : "plPayBtn")));
   } else if (r.status === "rejected") {
     acts.push(el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => reopenRequest(r, err) }, icon("refresh"), " ", t("reqReopen")));
   } else if (r.status === "accepted" && os?.state === "trash") {
@@ -258,6 +265,8 @@ async function openRequest(r) {
           os.state === "deleted" && os.logged === false ? el("small", { class: "note", style: "display:block" }, t("reqOrderNoLog")) : null)) : null,
       r.status === "rejected" ? el("div", { class: "sheet-note cancel-note" }, icon("close"), el("span", {}, r.reject_reason ? t("reqRejectedWhy", { why: r.reject_reason }) : t("reqRejectedNoWhy"))) : null,
       reqPast(r) ? el("div", { class: "sheet-note warn" }, icon("alert"), el("span", {}, t("reqPastHint"))) : null,
+      ...issues.map((p) => el("div", { class: "sheet-note warn" }, icon("alert"), el("span", {}, t("plIssue", { issue: p.issue })))),
+      link && reqIsOpen(r) ? payLinkNote(r, link) : null,
       dupes.length ? el("div", { class: "sheet-note warn req-dupes" }, icon("alert"), el("span", {}, t("reqSimilar"), " ",
         dupes.flatMap((d, i) => [i ? ", " : "", el("button", { class: "linkish", type: "button", onclick: async () => { if (await closeSheet()) d.open(); } }, d.label)]))) : null,
       el("section", {}, el("dl", { class: "ro" },
@@ -285,6 +294,55 @@ async function openRequest(r) {
 }
 
 const reqWho = (email) => S.members?.find((m) => m.email === email)?.name || email;
+
+// ---------- PayMongo (branch paymongo-solicitudes; feature paymongo) ----------
+// Instead of accepting now, the admin writes the order as usual and the customer gets a payment link. PayMongo's
+// confirmation (webhook or the customer's check) accepts the request and creates that order with the payment.
+const pmOn = () => !!window.CDF_CONFIG?.features?.paymongo && isAdmin();
+const payUrl = (token) => location.origin + "/pagar.html#" + token;
+async function payLinkCall(body) {
+  const { data, error } = await sb.functions.invoke("cdf-paymongo", { body }).then((x) => x, (e) => ({ error: e }));
+  if (!error) return data;
+  let code = ""; try { code = (await error.context?.json())?.error || ""; } catch {}
+  return { error: /cdf_request_|42501|Forbidden/.test(code) ? reqError({ message: code, code: /42501|Forbidden/.test(code) ? "42501" : "" }) : t("plFail") };
+}
+async function payRequest(r) {
+  const gen = sessionNow();
+  if (!(await closeSheet())) return;
+  if (stale(gen)) return;
+  // Its own operation key (not the Accept one): the order the payment will create
+  const key = ((RQ.payKeys ||= {})[r.id] ||= { key: crypto.randomUUID(), id: crypto.randomUUID() });
+  await openFresh(null, { draft: requestDraft(r), fromRequest: { ...r, accept: key, payLink: true } });
+}
+// The message for the customer, in the language they used for the request
+const payMessage = (r, link, amount) => tIn(r.lang === "es" ? "es" : "en", "plMsg", { name: (r.buyer_name || "").split(" ")[0], ref: reqRef(r), amount: paymentPesos(amount), link });
+function payShare(r, link, amount) {
+  const msg = () => payMessage(r, link, amount);
+  return el("div", { class: "notify-row" },
+    el("button", { class: "btn", type: "button", onclick: () => window.open("https://wa.me/" + intlPhone(r.buyer_phone) + "?text=" + encodeURIComponent(msg()), "_blank", "noopener") }, icon("message"), "WhatsApp"),
+    el("button", { class: "btn", type: "button", onclick: () => { location.href = "sms:+" + intlPhone(r.buyer_phone) + "?body=" + encodeURIComponent(msg()); } }, icon("phone"), "SMS"),
+    el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(msg()).then(() => toast(t("msgCopied")), () => toast(t("selectCopy"))) }, t("copyMsg")),
+    el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(link).then(() => toast(t("plCopied")), () => toast(t("selectCopy"))) }, icon("copy"), " ", t("plCopy")));
+}
+function showPayLink(r, link, amount) {
+  const box = el("input", { class: "input", readonly: true, value: link, onfocus: (e) => e.target.select() });
+  miniSheet(t("plLinkTitle", { ref: reqRef(r) }), [el("p", { class: "note", style: "margin:0" }, t("plLinkHint")), box, payShare(r, link, amount)], t("close"), async () => { await closeSheet(); });
+}
+function payLinkNote(r, p) {
+  const open = p.checkout_expires_at && new Date(p.checkout_expires_at) > new Date();
+  return el("div", { class: "sheet-note pay-link-note" }, icon("card"), el("div", {},
+    el("b", {}, t("plOpen", { amount: paymentPesos(p.amount), who: reqWho(p.created_by), ago: reqAgo(p.created_at) })),
+    open ? el("small", { class: "note", style: "display:block" }, t("plOpenUntil", { time: formatClock12(p.checkout_expires_at) })) : null,
+    payShare(r, payUrl(p.token), p.amount),
+    el("button", { class: "linkish", type: "button", onclick: () => cancelPayLink(r) }, t("plCancel"))));
+}
+async function cancelPayLink(r) {
+  if (!(await askConfirm(t("plCancelAsk"), t("plCancel")))) return;
+  const res = await payLinkCall({ action: "cancel", request_id: r.id });
+  if (res.error) { toast(res.error, { type: "error" }); return; }
+  toast(t("plCancelled"));
+  if (await closeSheet()) openRequest(r);
+}
 
 function rejectRequest(r) {
   const gen = sessionNow();

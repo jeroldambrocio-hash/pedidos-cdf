@@ -40,3 +40,8 @@ verify_jwt = true
 [functions.cdf-order-purge]
 # The owner's sign-in is checked by Supabase and again by the database (cdf_order_purge)
 verify_jwt = true
+
+[functions.cdf-paymongo]
+# PayMongo (branch paymongo-solicitudes): the webhook is proven by its signature, the customer by the link's secret,
+# admins by their own session checked in the database. No Supabase token is required at the gateway.
+verify_jwt = false

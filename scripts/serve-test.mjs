@@ -21,6 +21,7 @@ function testConfig() {
     .replace(/anonKey: "[^"]+"/, `anonKey: ${JSON.stringify(env.ANON_KEY)}`)
     .replace(/vapidPublicKey: "[^"]+"/, 'vapidPublicKey: ""')
     .replace(/turnstileSiteKey: "[^"]+"/, 'turnstileSiteKey: "1x00000000000000000000AA"')
+    .replace("paymongo: false", "paymongo: true")
     + `\n// TEST COPY: this config was rewritten by scripts/serve-test.mjs → ${api}\nwindow.CDF_CONFIG.testCopy = true;\n`;
 }
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",

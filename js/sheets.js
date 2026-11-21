@@ -651,7 +651,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const iPayment = el("input", { id: "f-payment", type: "number", inputmode: "decimal", min: 0.01, step: 0.01, max: 99999999.99 });
   // A new order can be saved with its first payment (down payment): order, price and payment go to the
   // server as one operation (cdf_create_order), so there is never an order whose price or payment got lost.
-  const createOn = isNew && isAdmin() && !!S.cap.create, downOn = createOn && payOn;
+  const createOn = isNew && isAdmin() && !!S.cap.create, payLink = !!fromRequest?.payLink, downOn = createOn && payOn && !payLink;
   const iDown = el("input", { id: "f-down", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 99999999.99, placeholder: "0" });
   const iMethod = el("select", { id: "f-method" }, el("option", { value: "" }, t("payMethodPick")),
     ...PAY_METHODS.map((m) => el("option", { value: m }, t("pm_" + m))));
@@ -900,7 +900,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       el("a", { class: "btn", href: trackUrl(o), target: "_blank", rel: "noopener" }, t("view")));
   })();
 
-  const saveBtn = el("button", { class: "btn primary", type: "submit" }, t("save"));
+  const saveBtn = el("button", { class: "btn primary", type: "submit" }, t(payLink ? "plSaveBtn" : "save"));
   const fName = reqField(t("customerName"), iName), fPhone = reqField(t("phone"), phoneBox(iPhone));
   const recip = el("div", { class: "row2 recip collapse" }, fName, fPhone);
   const syncSame = (animate) => {
@@ -970,6 +970,20 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       && !(await okToAssign(dbRow.vendor_email, [dbRow.date]))) return;
     if (stale(gen)) return;
 
+    // Charging with PayMongo (feature paymongo): nothing is created now. The order as written here is kept with a
+    // payment link; the server creates it, with this same operation key, when PayMongo confirms the payment.
+    if (payLink) {
+      if (row.amount == null || !(row.amount >= 100)) { iAmount.focus(); return t("plNeedPrice"); }
+      createReq ||= { key: crypto.randomUUID(), id: crypto.randomUUID(), proofs: null };
+      const res = await payLinkCall({ action: "link", request_id: fromRequest.id, key: createReq.key, order: { id: createReq.id, ...dbRow }, price: row.amount });
+      if (stale(gen)) return;
+      if (res.error) return res.error;
+      createSettled = true;
+      await closeSheet(true);
+      showPayLink(fromRequest, res.link, res.amount);
+      loadRequests();
+      return;
+    }
     let saved, error;
     if (createOn) {
       // One request, one transaction. The key and the order id stay the same for every attempt from this
@@ -1203,13 +1217,14 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     saveBtn.disabled = false; saveBtn.classList.remove("busy");
     if (msg) setErr(msg);
   } },
-    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? (fromRequest ? t("reqAcceptTitle", { ref: reqRef(fromRequest) }) : t(copyFrom ? "duplicateTitle" : "newOrderTitle")) : t("editOrder", { num: f.num })),
+    el("div", { class: "sheet-head" }, el("h2", {}, isNew ? (fromRequest ? t(payLink ? "plEditorTitle" : "reqAcceptTitle", { ref: reqRef(fromRequest) }) : t(copyFrom ? "duplicateTitle" : "newOrderTitle")) : t("editOrder", { num: f.num })),
       o ? badge(cur, o) : null, archived ? el("span", { class: "tag muted" }, t("archived")) : null, el("span", { class: "spacer" }), iChan, closeBtn()),
     el("div", { class: "sheet-body" },
       isNew ? null : cancelNote(o),
       newOrderForm ? null : chanWarn,
       copyFrom ? el("div", { class: "sheet-note" }, icon("copy"), el("span", {}, t("duplicateHint"))) : null,
-      fromRequest ? el("div", { class: "sheet-note req-from" }, icon("inbox"), el("span", {}, t("reqFromSheet", { ref: reqRef(fromRequest) }))) : null,
+      fromRequest && !payLink ? el("div", { class: "sheet-note req-from" }, icon("inbox"), el("span", {}, t("reqFromSheet", { ref: reqRef(fromRequest) }))) : null,
+      payLink ? el("div", { class: "sheet-note req-from" }, icon("card"), el("span", {}, t("plEditorNote", { ref: reqRef(fromRequest) }))) : null,
       fromRequest ? requestPhotos(fromRequest) : null,
       draft && !fromRequest ? el("div", { class: "sheet-note" }, icon("clock"), el("span", {}, t("draftRestored"))) : null,
       el("section", {},
