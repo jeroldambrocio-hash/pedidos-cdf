@@ -376,10 +376,19 @@ async function priceRequest(r) {
   const peso = (input) => el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), input, el("span", { class: "cur" }, "PHP"));
   const vehSeg = el("div", { class: "seg pr-veh", role: "group", "aria-label": t("llVehicle") });
   const list = el("div", { class: "pr-shops", role: "radiogroup", "aria-label": t("prShip") });
-  const manualBox = el("div", { class: "pr-manual", hidden: true }, field(t("chargeDelivery"), peso(iManual)));
+  // Another delivery price (agreed with the customer, a special trip…): typed by the admin, instead of the one by distance.
+  // The shop stays chosen: it is who makes the order.
+  let custom = false;
+  const customBtn = el("button", { type: "button", class: "linkish pr-custom-toggle", onclick: () => {
+    custom = !custom;
+    if (custom && iManual.value === "" && autoFee() != null) iManual.value = autoFee();
+    paint(); if (custom) { iManual.focus(); iManual.select(); }
+  } });
+  const manualBox = el("div", { class: "pr-manual", hidden: true }, field(t("prCustomLabel"), peso(iManual)));
   const totalOut = el("div", { class: "pr-total", role: "status" });
   const autoFee = () => (pickup || !chosen?.fee || chosen.fee.far ? null : chosen.fee[veh]);
-  const delivery = () => (pickup ? 0 : autoFee() ?? (iManual.value === "" ? null : +iManual.value));
+  const manualFee = () => (iManual.value === "" ? null : +iManual.value);
+  const delivery = () => (pickup ? 0 : custom ? manualFee() : autoFee() ?? manualFee());
   function paint() {
     vehSeg.replaceChildren(...[["motorcycle", "prMoto"], ["car", "prCar"]].map(([v, k]) => el("button", { type: "button", "aria-pressed": String(veh === v), onclick: () => { veh = v; paint(); } }, t(k))));
     list.replaceChildren(...shops.map((s) => el("button", { type: "button", role: "radio", class: "pr-shop" + (s === chosen ? " is-chosen" : "") + (s.open ? "" : " is-closed"), "aria-checked": String(s === chosen),
@@ -388,7 +397,10 @@ async function priceRequest(r) {
       el("span", { class: "pr-shop-km" }, pickup ? (s.branch === r.pickup_branch ? t("prPickupHere") : "") : s.fee ? t("prKm", { km: fmtKm(s.fee.roadKm) }) : ""),
       el("span", { class: "pr-shop-fee" }, pickup ? "" : !s.fee ? "—" : s.fee.far ? t("prFarShort") : paymentPesos(s.fee[veh])))));
     vehSeg.hidden = pickup;
-    manualBox.hidden = pickup || autoFee() != null;
+    manualBox.hidden = pickup || (!custom && autoFee() != null);
+    customBtn.hidden = pickup || autoFee() == null;
+    customBtn.textContent = t(custom ? "prCustomOff" : "prCustomOn");
+    list.classList.toggle("is-custom", custom);
     const a = iFlowers.value === "" ? null : +iFlowers.value, d = delivery();
     totalOut.replaceChildren(el("span", {}, t("prTotal")), el("b", {}, a == null || d == null ? "—" : paymentPesos(a + d)),
       a != null && d != null && !pickup ? el("small", { class: "note" }, t("prSum", { flowers: paymentPesos(a), delivery: paymentPesos(d) })) : null);
@@ -404,7 +416,7 @@ async function priceRequest(r) {
   miniSheet(t("prTitle", { ref: reqRef(r) }), [intro, photos, field(t("chargeFlowers"), peso(iFlowers)),
     el("div", { class: "field" }, el("span", { class: "label pr-ship-head" }, el("span", {}, t(pickup ? "prPickupFrom" : "prShip")), vehSeg), list,
       !pickup && !point ? el("small", { class: "note" }, t("prNoPoint")) : null),
-    manualBox, totalOut, el("p", { class: "note", style: "margin:0" }, t("prHint"))], t("prCreate"), async () => {
+    customBtn, manualBox, totalOut, el("p", { class: "note", style: "margin:0" }, t("prHint"))], t("prCreate"), async () => {
     const a = iFlowers.value === "" ? null : +iFlowers.value, d = delivery();
     if (!(a > 0)) { iFlowers.focus(); return t("prNeedFlowers"); }
     if (d == null || d < 0) { iManual.focus(); return t("prNeedDelivery"); }
@@ -412,6 +424,7 @@ async function priceRequest(r) {
     if (!(total >= 100)) { iFlowers.focus(); return t("plNeedPrice"); }
     const base = requestDraft(r);
     const notes = [base.notes, pickup ? t("prNotePickup", { flowers: paymentPesos(a), shop: chosen?.branch || "" })
+      : custom && autoFee() != null && d !== autoFee() ? t("prNoteCustom", { flowers: paymentPesos(a), delivery: paymentPesos(d), shop: chosen?.branch || "?", auto: paymentPesos(autoFee()) })
       : t("prNote", { flowers: paymentPesos(a), delivery: paymentPesos(d), veh: t(veh === "car" ? "prCar" : "prMoto").toLowerCase(), shop: chosen?.branch || "?" })].join("\n");
     const order = { id: key.id, num: null, date: r.date, slot: r.slot, channel: "Web", vendor_email: chosen?.florist?.email || null,
       customer_name: base.customer_name, address: base.address, customer_phone: base.customer_phone, customer_email: "",
