@@ -102,6 +102,12 @@ const good = (extra = {}) => ({ request_key: randomUUID(), lang: "en", buyer_nam
 const without = (o, ...keys) => Object.fromEntries(Object.entries(o).filter(([k]) => !keys.includes(k)));
 { const r = checkRequest(good(), NOW);
   assert.equal(r.buyer_phone, "+34612345678"); assert.equal(r.receiver_phone, "+639171234567");
+  // PayMongo flow (PUBLIC_ORDER_PAY_LATER): no proof, no method → "other"; without it both stay required
+  const later = checkRequest(without(good(), "payment_method", "payment_proof"), NOW, { payLater: true });
+  assert.equal(later.payment_method, "other"); assert.equal(later.payment_proof, null);
+  assert.equal(checkRequest(good(), NOW, { payLater: true }).payment_method, good().payment_method, "a method sent anyway is kept");
+  assert.equal(code(() => checkRequest(without(good(), "payment_proof"), NOW)), "invalid:payment_proof");
+  assert.equal(code(() => checkRequest(good({ payment_proof: "nope" }), NOW, { payLater: true })), "invalid:payment_proof");
   assert.equal(phoneE164("9171234567"), "+639171234567"); assert.equal(phoneE164("0034 612 345 678"), "+34612345678");
   for (const bad of ["612345678", "12345", "+0000000000", "phone", "+63 917 123 4567 ext 4"]) assert.equal(phoneE164(bad), null, bad);
   const pickup = checkRequest(without(good({ mode: "pickup", pickup_branch: "Quezon City" }), "address", "lat", "lng", "location_source", "location_confirmed_at"), NOW);

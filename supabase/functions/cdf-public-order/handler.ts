@@ -231,7 +231,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     if (b.action === "submit") {
       const { action: _action, ...body } = b;
       let request;
-      try { request = checkRequest(body, d.now()); }
+      try { request = checkRequest(body, d.now(), { payLater: d.env("PUBLIC_ORDER_PAY_LATER") === "on" }); }
       catch (e) { return e instanceof CheckError ? no(e.message, 422, e.field) : no("invalid", 422); }
       if (!(await within("submit:" + hash, LIMITS.submitsPerSession))) return no("slow_down", 429);
       // One transaction: the request, its files, the session closed and the notice queued. A second copy of

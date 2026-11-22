@@ -86,7 +86,7 @@ const I18N = {
     reqReasonPh: "Sin stock ese día, fuera de zona…", reqRejectedToast: "{ref} rechazada", reqTaken: "Otra persona del equipo ya aceptó esta solicitud.", reqClosed: "Esta solicitud ya no está abierta: otra persona la cambió.",
     reqAcceptTitle: "Crear pedido desde {ref}", reqFromSheet: "Datos tomados de la solicitud {ref}. Revisa, pon precio y florista: al guardar se crea el pedido y la solicitud queda aceptada.",
     reqAcceptedToast: "{ref} aceptada · pedido #{num}", reqAcceptedSharedToast: "Solicitud {ref} aceptada", reqProofAccepting: "El cliente envió un comprobante de pago. Si lo dais por bueno, registra el anticipo abajo.",
-    reqSpecialNote: "Peticiones: {text}", reqPickupNote: "RECOGIDA EN TIENDA", reqFromNote: "Desde la solicitud {ref} · pago preferido: {method}", reqPickupAddress: "Recogida en tienda",
+    reqSpecialNote: "Peticiones: {text}", reqPickupNote: "RECOGIDA EN TIENDA", reqFromNote: "Desde la solicitud {ref} · pago preferido: {method}", reqFromNotePm: "Desde la solicitud {ref} · pago con PayMongo", reqPickupAddress: "Recogida en tienda",
     reqOnOrder: "Fotos del cliente · {ref}", reqProofOnOrder: "Comprobante enviado por el cliente con la solicitud (sin verificar).",
     // Public order form (pedido.html) and its location picker
     poTitle: "Solicitud de pedido · Casa de Flores", poHeading: "Solicita un pedido", poSub: "Cuéntanos qué te gustaría. Lo revisamos y te escribimos para confirmar precio y disponibilidad.", poLoading: "Cargando el formulario…",
@@ -474,7 +474,7 @@ const I18N = {
     reqReasonPh: "No stock that day, out of area…", reqRejectedToast: "{ref} rejected", reqTaken: "Someone else on the team already accepted this request.", reqClosed: "This request is no longer open: someone else changed it.",
     reqAcceptTitle: "Create order from {ref}", reqFromSheet: "Filled in from request {ref}. Check it, add the price and florist: saving creates the order and marks the request accepted.",
     reqAcceptedToast: "{ref} accepted · order #{num}", reqAcceptedSharedToast: "Request {ref} accepted", reqProofAccepting: "The customer sent a proof of payment. If you accept it, record the down payment below.",
-    reqSpecialNote: "Requests: {text}", reqPickupNote: "PICKUP AT THE SHOP", reqFromNote: "From request {ref} · preferred payment: {method}", reqPickupAddress: "Pickup at the shop",
+    reqSpecialNote: "Requests: {text}", reqPickupNote: "PICKUP AT THE SHOP", reqFromNote: "From request {ref} · preferred payment: {method}", reqFromNotePm: "From request {ref} · paid with PayMongo", reqPickupAddress: "Pickup at the shop",
     reqOnOrder: "Customer's photos · {ref}", reqProofOnOrder: "Proof sent by the customer with the request (not verified).",
     // Public order form (pedido.html) and its location picker
     poTitle: "Order request · Casa de Flores", poHeading: "Request an order", poSub: "Tell us what you'd like. We'll review it and message you to confirm price and availability.", poLoading: "Loading the form…",

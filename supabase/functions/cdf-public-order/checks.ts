@@ -231,7 +231,9 @@ const text = (v: unknown, field: string, min: number, max: number, lines = false
 };
 
 export type PublicRequest = ReturnType<typeof checkRequest>;
-export function checkRequest(body: unknown, now: number) {
+// payLater (PUBLIC_ORDER_PAY_LATER=on, the PayMongo flow): the customer pays later through the team's link, so
+// no payment proof is needed and no method is chosen (stored as "other"; PayMongo records the real one).
+export function checkRequest(body: unknown, now: number, { payLater = false }: { payLater?: boolean } = {}) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new CheckError("invalid");
   const b = body as Record<string, unknown>;
   const extra = Object.keys(b).find((k) => !FIELDS.includes(k));
@@ -247,7 +249,8 @@ export function checkRequest(body: unknown, now: number) {
   if (date < manilaDate(now) || date > manilaDate(now, MAX_DAYS_AHEAD)) fail("date");
   const slot = typeof b.slot === "string" && SLOTS.includes(b.slot) ? b.slot : fail("slot");
   if (!slotOpen(date, slot, now)) fail("slot");
-  const payment_method = typeof b.payment_method === "string" && PAYMENT_METHODS.includes(b.payment_method) ? b.payment_method : fail("payment_method");
+  const payment_method = typeof b.payment_method === "string" && PAYMENT_METHODS.includes(b.payment_method) ? b.payment_method
+    : payLater && (b.payment_method == null || b.payment_method === "") ? "other" : fail("payment_method");
 
   let address = "", lat: number | null = null, lng: number | null = null, location_source: string | null = null, location_confirmed_at: string | null = null;
   if (mode === "delivery") {
@@ -265,7 +268,8 @@ export function checkRequest(body: unknown, now: number) {
 
   const refs = b.reference_files ?? [];
   if (!Array.isArray(refs) || refs.length === 0 || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
-  if ((typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))) fail("payment_proof");
+  if (payLater ? b.payment_proof != null && (typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))
+    : (typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))) fail("payment_proof");
 
   const description = text(b.description, "description", 0, 1000, true);
 

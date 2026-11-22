@@ -8,6 +8,8 @@
   const API = PO.endpoint || `${CFG.url}/functions/v1/cdf-public-order`;
   const SLOTS = PO.slots || ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"];
   const METHODS = ["gcash", "maya", "bank", "cash", "other"];
+  // PayMongo flow: the customer pays later with the team's link, so no proof and no method here (the server agrees)
+  const PAY_LATER = (window.CDF_CONFIG || {}).features?.paymongo === true;
   const MAX = { reference: 6, payment_proof: 1 }, DAYS_AHEAD = 90, SLOT_LEAD = PO.slotLeadMinutes ?? 60, SEND_BYTES = 3 * 1024 * 1024, PICK_BYTES = 25 * 1024 * 1024;
   const root = document.getElementById("orderRoot");
   // The shop's day (Manila, UTC+8 all year), wherever the buyer is
@@ -289,8 +291,8 @@
       if (!place) errs.location = t("poErrLocation"); else if (!place.confirmedAt) errs.location = t("poErrConfirm");
     } else if (!(shops.list || []).some((x) => x.branch === v.pickup_branch && x.available)) errs.pickup_branch = t("poErrShop");
     if (!files.reference.some((f) => f.state === "ready" && f.id)) errs.reference_files = t("poErrReference");
-    if (!files.payment_proof.some((f) => f.state === "ready" && f.id)) errs.payment_proof = t("poErrProof");
-    if (!METHODS.includes(v.payment_method)) errs.payment_method = t("poErrMethod");
+    if (!PAY_LATER && !files.payment_proof.some((f) => f.state === "ready" && f.id)) errs.payment_proof = t("poErrProof");
+    if (!PAY_LATER && !METHODS.includes(v.payment_method)) errs.payment_method = t("poErrMethod");
     for (const [kind, key] of [["reference", "reference_files"], ["payment_proof", "payment_proof"]]) {
       if (files[kind].some((f) => f.state === "sending")) errs[key] = t("poErrSending");
       else if (files[kind].some((f) => f.state === "failed")) errs[key] = t("poErrFailedPhoto");
@@ -398,8 +400,8 @@
         field("special_requests", t("poSpecial"), area({ rows: 2, maxLength: 500 }), { optional: true }),
         field("card_message", t("poCard"), area({ rows: 2, maxLength: 300 }), { optional: true }),
         refWrap,
-        field("payment_method", t("poMethod"), method, { hint: t("poMethodHint") }),
-        proofWrap),
+        PAY_LATER ? null : field("payment_method", t("poMethod"), method, { hint: t("poMethodHint") }),
+        PAY_LATER ? null : proofWrap),
       h("button", { class: "btn primary block", type: "submit" }, t("poReview")));
     paintSlots();
     root.replaceChildren(form);
@@ -459,7 +461,7 @@
         })()),
         p.mode === "delivery" ? row(t("poLocation"), t("locConfirmed")) : [],
         row(t("poDescription"), p.description), row(t("poSpecial"), p.special_requests), row(t("poCard"), p.card_message),
-        row(t("poMethod"), t("pm_" + p.payment_method)),
+        PAY_LATER ? [] : row(t("poMethod"), t("pm_" + p.payment_method)),
         row(t("poPhotos"), pics(files.reference)), row(t("poProof"), files.payment_proof.length ? [pics(files.payment_proof), h("p", { class: "note" }, t("poProofPending"))] : null)),
       h("p", { class: "note po-notice" }, t("poNotice")), msg, sendBtn, back));
     root.querySelector("h2").focus();

@@ -280,7 +280,7 @@ async function openRequest(r) {
         el("dt", {}, t("reqWhat")), el("dd", { class: "msg" }, r.description),
         r.special_requests ? [el("dt", {}, t("reqSpecial")), el("dd", { class: "msg" }, r.special_requests)] : null,
         r.card_message ? [el("dt", {}, t("cardMsg")), el("dd", { class: "msg" }, r.card_message)] : null,
-        el("dt", {}, t("reqMethod")), el("dd", {}, t("pm_" + r.payment_method)),
+        feature("paymongo") ? null : [el("dt", {}, t("reqMethod")), el("dd", {}, t("pm_" + r.payment_method))],
         refs.length ? [el("dt", {}, t("reqRefs")), el("dd", {}, el("div", { class: "photo-grid ro" }, refs.map((f, i) => el("div", { class: "pic" }, imgOf(f.path, "cdf-solicitudes", t("reqRefN", { n: i + 1 }), true)))))] : null,
         proof ? [el("dt", {}, t("reqProof")), el("dd", {}, el("div", { class: "pic" }, imgOf(proof.path, "cdf-solicitudes", t("reqProof"), true)),
           el("p", { class: "note req-unverified" }, icon("alert"), " ", t("reqProofUnverified")))] : null)),
@@ -389,7 +389,7 @@ function reqShop(r) {
 function requestDraft(r) {
   const asPickup = r.mode === "pickup" && S.cap.pickupMode;
   const notes = [r.description, r.special_requests ? t("reqSpecialNote", { text: r.special_requests }) : "", r.mode === "pickup" && !asPickup ? t("reqPickupNote") : "",
-    t("reqFromNote", { ref: reqRef(r), method: t("pm_" + r.payment_method) })].filter(Boolean).join("\n");
+    feature("paymongo") ? t("reqFromNotePm", { ref: reqRef(r) }) : t("reqFromNote", { ref: reqRef(r), method: t("pm_" + r.payment_method) })].filter(Boolean).join("\n");
   const florists = asPickup && r.pickup_branch ? shopFlorists(r.pickup_branch) : [];
   const florist = florists.find((m) => !(typeof awayOn === "function" && awayOn(m, r.date))) || florists[0];
   return { date: r.date, slot: r.slot, channel: "Web", buyer_name: r.buyer_name, buyer_phone: r.buyer_phone,
