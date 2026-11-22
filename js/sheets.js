@@ -625,7 +625,8 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const iVend = el("select", { id: "f-vendor" }, el("option", { value: "" }, t("unassigned")), ...vendorOptions(f.date, f.vendor_email));
   iDate.addEventListener("change", () => { const v = iVend.value; iVend.replaceChildren(el("option", { value: "" }, t("unassigned")), ...vendorOptions(iDate.value, v)); iVend.value = v; });
   // Phase 4: the shop nearest to the delivery point, suggested beside the florist picker (admins)
-  const shops = isAdmin() && S.cap.ranking && typeof shopSuggestion === "function" ? shopSuggestion(iVend) : null;
+  let chargeParts = null; // PayMongo charge: flowers + delivery (built below, fed by the shop suggestion)
+  const shops = isAdmin() && S.cap.ranking && typeof shopSuggestion === "function" ? shopSuggestion(iVend, { onFee: (fee) => chargeParts?.setFee(fee) }) : null;
   // Delivery or pickup (12/11/2026): a pickup has no address, no pin, no rider; the shop is the florist's
   let pickupVal = !!src.pickup;
   const inTransit = o && baseStep(o) === 2;
@@ -973,7 +974,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     // Charging with PayMongo (feature paymongo): nothing is created now. The order as written here is kept with a
     // payment link; the server creates it, with this same operation key, when PayMongo confirms the payment.
     if (payLink) {
-      if (row.amount == null || !(row.amount >= 100)) { iAmount.focus(); return t("plNeedPrice"); }
+      if (row.amount == null || !(row.amount >= 100)) { (chargeParts?.flowers || iAmount).focus(); return t("plNeedPrice"); }
       createReq ||= { key: crypto.randomUUID(), id: crypto.randomUUID(), proofs: null };
       const res = await payLinkCall({ action: "link", request_id: fromRequest.id, key: createReq.key, order: { id: createReq.id, ...dbRow }, price: row.amount });
       if (stale(gen)) return;
@@ -1192,6 +1193,7 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
     for (const n of [addrGroup, dNoteField, vehField, dropField, shops?.node]) n?.classList.toggle("mode-off", pickupVal);
     pickupInfo.hidden = !pickupVal;
     if (pickupVal) paintPickupInfo();
+    chargeParts?.mode();
   }
   const moreDetails = el("details", {
     class: "hist order-more",
@@ -1207,6 +1209,37 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
   const cur = o ? stepOf(o) : 0;
   const amountInput = el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), iAmount,
     el("span", { class: "cur" }, "PHP"));
+  // Charging a request with PayMongo (22/11/2026): the admin types the flowers price; the delivery comes from the
+  // distance to the nearest shop (js/delivery-fee.js, motorcycle by default, car on a tap, or typed); the total
+  // charged is the sum, kept in iAmount so saving works exactly as before. Pickup: no delivery.
+  if (payLink && priceEditable()) {
+    const peso = (input) => el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), input, el("span", { class: "cur" }, "PHP"));
+    const iFlowers = el("input", { id: "f-flowers", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 9999999, placeholder: "2000", value: f.amount ?? "", "aria-label": t("chargeFlowers") });
+    const iDelivery = el("input", { id: "f-delivery", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 99999, placeholder: "0", "aria-label": t("chargeDelivery") });
+    const picks = el("div", { class: "charge-picks" }), totalOut = el("p", { class: "charge-total", role: "status" });
+    const deliveryField = field(t("chargeDelivery"), peso(iDelivery), picks);
+    let suggested = null, typed = Number(f.amount) > 0; // a price from before (changing a link): nothing is added on top by itself
+    const sum = () => {
+      const a = iFlowers.value === "" ? null : +iFlowers.value, d = pickupVal ? 0 : +iDelivery.value || 0;
+      iAmount.value = a == null ? "" : String(Math.round((a + d) * 100) / 100);
+      totalOut.textContent = a == null ? t("chargeNoTotal") : t("chargeTotal", { sum: paymentPesos(a + d) });
+      paintPay();
+    };
+    const paintPicks = () => picks.replaceChildren(...(pickupVal ? [el("small", { class: "note" }, t("chargePickup"))]
+      : suggested && !suggested.far ? [["motorcycle", "chargeMoto"], ["car", "chargeCar"]].map(([k, label]) => el("button", { type: "button", class: "btn charge-pick",
+          "aria-pressed": String(iDelivery.value !== "" && +iDelivery.value === suggested[k]), onclick: () => { iDelivery.value = suggested[k]; typed = true; sum(); paintPicks(); } },
+          t(label, { sum: paymentPesos(suggested[k]) })))
+      : [el("small", { class: "note" }, t(suggested?.far ? "chargeFar" : "chargeNoPoint"))]));
+    iFlowers.addEventListener("input", sum);
+    iDelivery.addEventListener("input", () => { typed = true; sum(); paintPicks(); });
+    chargeParts = {
+      flowers: iFlowers,
+      node: el("div", { class: "charge-parts" }, field(t("chargeFlowers"), peso(iFlowers)), deliveryField, totalOut),
+      setFee(fee) { suggested = fee; if (!typed && fee && !fee.far) iDelivery.value = fee.motorcycle; sum(); paintPicks(); },
+      mode() { deliveryField.hidden = pickupVal; sum(); paintPicks(); },
+    };
+    sum(); paintPicks();
+  }
   const node = el("form", { class: newOrderForm ? "sheet new-order-sheet" : "sheet", role: "dialog", "aria-modal": "true", novalidate: true, onsubmit: async (e) => {
     e.preventDefault();
     if (paymentBusy || pendingPayment) return;
@@ -1247,14 +1280,14 @@ function openEditor(o, { copyFrom, draft, fromRequest } = {}) {
       ...(newOrderForm ? [
         el("section", { class: "compact-photos" }, el("div", { class: priceEditable() ? "new-order-extras" : "" },
           field(t("photo"), shot.node),
-          priceEditable() ? field(t("payOrderTotal"), amountInput) : null),
+          priceEditable() ? (chargeParts ? chargeParts.node : field(t("payOrderTotal"), amountInput)) : null),
           downOn ? downBlock : null, moreDetails)
       ] : [
       el("section", { class: "compact-photos" }, el("h3", {}, t("photosH")),
         field(t("photo"), shot.node),
         isNew ? null : field(t("proofPhoto"), proof.node)),
       priceEditable() ? el("section", { class: "pay" }, el("h3", {}, t("payH")),
-        field(t("payOrderTotal"), amountInput),
+        chargeParts ? chargeParts.node : field(t("payOrderTotal"), amountInput),
         payOn && !downOn ? el("div", { class: "payment-summary" }, payTotal, payLeft) : null,
         downOn ? downBlock : null,
         payOn ? paymentEditor : null, payOn && !downOn ? payMessage : null, moreDetails, payOn ? payHistory : null) : el("section", {}, moreDetails)

@@ -2,7 +2,7 @@
 // The server works it out (cdf_branch_ranking) from the florists' shop points in Team. It is a straight-line
 // distance, not a driving time, and nothing is ever assigned by it: the admin picks, as always.
 
-function shopSuggestion(select) {
+function shopSuggestion(select, { onFee } = {}) {
   const node = el("div", { class: "shop-suggest", hidden: true, "aria-live": "polite" });
   let asked = 0, last = "";
   const pick = (email) => { select.value = email; select.dispatchEvent(new Event("change", { bubbles: true })); paint(); };
@@ -26,6 +26,7 @@ function shopSuggestion(select) {
     const feeLine = !fee ? null : fee.far ? el("p", { class: "note shop-fee" }, icon("truck"), " ", t("feeSuggestFar", { km: (window.CDF_CONFIG?.deliveryFees?.maxKm) || 30 }))
       : el("p", { class: "shop-fee" }, icon("truck"), " ", el("b", {}, t("feeSuggest", { moto: peso(fee.motorcycle), car: peso(fee.car) })),
         el("span", { class: "note" }, " · " + t("feeSuggestKm", { km: fmtKm(fee.roadKm), shop: best.branch })));
+    onFee?.(fee);
     const rows = data.ranked.map((s) => el("li", { class: s.all_away ? "is-away" : null },
       el("span", { class: "shop-row-head" }, el("b", {}, s.branch), el("span", { class: "shop-km" }, t("shopKm", { km: fmtKm(s.km) }))),
       el("span", { class: "shop-florists" }, s.florists.map((f) => el("button", { class: "linkish" + (f.email === chosen ? " is-chosen" : ""), type: "button",
@@ -47,10 +48,10 @@ function shopSuggestion(select) {
     if (key === last) return paint();
     last = key;
     const mine = ++asked;
-    if (!point) { data = null; node.hidden = true; return; }
+    if (!point) { data = null; node.hidden = true; onFee?.(null); return; }
     const { data: d, error } = await sb.rpc("cdf_branch_ranking", { p_lat: point.lat, p_lng: point.lng, p_date: date || null }).then((r) => r, () => ({ error: true }));
     if (mine !== asked) return;
-    if (error || !d) { data = null; node.hidden = true; return; }
+    if (error || !d) { data = null; node.hidden = true; onFee?.(null); return; }
     data = d; paint();
   }
   select.addEventListener("change", () => paint());
