@@ -39,7 +39,7 @@
         const pay = h("button", { class: "btn primary block", type: "button", onclick: () => go() }, busy ? t("plOpening") : t("plButton", { amount: money(v.amount) }));
         if (busy) pay.disabled = true;
         card.append(pay, payErr ? h("p", { class: "err", role: "alert" }, payErr) : null, h("p", { class: "note" }, t("plMethods")));
-        if (v.checkoutOpenUntil) card.append(h("p", { class: "note" }, t("plOpenUntil", { time: formatClock12(v.checkoutOpenUntil) })));
+        if (v.checkoutOpenUntil) card.append(h("p", { class: "note" }, t("plPageOpenUntil", { time: formatClock12(v.checkoutOpenUntil) })));
         if (back === "paid") card.append(h("p", { class: "pay-wait", role: "status" }, checks < 15 ? t("plChecking") : t("plStillChecking")),
           checks >= 15 ? h("button", { class: "btn block", type: "button", onclick: () => { checks = 0; poll(); } }, t("plCheck")) : null);
         if (back === "cancelled") card.append(h("p", { class: "note" }, t("plCancelledBack")));
@@ -50,12 +50,14 @@
     if (CFG.testCopy || /test/i.test(CFG.payMode || "")) card.append(h("p", { class: "note pay-test" }, t("plTest")));
     root.replaceChildren(card);
   }
+  // The tracking page exists only while tracking is on (features.tracking in config.js)
+  const tracks = (v) => !!v.trackCode && CFG.features?.tracking !== false;
   // After paying: when and where, and the order's tracking page (same link the shop shares)
   function trackBlock(v) {
     const when = day(v.date) + " · " + formatSlot12(v.slot);
     return [h("p", {}, v.mode === "pickup" ? t("plTrackPickup", { shop: v.pickupBranch || "Casa de Flores", when }) : t("plTrackDelivery", { when })),
-      v.trackCode ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")) : null,
-      v.trackCode ? h("p", { class: "note" }, t("plTrackNote")) : null];
+      tracks(v) ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")) : null,
+      tracks(v) ? h("p", { class: "note" }, t("plTrackNote")) : null].filter(Boolean);
   }
   const fail = (e) => (e.status === 404 ? t("plGone") : e.status === 409 ? "" : t("plError"));
 

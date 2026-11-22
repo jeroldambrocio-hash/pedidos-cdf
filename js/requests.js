@@ -411,8 +411,8 @@ async function priceRequest(r) {
     customBtn.textContent = t(custom ? "prCustomOff" : "prCustomOn");
     list.classList.toggle("is-custom", custom);
     const a = iFlowers.value === "" ? null : +iFlowers.value, d = delivery();
-    totalOut.replaceChildren(el("span", {}, t("prTotal")), el("b", {}, a == null || d == null ? "—" : paymentPesos(a + d)),
-      a != null && d != null && !pickup ? el("small", { class: "note" }, t("prSum", { flowers: paymentPesos(a), delivery: paymentPesos(d) })) : null);
+    totalOut.replaceChildren(...[el("span", {}, t("prTotal")), el("b", {}, a == null || d == null ? "—" : paymentPesos(a + d)),
+      a != null && d != null && !pickup ? el("small", { class: "note" }, t("prSum", { flowers: paymentPesos(a), delivery: paymentPesos(d) })) : null].filter(Boolean));
   }
   iFlowers.addEventListener("input", paint); iManual.addEventListener("input", paint);
   const intro = el("div", { class: "pr-req" }, el("b", {}, r.buyer_name + (r.receiver_name && r.receiver_name !== r.buyer_name ? " → " + r.receiver_name : "")),

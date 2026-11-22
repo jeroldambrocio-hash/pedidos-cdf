@@ -37,8 +37,7 @@
       card.append(h("div", { class: "pay-check", "aria-hidden": "true" }, "✓"), h("h2", {}, t("plPaidTitle")), h("p", {}, t("plPaid", { ref: v.ref })),
         v.pay.paidAt ? h("p", { class: "note" }, t("plPaidOn", { date: new Intl.DateTimeFormat(locale(), { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(v.pay.paidAt)), amount: money(v.pay.amount) })) : null,
         h("p", {}, t(v.mode === "pickup" ? "plTrackPickup" : "plTrackDelivery", { shop: v.pickupBranch || "Casa de Flores", when: day(v.date) + " · " + formatSlot12(v.slot) })),
-        v.trackCode ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")) : null,
-        v.trackCode ? h("p", { class: "note" }, t("plTrackNote")) : null);
+        v.trackCode && CFG.features?.tracking !== false ? [h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")), h("p", { class: "note" }, t("plTrackNote"))] : null);
     } else {
       card.append(h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, v.ref)),
         h("dl", { class: "pay-dl" },
