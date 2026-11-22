@@ -186,7 +186,7 @@ const CDFMap = (() => {
         put(at.lat, at.lng, "search", true); say(t("locAdjust")); smooth();
         if (at.address) onAddress(at.address);
       } catch { say(t("locSearchFail"), true); }
-    } }, r.label))), credit ? make("li", { class: "note loc-credit" }, t("locGoogle")) : null);
+    } }, r.label))), ...(credit ? [make("li", { class: "note loc-credit" }, t("locGoogle"))] : []));
     const run = async () => {
       clearTimeout(typing);
       const text = query.value.trim(), mine = ++asked;

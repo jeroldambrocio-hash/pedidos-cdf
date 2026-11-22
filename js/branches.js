@@ -20,6 +20,12 @@ function shopSuggestion(select) {
             ? el("span", { class: "shop-chosen" }, icon("tick"), t("shopChosen"))
             : el("button", { class: "btn shop-use", type: "button", onclick: () => pick(bestFlorist.email) }, t("shopUse", { name: bestFlorist.name })))
       : el("p", { class: "shop-best note" }, icon("alert"), " ", t(data.ranked.length ? "shopAllAway" : "shopNone"));
+    // PayMongo flow: the delivery fee for that distance (js/delivery-fee.js), to add to the total. Only a suggestion.
+    const fee = best && typeof feature === "function" && feature("paymongo") && window.CDFDeliveryFee ? CDFDeliveryFee.forKm(best.km) : null;
+    const peso = (n) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
+    const feeLine = !fee ? null : fee.far ? el("p", { class: "note shop-fee" }, icon("truck"), " ", t("feeSuggestFar", { km: (window.CDF_CONFIG?.deliveryFees?.maxKm) || 30 }))
+      : el("p", { class: "shop-fee" }, icon("truck"), " ", el("b", {}, t("feeSuggest", { moto: peso(fee.motorcycle), car: peso(fee.car) })),
+        el("span", { class: "note" }, " · " + t("feeSuggestKm", { km: fmtKm(fee.roadKm), shop: best.branch })));
     const rows = data.ranked.map((s) => el("li", { class: s.all_away ? "is-away" : null },
       el("span", { class: "shop-row-head" }, el("b", {}, s.branch), el("span", { class: "shop-km" }, t("shopKm", { km: fmtKm(s.km) }))),
       el("span", { class: "shop-florists" }, s.florists.map((f) => el("button", { class: "linkish" + (f.email === chosen ? " is-chosen" : ""), type: "button",
@@ -30,7 +36,7 @@ function shopSuggestion(select) {
       data.conflicts.map((c) => t("shopClash_" + c.kind, { label: c.label, who: c.florists.join(", ") })).join(" · ")) : null;
     // The full list stays open across a repaint (choosing someone from it repaints)
     const wasOpen = !!node.querySelector(".shop-all")?.open;
-    fill(node, top, el("details", { class: "shop-all", open: wasOpen }, el("summary", {}, t("shopAll")),
+    fill(node, top, feeLine, el("details", { class: "shop-all", open: wasOpen }, el("summary", {}, t("shopAll")),
       el("p", { class: "note" }, t("shopStraight")), el("ol", { class: "shop-list" }, rows), left, clash));
     node.hidden = false;
   }

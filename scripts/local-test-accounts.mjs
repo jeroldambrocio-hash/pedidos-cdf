@@ -16,7 +16,7 @@ const h = { apikey: key, Authorization: "Bearer " + key, "Content-Type": "applic
 const people = [
   { username: "dueno", name: "Dueño (prueba)", role: "admin", is_owner: true, sees_stats: true },
   { username: "moderador", name: "Moderador (prueba)", role: "admin", is_owner: false, sees_stats: false },
-  { username: "florista", name: "Florista (prueba)", role: "vendor", branch: "Pasig" },
+  { username: "florista", name: "Florista (prueba)", role: "vendor", branch: "Pasig", pickup_lat: 14.5523, pickup_lng: 121.07725, pickup_address: "Pasig (prueba)" },
   { username: "repartidor", name: "Repartidor (prueba)", role: "carrier" },
 ];
 const lines = ["Test accounts (local Supabase only). Sign in with the username and this password.", ""];
@@ -39,6 +39,14 @@ for (const p of people) {
   if (is_owner) execFileSync("docker", ["exec", "supabase_db_cdf-paymongo-test", "psql", "-U", "postgres", "-qc", `update public.cdf_members set is_owner = true where email = '${email}'`]);
   lines.push(`${username.padEnd(11)} ${password}   (${p.role}${p.is_owner ? ", owner" : ""})`);
   console.log("ok", username, p.role + (p.is_owner ? " + owner" : ""));
+}
+// The other two shops (the live app's shop points, no names or addresses), as florists without a login: the request
+// form's pickup list and delivery estimate, and the admin's nearest-shop suggestion, need all three
+for (const [branch, lat, lng] of [["Parañaque", 14.46477, 121.02237], ["Quezon City", 14.65534, 121.01544]]) {
+  const email = "tienda-" + branch.toLowerCase().replace(/[^a-z]/g, "") + "@cdf-test.invalid";
+  const m = await fetch(api + "/rest/v1/cdf_members?on_conflict=email", { method: "POST", headers: { ...h, Prefer: "resolution=merge-duplicates" },
+    body: JSON.stringify({ email, name: "Tienda " + branch + " (prueba)", role: "vendor", branch, pickup_lat: lat, pickup_lng: lng, pickup_address: branch + " (prueba)" }) });
+  if (!m.ok) throw new Error("Could not add shop " + branch + ": " + m.status + " " + (await m.text()));
 }
 writeFileSync(".secrets/test-accounts.txt", lines.join("\n") + "\n");
 console.log("Passwords saved in .secrets/test-accounts.txt");

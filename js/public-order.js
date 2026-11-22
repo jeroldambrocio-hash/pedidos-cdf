@@ -126,7 +126,7 @@
       if (v.pickup_branch && !still?.available) v.pickup_branch = "";
     } catch { shops.failed = true; }
     shops.loading = false;
-    paintShops();
+    paintShops(); paintFee();
     if (v.date !== (shops.forDate ?? "") && (v.date || shops.forDate)) loadShops(); // the date changed meanwhile
   }
   function locateMe() {
@@ -146,6 +146,29 @@
     return shops.me ? list.sort((a, b) => (b.available - a.available) || a.km - b.km) : list;
   };
   let shopBox = null;
+  // ---------- estimated delivery (PayMongo flow) ----------
+  // The shop's own fee for the distance from the nearest shop (js/delivery-fee.js), once the pin is confirmed.
+  // Only shown; nothing about it is sent: the team sets the total.
+  const feeOn = () => CFG.features?.paymongo === true && !!window.CDFDeliveryFee;
+  let feeBox = null;
+  const money = (n) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP", maximumFractionDigits: 0 }).format(n);
+  const kmText = (n) => new Intl.NumberFormat(locale(), { maximumFractionDigits: n < 10 ? 1 : 0 }).format(n);
+  const currentFee = () => {
+    const p = picker?.state() || place;
+    return feeOn() && v.mode === "delivery" && p?.confirmedAt && shops.list ? CDFDeliveryFee.forPoint(p, shops.list) : null;
+  };
+  function paintFee() {
+    if (!feeBox?.isConnected) return;
+    const f = currentFee(), p = picker?.state();
+    if (!p?.confirmedAt) { feeBox.replaceChildren(h("span", { class: "po-label" }, t("feeTitle")), h("p", { class: "note" }, t("feeWait"))); return; }
+    if (!shops.list) { feeBox.replaceChildren(); if (!shops.loading) loadShops(); return; }
+    if (!f) { feeBox.replaceChildren(); return; }
+    feeBox.replaceChildren(...[h("span", { class: "po-label" }, t("feeTitle")),
+      f.far ? h("p", {}, t("feeFar", { km: (window.CDF_CONFIG?.deliveryFees?.maxKm) || 30 }))
+        : [h("p", { class: "po-fee-main" }, t("feeLine", { amount: money(f.motorcycle), shop: f.branch, km: kmText(f.roadKm) })),
+          h("p", { class: "note" }, t("feeCar", { amount: money(f.car) }))],
+      h("p", { class: "note" }, t("feeNote"))].flat());
+  }
   function paintShops() {
     if (!shopBox?.isConnected) return;
     const list = sortedShops(), nearest = shops.me ? list.find((x) => x.available) : null;
@@ -336,7 +359,7 @@
       picker = CDFMap.picker({ start: place, google: PO.googleMapsKey ? { key: PO.googleMapsKey, mapId: PO.googleMapId || "" } : null,
         // A chosen suggestion fills the written address only when nothing was written yet
         onAddress: (text) => { if (!v.address.trim() && fields.address) { v.address = text.slice(0, 300); fields.address.control.value = v.address; if (errs.address) { delete errs.address; paintError("address"); } } },
-        onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
+        onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } paintFee(); },
         search: async (q) => { try { return await withSession(() => post({ action: "search", query: q })); } catch (e) { throw new Error(errorText(e)); } } });
       const address = area({ rows: 3, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
       // The pin was confirmed for the address as it was written then
@@ -346,7 +369,9 @@
         h("span", { id: "po-location-label", class: "po-label" }, t("poLocation")), h("p", { class: "note" }, t("poLocationHint")), picker.node, locErr);
       fields.location = { wrap: locWrap, control: { focus: () => picker.focus() }, err: locErr };
       paintError("location");
-      where = [field("address", t("poAddress"), address, { hint: t("poAddressHint") }), locWrap];
+      feeBox = feeOn() ? h("div", { class: "field po-field po-fee", "aria-live": "polite" }) : null;
+      where = [field("address", t("poAddress"), address, { hint: t("poAddressHint") }), locWrap, feeBox];
+      if (feeBox) queueMicrotask(paintFee);
     } else {
       picker = null;
       shopBox = h("div", { class: "po-shop-box" });
@@ -456,6 +481,7 @@
           return [h("b", {}, p.pickup_branch), x?.address ? h("span", { class: "po-review-addr" }, " · " + x.address) : null];
         })()),
         p.mode === "delivery" ? row(t("poLocation"), t("locConfirmed")) : [],
+        (() => { const f = currentFee(); return f ? row(t("feeTitle"), f.far ? t("feeFar", { km: (window.CDF_CONFIG?.deliveryFees?.maxKm) || 30 }) : t("feeLine", { amount: money(f.motorcycle), shop: f.branch, km: kmText(f.roadKm) })) : []; })(),
         row(t("poDescription"), p.description), row(t("poSpecial"), p.special_requests), row(t("poCard"), p.card_message),
         row(t("poMethod"), t("pm_" + p.payment_method)),
         row(t("poPhotos"), pics(files.reference)), row(t("poProof"), files.payment_proof.length ? [pics(files.payment_proof), h("p", { class: "note" }, t("poProofPending"))] : null)),
