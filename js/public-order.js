@@ -30,7 +30,7 @@
   };
 
   const v = { buyer_name: "", buyer_phone: "", same: false, receiver_name: "", receiver_phone: "", mode: "delivery", date: "", slot: "",
-    address: "", description: "", special_requests: "", card_message: "", payment_method: "", pickup_branch: "" };
+    address: "", place_label: "", description: "", special_requests: "", card_message: "", payment_method: "", pickup_branch: "" };
   const files = { reference: [], payment_proof: [] }; // { id, name, url, state: "sending" | "ready" | "failed", blob, file, error }
   let view = CFG.features?.publicOrder === true ? "form" : "off", place = null, picker = null, session = null, sessionWait = null;
   let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "", doneLink = "";
@@ -251,7 +251,7 @@
   // ---------- form ----------
   const errs = {};
   // Top to bottom, as the form reads: the first of these with an error is the one focused
-  const ORDER = ["buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "date", "slot", "pickup_branch", "address", "location",
+  const ORDER = ["buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "date", "slot", "pickup_branch", "location", "address",
     "description", "special_requests", "card_message", "reference_files", "payment_method", "payment_proof"];
   let fields = {};
   function field(name, label, control, { hint, optional } = {}) {
@@ -286,7 +286,6 @@
     if (!SLOTS.includes(v.slot)) errs.slot = t("poErrSlot");
     else if (v.date && !errs.date && !slotOpen(v.date, v.slot)) errs.slot = t("poErrSlotPast");
     if (v.mode === "delivery") {
-      need("address", 8, "poErrAddress");
       place = picker?.state() || place;
       if (!place) errs.location = t("poErrLocation"); else if (!place.confirmedAt) errs.location = t("poErrConfirm");
     } else if (!(shops.list || []).some((x) => x.branch === v.pickup_branch && x.available)) errs.pickup_branch = t("poErrShop");
@@ -299,12 +298,19 @@
     }
     return Object.keys(errs);
   }
+  // The delivery address stored for the team: the place chosen in the search (if any) + the customer's notes for the
+  // rider (optional). The pin is the exact point; without either text, its coordinates (the server wants some text).
+  const deliveryAddress = () => {
+    const notes = v.address.trim(), label = v.place_label.trim().slice(0, Math.max(0, 297 - notes.length));
+    const text = [label, notes].filter(Boolean).join(" · ");
+    return text.length >= 8 ? text.slice(0, 300) : "Pin " + place.lat.toFixed(5) + ", " + place.lng.toFixed(5) + (text ? " · " + text : "");
+  };
   const payload = () => {
     const same = v.same;
     return { request_key: requestKey, lang: LANG, buyer_name: v.buyer_name.trim(), buyer_phone: v.buyer_phone.trim(),
       receiver_name: (same ? v.buyer_name : v.receiver_name).trim(), receiver_phone: (same ? v.buyer_phone : v.receiver_phone).trim(),
       mode: v.mode, date: v.date, slot: v.slot,
-      ...(v.mode === "delivery" ? { address: v.address.trim(), lat: place.lat, lng: place.lng, location_source: place.source, location_confirmed_at: place.confirmedAt } : { pickup_branch: v.pickup_branch }),
+      ...(v.mode === "delivery" ? { address: deliveryAddress(), lat: place.lat, lng: place.lng, location_source: place.source, location_confirmed_at: place.confirmedAt } : { pickup_branch: v.pickup_branch }),
       description: v.description.trim(), special_requests: v.special_requests.trim(), card_message: v.card_message.trim(), payment_method: v.payment_method,
       reference_files: files.reference.map((f) => f.id), payment_proof: files.payment_proof[0]?.id || null };
   };
@@ -337,7 +343,8 @@
     if (v.mode === "delivery") {
       picker = CDFMap.picker({ start: place, google: PO.googleMapsKey ? { key: PO.googleMapsKey, mapId: PO.googleMapId || "" } : null,
         // A chosen suggestion fills the written address only when nothing was written yet
-        onAddress: (text) => { if (!v.address.trim() && fields.address) { v.address = text.slice(0, 300); fields.address.control.value = v.address; if (errs.address) { delete errs.address; paintError("address"); } } },
+        // The chosen search result is kept as the place's name; the text box below is only for notes to the rider
+        onAddress: (text) => { v.place_label = String(text || "").slice(0, 200); },
         onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
         search: async (q) => { try { return await withSession(() => post({ action: "search", query: q })); } catch (e) { throw new Error(errorText(e)); } } });
       const address = area({ rows: 3, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
@@ -350,7 +357,7 @@
       paintError("location");
       // PayMongo flow: how the total is made up (no amounts here; the team works it out and sends the total)
       const feeNote = CFG.features?.paymongo === true ? h("p", { class: "note po-fee-note" }, t("feeCustomer")) : null;
-      where = [field("address", t("poAddress"), address, { hint: t("poAddressHint") }), locWrap, feeNote];
+      where = [locWrap, field("address", t("poAddress"), address, { hint: t("poAddressHint"), optional: true }), feeNote];
     } else {
       picker = null;
       shopBox = h("div", { class: "po-shop-box" });
