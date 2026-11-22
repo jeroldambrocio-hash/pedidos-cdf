@@ -13,10 +13,16 @@ const env = Object.fromEntries(readFileSync(join(root, ".secrets/local-supabase.
 const api = process.env.CDF_TEST_API || env.API_URL;
 if (/nskbtxagdkvkxqneoucv/.test(api)) throw new Error("Refusing to point the test copy at production");
 
+// The demo's own Google Maps browser key (Google Cloud → "CDF demo navegador": only localhost:4334/4335 and
+// *.trycloudflare.com, Maps JavaScript + Places New), so the live web's key is never opened to tunnels.
+// Read on every request: saving the file is enough, no restart. Without it, the real key stays (and Google refuses it here).
+function demoMapsKey() {
+  try { const k = readFileSync(join(root, ".secrets/demo-maps-key.txt"), "utf8").trim(); return /^AIza[0-9A-Za-z_-]{30,}$/.test(k) ? k : null; } catch { return null; }
+}
 // The real config, with the test Supabase, Cloudflare's always-pass Turnstile test key and no push key
 function testConfig() {
-  const real = readFileSync(join(root, "config.js"), "utf8");
-  return real
+  const real = readFileSync(join(root, "config.js"), "utf8"), mapsKey = demoMapsKey();
+  return (mapsKey ? real.replace(/googleMapsKey: "[^"]*"/g, `googleMapsKey: ${JSON.stringify(mapsKey)}`) : real)
     .replace(/url: "https:\/\/[a-z0-9]+\.supabase\.co"/, `url: ${JSON.stringify(api)}`)
     .replace(/anonKey: "[^"]+"/, `anonKey: ${JSON.stringify(env.ANON_KEY)}`)
     .replace(/vapidPublicKey: "[^"]+"/, 'vapidPublicKey: ""')
