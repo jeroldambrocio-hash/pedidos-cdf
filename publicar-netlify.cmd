@@ -12,10 +12,12 @@ choice /C SN /N /M "Publicar en produccion? [S/N] "
 if errorlevel 2 exit /b 0
 set "OUT=%TEMP%\cdf-deploy-%RANDOM%%RANDOM%"
 mkdir "%OUT%" || goto fail
-git archive --format=zip --output="%OUT%\web.zip" HEAD index.html seguimiento.html pedido.html styles.css config.js i18n.js tracking.js sw.js manifest.webmanifest js img _redirects netlify.toml || goto fail
+git archive --format=zip --output="%OUT%\web.zip" HEAD index.html seguimiento.html pedido.html pagar.html solicitud.html styles.css config.js i18n.js tracking.js sw.js manifest.webmanifest js img _redirects netlify.toml || goto fail
 powershell -NoProfile -Command "$ErrorActionPreference='Stop'; $archive=Join-Path $env:OUT 'web.zip'; Expand-Archive -LiteralPath $archive -DestinationPath $env:OUT; Remove-Item -LiteralPath $archive" || goto fail
 if not exist "%OUT%\pedido.html" goto fail
 if not exist "%OUT%\index.html" goto fail
+if not exist "%OUT%\pagar.html" goto fail
+if not exist "%OUT%\solicitud.html" goto fail
 for /f %%t in ('powershell -NoProfile -Command "(Get-Date).ToUniversalTime().ToString('yyyyMMddHHmmss')"') do set "TS=%%t"
 if not defined TS goto fail
 >"%OUT%\version.json" echo {"v":"%COMMIT%-%TS%"}
