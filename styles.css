@@ -2537,6 +2537,7 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 
 a.btn { text-decoration: none; } /* links shown as buttons (request page, form receipt) */
 .req-tag.paying { background: var(--primary-tint); color: var(--primary-soft-text); }
+.req-tag.pay-issue { background: var(--fail-bg); color: var(--fail); }
 
 /* Requests · set the price (PayMongo): flowers + delivery from a shop = total */
 .pr-req { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }

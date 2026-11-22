@@ -472,7 +472,7 @@
         row(t("poDescription"), p.description), row(t("poSpecial"), p.special_requests), row(t("poCard"), p.card_message),
         PAY_LATER ? [] : row(t("poMethod"), t("pm_" + p.payment_method)),
         row(t("poPhotos"), pics(files.reference)), row(t("poProof"), files.payment_proof.length ? [pics(files.payment_proof), h("p", { class: "note" }, t("poProofPending"))] : null)),
-      h("p", { class: "note po-notice" }, t("poNotice")), msg, sendBtn, back));
+      h("p", { class: "note po-notice" }, t(PAY_LATER ? "poNoticePayLater" : "poNotice")), msg, sendBtn, back));
     root.querySelector("h2").focus();
   }
 

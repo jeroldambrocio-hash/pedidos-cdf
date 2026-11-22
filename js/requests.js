@@ -13,6 +13,8 @@ const reqPast = (r) => reqIsOpen(r) && r.date < manilaToday();
 const reqOn = () => isAdmin() && !!S.cap.requests;
 
 function reqStatusTag(r) {
+  // A payment arrived that could not be applied: it wins over every other label (also on closed requests)
+  if (RQ.payIssues?.has(r.id)) return el("span", { class: "tag req-tag pay-issue" }, t("plTagIssue"));
   if (reqIsOpen(r) && RQ.paying?.has(r.id)) return el("span", { class: "tag req-tag paying" }, t("plTag"));
   if (reqPast(r)) return el("span", { class: "tag req-tag past" }, t("reqDatePassed"));
   return el("span", { class: "tag req-tag " + r.status }, t("reqSt_" + r.status));
@@ -52,7 +54,14 @@ async function loadRequests() {
   await loadRequestOrders();
   if (stale(gen)) return;
   // PayMongo: which open requests have a payment link waiting
-  if (pmOn()) { const { data } = await sb.from("cdf_request_payments").select("request_id").eq("status", "open"); if (stale(gen)) return; RQ.paying = new Set((data || []).map((x) => x.request_id)); }
+  // and which have a payment that could not be applied (the team checks it)
+  if (pmOn()) {
+    const [open, issues] = await Promise.all([sb.from("cdf_request_payments").select("request_id").eq("status", "open"),
+      sb.from("cdf_request_payments").select("request_id").not("issue", "is", null)]);
+    if (stale(gen)) return;
+    RQ.paying = new Set((open.data || []).map((x) => x.request_id));
+    RQ.payIssues = new Set((issues.data || []).map((x) => x.request_id));
+  }
   paintRequestCount();
   if (S.tab === "requests") renderRequests();
 }
