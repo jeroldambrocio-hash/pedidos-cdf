@@ -2563,3 +2563,103 @@ a.btn { text-decoration: none; } /* links shown as buttons (request page, form r
 .pr-photos .photo-grid .pic img { width: 100%; height: 100%; object-fit: cover; }
 .pr-custom-toggle { justify-self: start; }
 .pr-shops.is-custom .pr-shop-fee { text-decoration: line-through; color: var(--muted); font-weight: 400; }
+
+/* Ajustes visuales del panel y las páginas del cliente. */
+#gapBanner.away-banner {
+  background: var(--surface);
+  border-color: var(--line);
+  border-inline-start: 3px solid var(--prep);
+  padding-block: 10px;
+}
+#gapBanner > div { min-width: 0; }
+#gapBanner > div > b { display: block; margin-block-end: 4px; }
+#gapBanner .away-row {
+  display: grid;
+  grid-template-columns: minmax(13rem, max-content) minmax(0, 1fr);
+  align-items: baseline;
+  gap: 0 14px;
+  margin: 0;
+  padding: 1px 0;
+  border-top: 1px solid var(--line-soft);
+}
+#gapBanner .away-row .linkish {
+  width: fit-content;
+  min-height: 34px;
+  text-align: start;
+  text-decoration-color: var(--line-2);
+}
+#gapBanner .away-row .linkish:hover { text-decoration-color: currentColor; }
+#gapBanner .away-row > span { overflow-wrap: anywhere; }
+.entry .when b, .entry .when small { white-space: nowrap; }
+.entry .when small { color: var(--muted); }
+.entry .order .o-name { font-weight: 650; }
+.entry .order .o-bottom .actions .btn { white-space: nowrap; }
+@container (min-width: 701px) {
+  .entry .order .o-bottom .steps { gap: 4px; }
+  .entry .order .o-bottom .actions { flex-shrink: 0; }
+  .entry .order .o-bottom .actions .btn:not(.icon) { padding-inline: 10px; }
+}
+.req-card {
+  padding: 14px 16px;
+  row-gap: 5px;
+  border-inline-start-width: 3px;
+  border-inline-start-color: var(--line-2);
+}
+.req-card.is-new { border-inline-start-color: var(--transit); }
+.req-card .req-top {
+  padding-block-end: 8px;
+  margin-block-end: 4px;
+  border-bottom: 1px solid var(--line-soft);
+}
+.req-card .req-when { color: var(--fg); }
+.req-card .req-where, .req-card .req-who { color: var(--muted); }
+.req-card .req-what { color: var(--fg); }
+@media (max-width: 620px) {
+  #gapBanner .away-row { grid-template-columns: minmax(0, 1fr); padding-bottom: 7px; }
+  #gapBanner .away-row .linkish { min-height: 32px; }
+  .entry .when b, .entry .when small { white-space: normal; }
+}
+/* Calendar: distinguish busy dates and keep month navigation on one line. */
+.cal-head h2 { min-width: 0; font-size: clamp(1.05rem, 1.45vw, 1.25rem); }
+.cal-nav { flex-shrink: 0; }
+.cal button:is(.lvl-1,.lvl-2,.lvl-3) .dots { display: flex; bottom: 3px; }
+.cal button.sel .dots i { opacity: .8; }
+.cal button:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; }
+/* Conversations: the selected thread stays visible while scanning the list. */
+.chat-list .thread { border-inline-start: 3px solid transparent; }
+.chat-list .thread.on { border-inline-start-color: var(--transit); background: color-mix(in srgb,var(--transit) 9%,var(--surface)); }
+.chat-list .thread.on .thread-ic { outline: 1px solid var(--line-2); }
+/* Statistics: line up totals, including long currency figures. */
+#statsView .kpi { align-content: start; gap: 5px; }
+#statsView .kpi .ic { margin-bottom: 3px; }
+#statsView .kpi small { min-block-size: 2lh; }
+#statsView .kpi b { line-height: 1.1; overflow-wrap: anywhere; }
+/* Team: separate identity, role and availability from management actions. */
+.team-list .member:nth-child(even) { background: color-mix(in srgb,var(--sunk) 55%,var(--surface)); }
+.team-list .member:focus-within { background: var(--surface-hover); }
+.team-list .member .load { color: var(--muted); }
+.team-list .member .m-acts { gap: 6px; }
+/* Request form: make the active section and selected delivery mode easier to spot. */
+.po-form .po-section:focus-within { border-color: color-mix(in srgb,var(--primary-text) 55%,var(--line)); }
+.po-form .po-section:focus-within .po-step { background: var(--primary-tint); color: var(--primary-text); }
+.po-form .po-field > label { color: var(--fg); }
+.po-form .po-optional { color: var(--muted); }
+.po-form .po-mode button:focus-visible { outline-offset: -3px; }
+/* Customer status and checkout: make the amount the last item before the payment action. */
+.pay-page .pay-card { text-align: start; justify-items: stretch; }
+.pay-page .pay-card.is-paid { text-align: center; justify-items: center; }
+.pay-page .pay-dl { gap: 0; }
+.pay-page .pay-dl > div { padding: 10px 0; border-top: 1px solid var(--line-soft); }
+.pay-page .pay-dl > .pay-total { margin-top: 3px; padding: 12px; border: 0; border-radius: var(--r-ctl); background: var(--sunk); }
+.pay-page .pay-total dd { font-size: 1.4rem; }
+.pay-page .pay-test { color: var(--muted); }
+/* Tracking: show the current step as the strongest row in the existing timeline. */
+.tracking #card .tl li.cur > :last-child { background: var(--sunk); border-radius: var(--r-ctl); padding: 7px 10px; min-width: 0; }
+.tracking #card .tl li.cur b { margin-block-start: 0; }
+.tracking #card .tl li:not(.cur) b { font-weight: 550; }
+@media (max-width: 620px) {
+  #statsView .kpi small { min-block-size: 0; }
+  .team-list .member { padding-inline: 10px; }
+  .pay-page .pay-dl > div:not(.pay-total) { flex-wrap: wrap; gap: 3px 12px; }
+  .pay-page .pay-dl > div:not(.pay-total) dd { text-align: start; }
+}

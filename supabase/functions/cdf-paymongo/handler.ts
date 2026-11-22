@@ -101,14 +101,29 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (action === "link") {
         const price = Number(body.price);
         if (!/^[0-9a-f-]{36}$/.test(String(body.request_id)) || !/^[0-9a-f-]{36}$/.test(String(body.key)) || !body.order || typeof body.order !== "object") throw new Fail(400, "cdf_invalid_payment");
+        const pending = await rpc("cdf_request_paylink_unclosed", { p_id: body.request_id });
+        if (pending.error) throw new Fail(pending.error.code === "42501" ? 403 : 409, pending.error.message);
+        for (const previous of pending.data) {
+          const id = previous.checkout_id;
+          let session = await getSession(d, key, live, id).catch(() => undefined);
+          if (session === undefined) throw new Fail(502, "cdf_paymongo_unreachable");
+          if (session && (await settle(d, previous, session, live)).result !== "unpaid") throw new Fail(409, "cdf_paylink_review");
+          if (session && session.attributes?.status !== "expired") {
+            if (!(await expire(d, key, live, id))) throw new Fail(502, "cdf_paymongo_unreachable");
+            session = await getSession(d, key, live, id).catch(() => undefined);
+            if (session === undefined) throw new Fail(502, "cdf_paymongo_unreachable");
+            if (session && (await settle(d, previous, session, live)).result !== "unpaid") throw new Fail(409, "cdf_paylink_review");
+            if (session && session.attributes?.status !== "expired") throw new Fail(502, "cdf_paymongo_unreachable");
+          }
+          const confirmed = await d.service("cdf_paylink_confirm_closed", { p_payment: previous.id, p_checkout: id });
+          if (confirmed.error) throw new Fail(503, "server");
+          if (!confirmed.data) throw new Fail(409, "cdf_paymongo_unreachable");
+        }
         const token = d.randomToken();
         res = await rpc("cdf_request_paylink", { p_id: body.request_id, p_token: token, p_key: body.key, p_order: body.order, p_price: price });
         if (res.error) throw new Fail(res.error.code === "42501" ? 403 : 409, res.error.message);
-        // The old PayMongo page is closed there too; if PayMongo does not answer, the admin is told (a payment on it
-        // would still be caught as "paid after cancel" and every admin would hear it)
-        const closed = !res.data?.previous_checkout || await expire(d, key, live, res.data.previous_checkout);
         const app = (d.env("CDF_APP_URL") || "").replace(/\/$/, "");
-        return json(200, { link: app + "/pagar.html#" + token, amount: res.data.amount, payment: res.data.payment, ...(closed ? {} : { warning: "expire_failed" }) }, cors);
+        return json(200, { link: app + "/pagar.html#" + token, amount: res.data.amount, payment: res.data.payment }, cors);
       }
       if (!/^[0-9a-f-]{36}$/.test(String(body.request_id))) throw new Fail(400, "cdf_invalid_payment");
       res = await rpc("cdf_request_paylink_cancel", { p_id: body.request_id });
@@ -184,12 +199,13 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
 // What the customer's page may see
 const publicView = (v: any) => ({ status: v.status, amount: v.amount, paidAt: v.paid_at, method: v.method, ref: v.shared_number ? "#" + String(v.ref).padStart(4, "0") : "R" + v.ref,
   requestStatus: v.request_status, lang: v.lang, date: v.date, slot: v.slot, mode: v.mode, receiver: v.receiver, pickupBranch: v.pickup_branch,
-  replaced: !!v.replaced, review: !!v.review, checkoutOpenUntil: v.checkout_url ? v.checkout_expires_at : null });
+  replaced: !!v.replaced, review: !!v.review, checkoutOpenUntil: v.checkout_url ? v.checkout_expires_at : null, trackCode: v.track_code || null });
 
 // What the request page may see: where it stands and, if a price is ready, the payment link's secret (same customer)
 const statusView = (v: any) => ({ ref: v.shared_number ? "#" + String(v.ref).padStart(4, "0") : "R" + v.ref, status: v.status, lang: v.lang,
   date: v.date, slot: v.slot, mode: v.mode, receiver: v.receiver, pickupBranch: v.pickup_branch,
-  pay: v.pay ? { status: v.pay.status, amount: v.pay.amount, paidAt: v.pay.paid_at, ...(v.pay.token ? { token: v.pay.token } : {}) } : null });
+  pay: v.pay ? { status: v.pay.status, amount: v.pay.amount, paidAt: v.pay.paid_at, ...(v.pay.token ? { token: v.pay.token } : {}) } : null,
+  trackCode: v.track_code || null });
 
 async function settle(d: Deps, view: any, session: any, live: boolean) {
   const p = paidPayment(session, view.id, view.amount, live);

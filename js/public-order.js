@@ -34,7 +34,53 @@
     address: "", place_label: "", description: "", special_requests: "", card_message: "", payment_method: "", pickup_branch: "" };
   const files = { reference: [], payment_proof: [] }; // { id, name, url, state: "sending" | "ready" | "failed", blob, file, error }
   let view = CFG.features?.publicOrder === true ? "form" : "off", place = null, picker = null, session = null, sessionWait = null;
-  let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "", doneLink = "";
+  let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "", doneLink = "", restored = false;
+
+  // ---------- draft ----------
+  // A reload (or the phone dropping the tab) must not lose a half-written request: it is kept in this tab only
+  // (sessionStorage, gone when the tab closes), with the photos already sent (their id + a small preview) and the
+  // same session, so they still count. 6 hours at most. Cleared once the request is sent.
+  const DRAFT = "cdf-po-draft", DRAFT_HOURS = 6;
+  let draftOk = false;
+  function saveDraft() {
+    if (!touched || (view !== "form" && view !== "review")) return;
+    if (picker) place = picker.state() || place;
+    const sent = (k) => files[k].filter((f) => f.state === "ready" && f.id).map((f) => ({ id: f.id, name: f.name, thumb: f.thumb || "" }));
+    try {
+      sessionStorage.setItem(DRAFT, JSON.stringify({ at: Date.now(), v, place, session, requestKey, files: { reference: sent("reference"), payment_proof: sent("payment_proof") } }));
+      draftOk = true;
+    } catch { draftOk = false; }
+  }
+  const clearDraft = () => { try { sessionStorage.removeItem(DRAFT); } catch { /* nothing kept */ } };
+  function loadDraft() {
+    let d = null;
+    try { d = JSON.parse(sessionStorage.getItem(DRAFT) || "null"); } catch { /* unreadable: start empty */ }
+    if (!d || typeof d !== "object" || !(Date.now() - d.at < DRAFT_HOURS * 3600e3)) { clearDraft(); return; }
+    for (const k of Object.keys(v)) if (typeof d.v?.[k] === typeof v[k]) v[k] = d.v[k];
+    place = d.place && Number.isFinite(d.place.lat) && Number.isFinite(d.place.lng) ? d.place : null;
+    if (typeof d.session === "string") session = d.session;
+    if (/^[0-9a-f-]{36}$/i.test(d.requestKey || "")) requestKey = d.requestKey;
+    for (const k of Object.keys(files)) files[k] = (d.files?.[k] || []).slice(0, MAX[k]).filter((f) => typeof f?.id === "string")
+      .map((f) => ({ id: f.id, name: String(f.name || ""), url: String(f.thumb || "").startsWith("data:image/jpeg;base64,") ? f.thumb : "", thumb: f.thumb || "", state: "ready", blob: null, file: null, error: "", retry: false }));
+    touched = restored = true;
+  }
+  function resetForm() {
+    for (const k of Object.keys(v)) v[k] = typeof v[k] === "boolean" ? false : k === "mode" ? "delivery" : "";
+    shops.me = null; shops.locMsg = "";
+    for (const k of Object.keys(files)) { files[k].forEach((f) => f.url?.startsWith("blob:") && URL.revokeObjectURL(f.url)); files[k] = []; }
+    place = null; requestKey = crypto.randomUUID(); restored = false; touched = false;
+    for (const k of Object.keys(errs)) delete errs[k];
+    clearDraft();
+  }
+  // A small preview kept with the draft, so a restored photo still shows
+  async function thumbOf(blob) {
+    try {
+      const bmp = await createImageBitmap(blob), k = Math.min(1, 240 / Math.max(bmp.width, bmp.height)), c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(bmp.width * k)); c.height = Math.max(1, Math.round(bmp.height * k));
+      c.getContext("2d").drawImage(bmp, 0, 0, c.width, c.height); bmp.close?.();
+      return c.toDataURL("image/jpeg", 0.6);
+    } catch { return ""; }
+  }
 
   // ---------- server ----------
   const headers = (extra = {}) => ({ ...(CFG.anonKey ? { apikey: CFG.anonKey, Authorization: "Bearer " + CFG.anonKey } : {}), ...(session ? { "x-cdf-session": session } : {}), ...extra });
@@ -204,6 +250,7 @@
       item.url ||= URL.createObjectURL(item.blob);
       const data = await withSession(() => call(`${API}?action=upload&kind=${kind}`, { method: "POST", headers: headers({ "Content-Type": "image/jpeg" }), body: item.blob }));
       item.id = data.file; item.state = "ready";
+      item.thumb = await thumbOf(item.blob); saveDraft();
     } catch (e) {
       if (e.code === "session_lost") return;
       item.state = "failed"; item.error = errorText(e);
@@ -261,7 +308,10 @@
     control.id = id; control.name = name;
     if (name in v) {
       control.value = v[name];
-      control.addEventListener("input", () => { v[name] = control.value; touched = true; if (errs[name]) { delete errs[name]; paintError(name); } });
+      control.addEventListener("input", () => {
+        v[name] = control.value; touched = true; if (errs[name]) { delete errs[name]; paintError(name); }
+        if (name === "description" && errs.reference_files && v.description.trim().length >= 3 && !files.reference.some((f) => f.state !== "ready")) { delete errs.reference_files; paintError("reference_files"); }
+      });
     }
     const err = h("p", { class: "err", id: id + "-err", role: "alert" });
     const note = hint ? h("p", { class: "note", id: id + "-hint" }, hint) : null;
@@ -291,7 +341,8 @@
       place = picker?.state() || place;
       if (!place) errs.location = t("poErrLocation"); else if (!place.confirmedAt) errs.location = t("poErrConfirm");
     } else if (!(shops.list || []).some((x) => x.branch === v.pickup_branch && x.available)) errs.pickup_branch = t("poErrShop");
-    if (!files.reference.some((f) => f.state === "ready" && f.id)) errs.reference_files = t("poErrReference");
+    // A reference photo or a description is enough (the server and the database check the same)
+    if (!files.reference.some((f) => f.state === "ready" && f.id) && v.description.trim().length < 3) errs.reference_files = t("poErrReference");
     if (!PAY_LATER && !files.payment_proof.some((f) => f.state === "ready" && f.id)) errs.payment_proof = t("poErrProof");
     if (!PAY_LATER && !METHODS.includes(v.payment_method)) errs.payment_method = t("poErrMethod");
     for (const [kind, key] of [["reference", "reference_files"], ["payment_proof", "payment_proof"]]) {
@@ -374,7 +425,7 @@
     fileBox.reference = h("div", { class: "po-files" }); fileBox.payment_proof = h("div", { class: "po-files" });
     const filesErr = h("p", { class: "err", id: "po-reference_files-err", role: "alert" });
     const refWrap = h("div", { class: "field po-field", role: "group", tabIndex: -1, "aria-labelledby": "po-ref-label", "aria-describedby": "po-reference_files-err" },
-      h("span", { id: "po-ref-label", class: "po-label" }, t("poPhotos"), " · " + t("poRequired")), fileBox.reference, filesErr);
+      h("span", { id: "po-ref-label", class: "po-label" }, t("poPhotos"), h("span", { class: "po-optional" }, " " + t("poPhotoOrText"))), fileBox.reference, filesErr);
     fields.reference_files = { wrap: refWrap, control: refWrap, err: filesErr };
 
     const proofErr = h("p", { class: "err", id: "po-payment_proof-err", role: "alert" });
@@ -383,6 +434,8 @@
     fields.payment_proof = { wrap: proofWrap, control: proofWrap, err: proofErr };
 
     const top = h("p", { class: "err po-top", role: "alert", tabIndex: -1 }, topError);
+    const draftNote = restored ? h("div", { class: "po-draft", role: "status" }, h("p", { class: "note" }, t("poDraftRestored")),
+      h("button", { type: "button", class: "btn", onclick: () => { resetForm(); render(); root.querySelector("#po-buyer_name")?.focus(); } }, t("poDraftClear"))) : null;
     const form = h("form", { class: "po-form", noValidate: true, onsubmit: (e) => {
       e.preventDefault();
       const bad = validate();
@@ -394,9 +447,9 @@
         fields[first]?.control.focus({ preventScroll: true });
         return;
       }
-      topError = ""; view = "review"; render();
+      topError = ""; view = "review"; saveDraft(); render();
     } },
-      top,
+      draftNote, top,
       section(1, t("poBuyer"), h("div", { class: "row2" },
         field("buyer_name", t("poBuyerName"), input({ autocomplete: "name", maxLength: 80 })),
         field("buyer_phone", t("poBuyerPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "tel", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint") }))),
@@ -405,7 +458,7 @@
         h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
         h("div", { class: "row2" }, field("date", t("poDate"), date, { hint: t("poDateHint") }), field("slot", t("poSlot"), slot)), where),
       section(4, t("poOrderInfo"),
-        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint"), optional: true }),
+        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint") }),
         field("special_requests", t("poSpecial"), area({ rows: 2, maxLength: 500 }), { optional: true }),
         field("card_message", t("poCard"), area({ rows: 2, maxLength: 300 }), { optional: true }),
         refWrap,
@@ -434,12 +487,9 @@
         doneRef = answer?.ref ? (answer.shared_number ? "#" + String(answer.ref).padStart(4, "0") : "R" + answer.ref) : "";
         // With PayMongo on: their own page to come back to (the total and the button to pay appear there)
         doneLink = CFG.features?.paymongo === true && /^[A-Za-z0-9_-]{30,80}$/.test(answer?.status_token || "") ? location.origin + "/solicitud.html#" + answer.status_token : "";
-        view = "done"; touched = false;
-        // Nothing of the request stays in the page once it is sent
-        for (const k of Object.keys(v)) v[k] = typeof v[k] === "boolean" ? false : k === "mode" ? "delivery" : "";
-        shops.me = null; shops.locMsg = "";
-        for (const k of Object.keys(files)) { files[k].forEach((f) => f.url && URL.revokeObjectURL(f.url)); files[k] = []; }
-        place = null; requestKey = crypto.randomUUID();
+        view = "done";
+        // Nothing of the request stays in the page (or in the tab's draft) once it is sent
+        resetForm();
         render();
       } catch (e) {
         sending = false;
@@ -495,7 +545,15 @@
 
   applyStatic(); applyPrefs();
   document.addEventListener("langchange", () => { if (picker) place = picker.state() || place; render(); });
-  // Leaving with a half-written request asks first; nothing is saved for later
-  window.addEventListener("beforeunload", (e) => { if (touched && view !== "done" && view !== "off") { e.preventDefault(); e.returnValue = ""; } });
+  // The draft is saved whenever the page may go away; leaving only asks first when something would be lost
+  // (a photo still sending, or a browser that does not let the page keep the draft)
+  window.addEventListener("pagehide", saveDraft);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) saveDraft(); });
+  window.addEventListener("beforeunload", (e) => {
+    if (!touched || view === "done" || view === "off") return;
+    saveDraft();
+    if (!draftOk || Object.values(files).some((l) => l.some((f) => f.state === "sending"))) { e.preventDefault(); e.returnValue = ""; }
+  });
+  if (view === "form") loadDraft();
   render();
 })();

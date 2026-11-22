@@ -11,7 +11,7 @@
   const h = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) if (v != null) k === "class" ? (n.className = v) : k.startsWith("on") ? (n[k] = v) : n.setAttribute(k, v); n.append(...kids.flat().filter((x) => x != null && x !== false)); return n; };
   const money = (n) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n));
   const day = (d) => new Intl.DateTimeFormat(locale(), { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Manila" }).format(new Date(d + "T12:00:00+08:00"));
-  let view = null, msg = "", busy = false, checks = 0;
+  let view = null, msg = "", payErr = "", busy = false, checks = 0; // payErr stays until the customer taps Pay again
 
   async function call(action) {
     const r = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.anonKey }, body: JSON.stringify({ action, token }) });
@@ -26,7 +26,8 @@
     if (v.status === "paid") {
       card.append(h("div", { class: "pay-check", "aria-hidden": "true" }, "✓"), h("h2", { tabindex: "-1" }, t("plPaidTitle")),
         h("p", {}, t("plPaid", { ref: v.ref })),
-        h("p", { class: "note" }, t("plPaidOn", { date: new Intl.DateTimeFormat(locale(), { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(v.paidAt)), amount: money(v.amount) })));
+        h("p", { class: "note" }, t("plPaidOn", { date: new Intl.DateTimeFormat(locale(), { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(v.paidAt)), amount: money(v.amount) })),
+        ...trackBlock(v));
     } else {
       const open = v.status === "open" && !v.review && ["received", "in_review"].includes(v.requestStatus);
       card.append(h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, v.ref)),
@@ -37,7 +38,7 @@
       if (open) {
         const pay = h("button", { class: "btn primary block", type: "button", onclick: () => go() }, busy ? t("plOpening") : t("plButton", { amount: money(v.amount) }));
         if (busy) pay.disabled = true;
-        card.append(pay, h("p", { class: "note" }, t("plMethods")));
+        card.append(pay, payErr ? h("p", { class: "err", role: "alert" }, payErr) : null, h("p", { class: "note" }, t("plMethods")));
         if (v.checkoutOpenUntil) card.append(h("p", { class: "note" }, t("plOpenUntil", { time: formatClock12(v.checkoutOpenUntil) })));
         if (back === "paid") card.append(h("p", { class: "pay-wait", role: "status" }, checks < 15 ? t("plChecking") : t("plStillChecking")),
           checks >= 15 ? h("button", { class: "btn block", type: "button", onclick: () => { checks = 0; poll(); } }, t("plCheck")) : null);
@@ -48,6 +49,13 @@
     }
     if (CFG.testCopy || /test/i.test(CFG.payMode || "")) card.append(h("p", { class: "note pay-test" }, t("plTest")));
     root.replaceChildren(card);
+  }
+  // After paying: when and where, and the order's tracking page (same link the shop shares)
+  function trackBlock(v) {
+    const when = day(v.date) + " · " + formatSlot12(v.slot);
+    return [h("p", {}, v.mode === "pickup" ? t("plTrackPickup", { shop: v.pickupBranch || "Casa de Flores", when }) : t("plTrackDelivery", { when })),
+      v.trackCode ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")) : null,
+      v.trackCode ? h("p", { class: "note" }, t("plTrackNote")) : null];
   }
   const fail = (e) => (e.status === 404 ? t("plGone") : e.status === 409 ? "" : t("plError"));
 
@@ -62,9 +70,14 @@
     render();
   }
   async function go() {
-    if (busy) return; busy = true; msg = ""; render();
+    if (busy) return; busy = true; msg = ""; payErr = ""; render();
     try { const r = await call("pay"); if (r.paid) { busy = false; return load("check"); } location.assign(r.url); return; }
-    catch (e) { msg = fail(e) || ""; busy = false; await load(); }
+    catch (e) {
+      busy = false;
+      // Keep saying what happened: the refresh below must not wipe it (409/404 = the page itself shows the new state)
+      payErr = e.status === 409 || e.status === 404 ? "" : t("plPayFailed");
+      await load();
+    }
   }
   // Back from PayMongo: ask the server to check (the webhook usually got there first)
   async function poll() {

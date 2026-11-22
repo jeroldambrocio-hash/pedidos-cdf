@@ -121,5 +121,20 @@ const { build, TEAM, claims } = require('./lib/fresh-db.cjs');
   await root();
   ok('Admins cannot settle or flag payments themselves (service role only)');
 
+  // A new quote cannot replace an unchecked checkout, even through the database RPC.
+  const E = await newRequest(), le = await link(E);
+  await service();
+  assert.equal((await one("select public.cdf_paylink_checkout($1,null,'cs_replace','https://pm/cs_replace',now()+interval '1 hour') r", [le.payment])).r, true);
+  await assert.rejects(link(E, 1800), /cdf_paymongo_unreachable/);
+  assert.equal((await row(le.payment)).status, 'open');
+  await assert.rejects(one("select public.cdf_paylink_confirm_closed($1,'cs_replace')", [le.payment]), { code: '42501' });
+  await service();
+  assert.equal((await one("select public.cdf_paylink_confirm_closed($1,'cs_wrong') r", [le.payment])).r, false);
+  assert.equal((await one("select public.cdf_paylink_confirm_closed($1,'cs_replace') r", [le.payment])).r, true);
+  const replacement = await link(E, 1800);
+  assert.equal(replacement.amount, 1800);
+  assert.equal((await row(le.payment)).status, 'cancelled');
+  ok('Replacing a quote requires service confirmation for the current checkout');
+
   console.log('\nAll PayMongo database checks passed');
 })().catch((e) => { console.error(e); process.exit(1); });

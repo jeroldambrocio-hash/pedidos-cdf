@@ -134,14 +134,16 @@ ok("A buyer abroad and a receiver in the Philippines are both accepted; pickup n
   refused({ request_key: "1" }, "invalid:request_key");
   refused({ reference_files: Array.from({ length: 7 }, randomUUID) }, "invalid:reference_files"); refused({ reference_files: ["../etc/passwd"] }, "invalid:reference_files");
   const twice = randomUUID(); refused({ reference_files: [twice, twice] }, "invalid:reference_files"); refused({ payment_proof: "cdf-pagos/x.jpg" }, "invalid:payment_proof");
-  // A reference photo replaces text; payment proof alone does not.
+  // A reference photo or a description; payment proof alone does not count.
   refused({ description: "", reference_files: [] }, "invalid:reference_files");
   refused({ description: "   ", reference_files: [] }, "invalid:reference_files");
   refused({ description: "", reference_files: [], payment_proof: randomUUID() }, "invalid:reference_files");
   refused({ payment_proof: null }, "invalid:payment_proof");
   refused({ payment_proof: "" }, "invalid:payment_proof");
   assert.equal(checkRequest(good({ description: "", reference_files: [randomUUID()] }), NOW).description, "");
-  refused({ description: "Red roses", reference_files: [] }, "invalid:reference_files");
+  // A clear description is enough without a photo (22/11/2026)
+  assert.equal(checkRequest(good({ description: "Red roses", reference_files: [] }), NOW).reference_files.length, 0);
+  refused({ description: "ab", reference_files: [] }, "invalid:reference_files");
   // The shop's day, not the server's or the buyer's: 19:30 on the 11th in Manila is still "today"
   const lateManila = Date.parse("2026-11-11T11:30:00Z");
   assert.equal(checkRequest(good({ date: "2026-11-11", slot: "19:00 - 21:00", location_confirmed_at: new Date(lateManila).toISOString() }), lateManila).date, "2026-11-11");
@@ -316,7 +318,7 @@ const jpg = fixture("gps.jpg");
   assert.equal((await send(body({ reference_files: [randomUUID()] }), { session: s })).error, "files");
   assert.equal((await send(body({ reference_files: [proof] }), { session: s })).error, "files");            // a proof is not a reference
   assert.equal((await send(body(), { session: other })).error, "files");                                    // someone else's photos
-  const fromOther = await send(body({ reference_files: [], payment_proof: null }), { session: other });
+  const fromOther = await send(body({ reference_files: [], description: "", payment_proof: null }), { session: other }); // no photo and no description
   assert.equal(fromOther.status, 422); assert.equal(fromOther.field, "reference_files");
   assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 0, "missing required photos creates no request");
   const full = body({ description: "" }), sent = await send(full, { session: s });

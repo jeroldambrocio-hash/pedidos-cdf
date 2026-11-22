@@ -118,3 +118,36 @@ const signed = (event, secret = ENV.PAYMONGO_WEBHOOK_SECRET, t = Math.floor(NOW 
 assert.equal(await verifySignature("{}", "t=1,te=" + "a".repeat(64), "", NOW, false, async () => "a".repeat(64)), false, "no secret, no pass");
 ok("Without a webhook secret nothing is accepted");
 console.log("\nAll cdf-paymongo function checks passed");
+
+// Repricing keeps the old link if the provider cannot close its checkout.
+{
+  const w = world({ link: { checkout_id: "cs_old" }, paymongo: { expireFails: true } });
+  w.sessions.set("cs_old", { id: "cs_old", attributes: { livemode: false, status: "active", reference_number: w.pay.id, payments: [] } });
+  const asUser = w.deps.asUser;
+  w.deps.asUser = auth => async (name, args) => {
+    if (name === "cdf_request_paylink_unclosed") return { data: [w.pay] };
+    if (name === "cdf_request_paylink") { w.calls.push([name]); return { data: { previous_checkout: "cs_old" } }; }
+    return asUser(auth)(name, args);
+  };
+  const input = { action: "link", request_id: w.pay.id, key: w.pay.id, order: {}, price: 1800 };
+  const headers = { authorization: "Bearer test" };
+  const failed = await call(w, input, headers);
+  assert.equal(failed.status, 502);
+  assert.ok(!w.calls.some(([name]) => name === "cdf_request_paylink"));
+  w.deps.service = async (name, args) => {
+    if (name === "cdf_paylink_confirm_closed") {
+      assert.equal(args.p_checkout, "cs_old");
+      assert.equal(w.sessions.get("cs_old").attributes.status, "expired");
+      w.calls.push([name]);
+      return { data: true };
+    }
+    return { data: null };
+  };
+  w.deps.fetch = async (url, init) => {
+    if (init.method === "POST") w.sessions.get("cs_old").attributes.status = "expired";
+    return Response.json({ data: w.sessions.get("cs_old") });
+  };
+  assert.equal((await call(w, input, headers)).status, 200);
+  assert.ok(w.calls.findIndex(([name]) => name === "cdf_paylink_confirm_closed") < w.calls.findIndex(([name]) => name === "cdf_request_paylink"));
+  ok("Repricing waits for confirmation that the old checkout is closed");
+}

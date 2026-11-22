@@ -10,7 +10,7 @@
   const h = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) if (v != null) k === "class" ? (n.className = v) : k.startsWith("on") ? (n[k] = v) : n.setAttribute(k, v); n.append(...kids.flat().filter((x) => x != null && x !== false)); return n; };
   const money = (n) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n));
   const day = (d) => new Intl.DateTimeFormat(locale(), { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Manila" }).format(new Date(d + "T12:00:00+08:00"));
-  const EVERY = 15_000;           // while it waits for a price; also right away when the page comes back into view
+  const EVERY = 15_000;           // while the request is open or can be reopened; also right away when the page comes back into view
   let view = null, msg = "", timer = 0, copied = false;
 
   async function load() {
@@ -27,7 +27,7 @@
     if (waiting() || (!view && msg && msg !== t("rsGone"))) timer = setTimeout(() => { if (!document.hidden) load(); }, EVERY);
   }
   const open = () => view && ["received", "in_review"].includes(view.status);
-  const waiting = () => open() && view.pay?.status !== "open";
+  const waiting = () => view?.status === "rejected" || open();
 
   function render() {
     if (!view) { root.replaceChildren(h("div", { class: "card po-done", role: msg ? "alert" : "status" }, h("p", {}, msg || t("plLoading")))); return; }
@@ -35,7 +35,10 @@
     const card = h("div", { class: "card po-done pay-card rs-card" + (paid ? " is-paid" : "") });
     if (paid) {
       card.append(h("div", { class: "pay-check", "aria-hidden": "true" }, "✓"), h("h2", {}, t("plPaidTitle")), h("p", {}, t("plPaid", { ref: v.ref })),
-        v.pay.paidAt ? h("p", { class: "note" }, t("plPaidOn", { date: new Intl.DateTimeFormat(locale(), { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(v.pay.paidAt)), amount: money(v.pay.amount) })) : null);
+        v.pay.paidAt ? h("p", { class: "note" }, t("plPaidOn", { date: new Intl.DateTimeFormat(locale(), { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(v.pay.paidAt)), amount: money(v.pay.amount) })) : null,
+        h("p", {}, t(v.mode === "pickup" ? "plTrackPickup" : "plTrackDelivery", { shop: v.pickupBranch || "Casa de Flores", when: day(v.date) + " · " + formatSlot12(v.slot) })),
+        v.trackCode ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")) : null,
+        v.trackCode ? h("p", { class: "note" }, t("plTrackNote")) : null);
     } else {
       card.append(h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, v.ref)),
         h("dl", { class: "pay-dl" },

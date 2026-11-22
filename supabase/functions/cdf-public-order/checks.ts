@@ -267,7 +267,8 @@ export function checkRequest(body: unknown, now: number, { payLater = false }: {
   const pickup_branch = mode === "pickup" ? text(b.pickup_branch, "pickup_branch", 1, 60) : b.pickup_branch == null ? null : fail("pickup_branch");
 
   const refs = b.reference_files ?? [];
-  if (!Array.isArray(refs) || refs.length === 0 || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
+  // A reference photo OR a written description (3+ characters), as the database checks (22/11/2026)
+  if (!Array.isArray(refs) || (refs.length === 0 && String(b.description ?? "").trim().length < 3) || refs.length > 6 || refs.some((f) => typeof f !== "string" || !UUID.test(f)) || new Set(refs).size !== refs.length) fail("reference_files");
   if (payLater ? b.payment_proof != null && (typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))
     : (typeof b.payment_proof !== "string" || !UUID.test(b.payment_proof))) fail("payment_proof");
 
