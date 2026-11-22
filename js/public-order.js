@@ -469,6 +469,8 @@
 
   function render() {
     if (view === "off") root.replaceChildren(h("div", { class: "card po-done" }, h("h2", {}, t("poOffTitle")), h("p", {}, t("poOff"))));
+    // PayMongo: the customer goes straight to their request's page and waits there for the total and the button to pay
+    else if (view === "done" && doneLink) location.replace(doneLink);
     else if (view === "done") {
       root.replaceChildren(h("div", { class: "card po-done", role: "status" }, h("h2", { tabIndex: -1 }, t("poDoneTitle")),
         doneRef ? h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, doneRef)) : null,

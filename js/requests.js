@@ -239,8 +239,11 @@ async function openRequest(r) {
   if (reqIsOpen(r)) {
     acts.push(el("button", { class: "btn danger foot-act", type: "button", onclick: () => rejectRequest(r) }, icon("close"), el("span", { class: "lbl" }, t("reqReject"))));
     acts.push(el("span", { class: "spacer" }));
-    acts.push(el("button", { class: pmOn() ? "btn" : "btn primary", type: "button", onclick: () => acceptRequest(r) }, icon("check"), " ", t("reqAccept")));
-    if (pmOn()) acts.push(el("button", { class: "btn primary", type: "button", onclick: () => payRequest(r) }, icon("card"), " ", t(link ? "plChange" : "plPayBtn")));
+    if (pmOn()) {
+      // PayMongo: one main action, set the price; accepting without online payment is kept aside
+      acts.push(el("button", { class: "btn", type: "button", onclick: () => moreRequestOptions(r) }, t("prMore")));
+      acts.push(el("button", { class: "btn primary", type: "button", onclick: () => priceRequest(r) }, icon("card"), " ", t(link ? "plChange" : "prBtn")));
+    } else acts.push(el("button", { class: "btn primary", type: "button", onclick: () => acceptRequest(r) }, icon("check"), " ", t("reqAccept")));
   } else if (r.status === "rejected") {
     acts.push(el("span", { class: "spacer" }), el("button", { class: "btn", type: "button", onclick: () => reopenRequest(r, err) }, icon("refresh"), " ", t("reqReopen")));
   } else if (r.status === "accepted" && os?.state === "trash") {
@@ -326,16 +329,106 @@ function payShare(r, link, amount) {
 }
 function showPayLink(r, link, amount) {
   const box = el("input", { class: "input", readonly: true, value: link, onfocus: (e) => e.target.select() });
-  miniSheet(t("plLinkTitle", { ref: reqRef(r) }), [el("p", { class: "note", style: "margin:0" }, t("plLinkHint")), box, payShare(r, link, amount)], t("close"), async () => { await closeSheet(); });
+  miniSheet(t("plLinkTitle", { ref: reqRef(r) }), [el("p", { class: "pr-link-amount" }, t("prLinkAmount", { amount: paymentPesos(amount) })), el("p", { class: "note", style: "margin:0" }, t("prLinkHint")), box, el("div", { class: "notify-row" }, copyLinkBtn(link))], t("close"), async () => { await closeSheet(); });
 }
 function payLinkNote(r, p) {
   const open = p.checkout_expires_at && new Date(p.checkout_expires_at) > new Date();
   return el("div", { class: "sheet-note pay-link-note" }, icon("card"), el("div", {},
     el("b", {}, t("plOpen", { amount: paymentPesos(p.amount), who: reqWho(p.created_by), ago: reqAgo(p.created_at) })),
     open ? el("small", { class: "note", style: "display:block" }, t("plOpenUntil", { time: formatClock12(p.checkout_expires_at) })) : null,
-    payShare(r, payUrl(p.token), p.amount),
-    el("button", { class: "linkish", type: "button", onclick: () => cancelPayLink(r) }, t("plCancel"))));
+    el("div", { class: "notify-row" }, copyLinkBtn(payUrl(p.token)),
+      el("button", { class: "linkish", type: "button", onclick: () => cancelPayLink(r) }, t("plCancel")))));
 }
+const copyLinkBtn = (link) => el("button", { class: "btn", type: "button", onclick: () => navigator.clipboard?.writeText(link).then(() => toast(t("plCopied")), () => toast(t("selectCopy"))) }, icon("copy"), " ", t("plCopy"));
+
+// The shops (Team → each florist's shop point), grouped by branch like the public form's list; open that day = a
+// florist there who is not away. Each with the florist the order would go to.
+function requestShops(day) {
+  const by = new Map();
+  for (const m of S.members || []) {
+    const b = (m.branch || "").trim();
+    if (m.role !== "vendor" || !b || m.pickup_lat == null || m.pickup_lng == null) continue;
+    const s = by.get(b) || { branch: b, lat: +m.pickup_lat, lng: +m.pickup_lng, florists: [] };
+    s.florists.push(m); by.set(b, s);
+  }
+  return [...by.values()].map((s) => { const free = s.florists.find((m) => !(typeof awayOn === "function" && awayOn(m, day))); return { ...s, open: !!free, florist: free || s.florists[0] }; });
+}
+
+// Set the price (PayMongo): the flowers price typed by the admin + the delivery from the chosen shop (by distance,
+// motorcycle or car), and the total. Saving creates the payment link; when the customer pays, the order is created
+// by itself from the request, given to that shop's florist, with the breakdown in its notes.
+async function priceRequest(r) {
+  const gen = sessionNow();
+  if (!(await closeSheet())) return;
+  if (stale(gen)) return;
+  // Numbers not shared with requests (older database): the full editor still asks for one
+  if (!S.cap.sharedNumbers || !window.CDFDeliveryFee) return payRequest(r);
+  const key = ((RQ.payKeys ||= {})[r.id] ||= { key: crypto.randomUUID(), id: crypto.randomUUID() });
+  const pickup = r.mode === "pickup", point = r.lat != null && r.lng != null ? { lat: +r.lat, lng: +r.lng } : null;
+  const shops = requestShops(r.date).map((s) => {
+    const km = point ? CDFDeliveryFee.straightKm(point, s) : null;
+    return { ...s, km, fee: km == null ? null : CDFDeliveryFee.forKm(km) };
+  }).sort((a, b) => (b.open - a.open) || ((a.km ?? 1e9) - (b.km ?? 1e9)) || a.branch.localeCompare(b.branch));
+  let veh = "motorcycle", chosen = pickup ? shops.find((s) => s.branch === r.pickup_branch) || shops[0] : shops.find((s) => s.open) || shops[0];
+  const nearest = !pickup && point ? shops.find((s) => s.open) : null;
+  const iFlowers = el("input", { id: "pr-flowers", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 9999999, placeholder: "1800", "aria-label": t("chargeFlowers") });
+  const iManual = el("input", { id: "pr-delivery", type: "number", inputmode: "decimal", min: 0, step: 0.01, max: 99999, placeholder: "0", "aria-label": t("chargeDelivery") });
+  const peso = (input) => el("div", { class: "peso-input" }, el("span", { "aria-hidden": "true" }, "₱"), input, el("span", { class: "cur" }, "PHP"));
+  const vehSeg = el("div", { class: "seg pr-veh", role: "group", "aria-label": t("llVehicle") });
+  const list = el("div", { class: "pr-shops", role: "radiogroup", "aria-label": t("prShip") });
+  const manualBox = el("div", { class: "pr-manual", hidden: true }, field(t("chargeDelivery"), peso(iManual)));
+  const totalOut = el("div", { class: "pr-total", role: "status" });
+  const autoFee = () => (pickup || !chosen?.fee || chosen.fee.far ? null : chosen.fee[veh]);
+  const delivery = () => (pickup ? 0 : autoFee() ?? (iManual.value === "" ? null : +iManual.value));
+  function paint() {
+    vehSeg.replaceChildren(...[["motorcycle", "prMoto"], ["car", "prCar"]].map(([v, k]) => el("button", { type: "button", "aria-pressed": String(veh === v), onclick: () => { veh = v; paint(); } }, t(k))));
+    list.replaceChildren(...shops.map((s) => el("button", { type: "button", role: "radio", class: "pr-shop" + (s === chosen ? " is-chosen" : "") + (s.open ? "" : " is-closed"), "aria-checked": String(s === chosen),
+      onclick: () => { chosen = s; paint(); } },
+      el("span", { class: "pr-shop-name" }, el("b", {}, s.branch), s === nearest ? el("span", { class: "tag pr-near" }, t("prNearest")) : null, s.open ? null : el("span", { class: "tag muted" }, t("prClosed"))),
+      el("span", { class: "pr-shop-km" }, pickup ? (s.branch === r.pickup_branch ? t("prPickupHere") : "") : s.fee ? t("prKm", { km: fmtKm(s.fee.roadKm) }) : ""),
+      el("span", { class: "pr-shop-fee" }, pickup ? "" : !s.fee ? "—" : s.fee.far ? t("prFarShort") : paymentPesos(s.fee[veh])))));
+    vehSeg.hidden = pickup;
+    manualBox.hidden = pickup || autoFee() != null;
+    const a = iFlowers.value === "" ? null : +iFlowers.value, d = delivery();
+    totalOut.replaceChildren(el("span", {}, t("prTotal")), el("b", {}, a == null || d == null ? "—" : paymentPesos(a + d)),
+      a != null && d != null && !pickup ? el("small", { class: "note" }, t("prSum", { flowers: paymentPesos(a), delivery: paymentPesos(d) })) : null);
+  }
+  iFlowers.addEventListener("input", paint); iManual.addEventListener("input", paint);
+  const intro = el("div", { class: "pr-req" }, el("b", {}, r.buyer_name + (r.receiver_name && r.receiver_name !== r.buyer_name ? " → " + r.receiver_name : "")),
+    el("span", { class: "note" }, reqWhen(r)), el("span", { class: "note" }, pickup ? t("reqPickup") + " · " + (r.pickup_branch || "") : r.address || ""));
+  paint();
+  miniSheet(t("prTitle", { ref: reqRef(r) }), [intro, field(t("chargeFlowers"), peso(iFlowers)),
+    el("div", { class: "field" }, el("span", { class: "label pr-ship-head" }, el("span", {}, t(pickup ? "prPickupFrom" : "prShip")), vehSeg), list,
+      !pickup && !point ? el("small", { class: "note" }, t("prNoPoint")) : null),
+    manualBox, totalOut, el("p", { class: "note", style: "margin:0" }, t("prHint"))], t("prCreate"), async () => {
+    const a = iFlowers.value === "" ? null : +iFlowers.value, d = delivery();
+    if (!(a > 0)) { iFlowers.focus(); return t("prNeedFlowers"); }
+    if (d == null || d < 0) { iManual.focus(); return t("prNeedDelivery"); }
+    const total = Math.round((a + d) * 100) / 100;
+    if (!(total >= 100)) { iFlowers.focus(); return t("plNeedPrice"); }
+    const base = requestDraft(r);
+    const notes = [base.notes, pickup ? t("prNotePickup", { flowers: paymentPesos(a), shop: chosen?.branch || "" })
+      : t("prNote", { flowers: paymentPesos(a), delivery: paymentPesos(d), veh: t(veh === "car" ? "prCar" : "prMoto").toLowerCase(), shop: chosen?.branch || "?" })].join("\n");
+    const order = { id: key.id, num: null, date: r.date, slot: r.slot, channel: "Web", vendor_email: chosen?.florist?.email || null,
+      customer_name: base.customer_name, address: base.address, customer_phone: base.customer_phone, customer_email: "",
+      buyer_name: base.buyer_name, buyer_phone: base.buyer_phone, card_message: base.card_message || "", delivery_note: "", notes };
+    if (S.cap.carrier) order.carrier_email = null;
+    if (S.cap.drop) { order.drop_lat = pickup ? null : base.drop_lat; order.drop_lng = pickup ? null : base.drop_lng; }
+    if (S.cap.vehicle) order.vehicle = !pickup && veh === "car" ? "SEDAN" : null;
+    if (S.cap.pickupMode) { order.pickup = pickup; if (pickup) order.address = ""; }
+    const res = await payLinkCall({ action: "link", request_id: r.id, key: key.key, order, price: total });
+    if (stale(gen)) return;
+    if (res.error) return res.error;
+    await closeSheet(true);
+    showPayLink(r, res.link, res.amount);
+    loadRequests();
+  }, { dirty: () => !!iFlowers.value || !!iManual.value });
+}
+
+function moreRequestOptions(r) {
+  miniSheet(t("prMore"), [el("p", { class: "note", style: "margin:0" }, t("prMoreHint"))], t("prAcceptNoPay"), async () => { await closeSheet(true); acceptRequest(r); });
+}
+
 async function cancelPayLink(r) {
   if (!(await askConfirm(t("plCancelAsk"), t("plCancel")))) return;
   const res = await payLinkCall({ action: "cancel", request_id: r.id });

@@ -10,7 +10,7 @@
   const h = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) if (v != null) k === "class" ? (n.className = v) : k.startsWith("on") ? (n[k] = v) : n.setAttribute(k, v); n.append(...kids.flat().filter((x) => x != null && x !== false)); return n; };
   const money = (n) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n));
   const day = (d) => new Intl.DateTimeFormat(locale(), { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Manila" }).format(new Date(d + "T12:00:00+08:00"));
-  const EVERY = 30_000;           // while it waits for a price; also right away when the page comes back into view
+  const EVERY = 15_000;           // while it waits for a price; also right away when the page comes back into view
   let view = null, msg = "", timer = 0, copied = false;
 
   async function load() {

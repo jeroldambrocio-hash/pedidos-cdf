@@ -2537,3 +2537,22 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 
 a.btn { text-decoration: none; } /* links shown as buttons (request page, form receipt) */
 .req-tag.paying { background: var(--primary-tint); color: var(--primary-soft-text); }
+
+/* Requests · set the price (PayMongo): flowers + delivery from a shop = total */
+.pr-req { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; }
+.pr-ship-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.pr-shops { display: grid; gap: 6px; margin-top: 6px; }
+.pr-shop { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 12px; width: 100%; padding: 12px 14px; text-align: left;
+  border: 1px solid var(--line); border-radius: 12px; background: transparent; color: var(--fg); cursor: pointer;
+  transition: border-color 200ms ease, background-color 200ms ease; }
+.pr-shop:hover { border-color: var(--muted); }
+.pr-shop.is-chosen { border-color: var(--fg); background: color-mix(in srgb, var(--fg) 7%, transparent); }
+.pr-shop.is-closed { opacity: .55; }
+.pr-shop-name { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.pr-shop-km { color: var(--muted); font-variant-numeric: tabular-nums; }
+.pr-shop-fee { font-weight: 600; font-variant-numeric: tabular-nums; min-width: 4.5em; text-align: right; }
+.pr-near { font-size: .75rem; }
+.pr-total { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 12px; padding: 12px 14px; border-radius: 12px; background: color-mix(in srgb, var(--fg) 6%, transparent); }
+.pr-total b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+.pr-total small { flex-basis: 100%; }
+.pr-link-amount { margin: 0; font-size: 1.25rem; font-weight: 600; }
