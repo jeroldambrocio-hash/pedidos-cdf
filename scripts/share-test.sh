@@ -2,7 +2,8 @@
 # Test copy only: share the PayMongo test with someone else (e.g. the owner on their phone) for as long as this runs.
 # Needs Docker with the local Supabase already started (bash scripts/supabase-local.sh). Ctrl+C stops the sharing.
 #   bash scripts/share-test.sh
-# It opens two temporary Cloudflare links (they change every time): one for the app, one for the local Supabase,
+# It opens two temporary Cloudflare links (they change every time): one for the app, one for the local Supabase
+# (through scripts/share-gate.mjs: only what the app and PayMongo use, never admin keys or tools),
 # runs the app on port 4335 pointing at that link, and the PayMongo function with the app's link for the return pages.
 # Only TEST data and TEST payments: nothing reaches production (rentrooms) or charges real money.
 set -euo pipefail
@@ -14,7 +15,8 @@ cleanup(){ for p in "${PIDS[@]}"; do kill "$p" 2>/dev/null || true; done; echo; 
 trap cleanup EXIT
 tunnel(){ cloudflared tunnel --no-autoupdate --url "$1" > "$2" 2>&1 & PIDS+=($!); }
 url_of(){ for _ in $(seq 1 60); do u=$(grep -o 'https://[a-z0-9-]*\.trycloudflare\.com' "$1" | head -1 || true); [ -n "$u" ] && { echo "$u"; return; }; sleep 1; done; echo "Could not open a Cloudflare link ($1)" >&2; exit 1; }
-tunnel http://localhost:54321 "$LOGS/api.log"; tunnel http://localhost:4335 "$LOGS/web.log"
+node scripts/share-gate.mjs > "$LOGS/gate.log" 2>&1 & PIDS+=($!)
+tunnel http://localhost:54331 "$LOGS/api.log"; tunnel http://localhost:4335 "$LOGS/web.log"
 API=$(url_of "$LOGS/api.log"); WEB=$(url_of "$LOGS/web.log")
 # The function's settings: keep the PayMongo TEST keys, point the return pages and allowed site at the shared link
 grep -vE '^(CDF_APP_URL|CDF_PAY_ORIGINS|PUBLIC_ORDER_ORIGINS)=' .secrets/functions.env > "$LOGS/functions.env"
