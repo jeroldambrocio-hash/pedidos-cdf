@@ -341,8 +341,8 @@
         onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
         search: async (q) => { try { return await withSession(() => post({ action: "search", query: q })); } catch (e) { throw new Error(errorText(e)); } } });
       const address = area({ rows: 3, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
-      // The pin was confirmed for the address as it was written then
-      address.addEventListener("change", () => picker.invalidate());
+      // The confirmed pin is the delivery point; the written address only helps the rider, so editing it later
+      // does not ask to confirm the pin again (22/11/2026)
       const locErr = h("p", { class: "err", id: "po-location-err", role: "alert" });
       const locWrap = h("div", { class: "field po-field po-location", role: "group", "aria-labelledby": "po-location-label", "aria-describedby": "po-location-err" },
         h("span", { id: "po-location-label", class: "po-label" }, t("poLocation")), h("p", { class: "note" }, t("poLocationHint")), picker.node, locErr);

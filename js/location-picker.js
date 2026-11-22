@@ -138,8 +138,8 @@ const CDFMap = (() => {
   //   google          { key, mapId } to use Google Maps and its suggestions; omitted or without a key: Leaflet
   //   onChange()      called whenever the chosen point or its confirmation changes
   //   onAddress(text) called with the address of a chosen suggestion (the page may offer it as the written one)
-  // The point only counts once confirmed, and any later change (pin, result, device location, or the
-  // page calling invalidate() because the written address changed) asks for confirmation again.
+  // The point only counts once confirmed, and moving it later (pin, search result, device location) asks for
+  // confirmation again. The search only helps to get near; the confirmed pin is what counts.
   // The device's location is used only when the person presses the button for it.
   //   start           { lat, lng, source, confirmedAt } to open on a point chosen before (a redrawn page)
   function picker({ search, google = null, onChange = () => {}, onAddress = () => {}, start = null }) {
