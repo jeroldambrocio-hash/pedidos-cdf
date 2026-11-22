@@ -2,6 +2,9 @@
 // Add an entry at the top whenever a change reaches the team (one line per change, in plain words, ES and EN).
 // Historical dates follow the Git history; they do not assert production deployment dates.
 const CHANGELOG = [
+  { date: "2026-11-22",
+    es: ["Solicitudes (prueba, aún no publicado): al enviar el formulario, el cliente recibe un enlace privado a su solicitud. Ahí ve que la estamos revisando y, cuando generáis el cobro con PayMongo, el total y el botón para pagar. Vuestro mensaje sigue siendo la vía principal."],
+    en: ["Requests (test, not published yet): after sending the form, the customer gets a private link to their request. It shows that we are reviewing it and, once you create the PayMongo charge, the total and the button to pay. Your message is still the main way."] },
   { date: "2026-11-21",
     es: ["Solicitudes (prueba, aún no publicado): «Cobrar con PayMongo». Pones el precio, el cliente recibe un enlace y paga con GCash, Maya, tarjeta o QR Ph; al confirmarse el pago la solicitud se acepta y el pedido se crea solo, con el pago apuntado."],
     en: ["Requests (test, not published yet): “Charge with PayMongo”. You set the price, the customer gets a link and pays with GCash, Maya, card or QR Ph; once the payment is confirmed the request is accepted and the order is created by itself, with the payment recorded."] },

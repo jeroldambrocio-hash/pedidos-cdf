@@ -17,8 +17,8 @@ url_of(){ for _ in $(seq 1 60); do u=$(grep -o 'https://[a-z0-9-]*\.trycloudflar
 tunnel http://localhost:54321 "$LOGS/api.log"; tunnel http://localhost:4335 "$LOGS/web.log"
 API=$(url_of "$LOGS/api.log"); WEB=$(url_of "$LOGS/web.log")
 # The function's settings: keep the PayMongo TEST keys, point the return pages and allowed site at the shared link
-grep -vE '^(CDF_APP_URL|CDF_PAY_ORIGINS)=' .secrets/functions.env > "$LOGS/functions.env"
-printf 'CDF_APP_URL=%s\nCDF_PAY_ORIGINS=%s,http://localhost:4334,http://localhost:4335\n' "$WEB" "$WEB" >> "$LOGS/functions.env"
+grep -vE '^(CDF_APP_URL|CDF_PAY_ORIGINS|PUBLIC_ORDER_ORIGINS)=' .secrets/functions.env > "$LOGS/functions.env"
+printf 'CDF_APP_URL=%s\nCDF_PAY_ORIGINS=%s,http://localhost:4334,http://localhost:4335\nPUBLIC_ORDER_ORIGINS=%s,http://localhost:4334,http://localhost:4335\n' "$WEB" "$WEB" "$WEB" >> "$LOGS/functions.env"
 docker rm -f supabase_edge_runtime_cdf-paymongo-test >/dev/null 2>&1 || true   # a runtime left from an earlier run blocks a new one
 npx -y supabase@2.122.1 functions serve --env-file "$LOGS/functions.env" > "$LOGS/functions.log" 2>&1 & PIDS+=($!)
 PORT=4335 CDF_TEST_API="$API" node scripts/serve-test.mjs > "$LOGS/web-server.log" 2>&1 & PIDS+=($!)

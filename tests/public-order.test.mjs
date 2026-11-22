@@ -316,15 +316,23 @@ const jpg = fixture("gps.jpg");
   const full = body({ description: "" }), sent = await send(full, { session: s });
   assert.equal(sent.status, 200); assert.equal(sent.received, true); assert.equal(typeof sent.ref, "number"); assert.equal(sent.shared_number, true);
   assert.equal((await rows("select description from public.cdf_order_requests where ref=$1", [sent.ref]))[0].description, "", "a photo-only request keeps the description empty");
-  assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "shared_number", "status"], "the visitor learns the reference and its format");
-  // The same request again (the answer got lost): the same reference, nothing new
-  assert.equal((await send(full, { session: s })).ref, sent.ref);
+  assert.deepEqual(Object.keys(sent).sort(), ["cors", "received", "ref", "shared_number", "status", "status_token"], "the visitor learns the reference, its format and their private link");
+  assert.match(sent.status_token, /^[A-Za-z0-9_-]{40,80}$/);
+  const status = async (tok) => (await rows("select public.cdf_request_status_view($1) v", [sha(tok)]))[0].v;
+  assert.equal((await status(sent.status_token)).ref, sent.ref, "the private link finds the request");
+  assert.equal((await status(sent.status_token)).status, "received"); assert.equal((await status(sent.status_token)).pay, null);
+  assert.equal((await rows("select count(*)::int n from public.cdf_request_access where token_hash = $1", [sent.status_token]))[0].n, 0, "only its hash is stored");
+  assert.equal((await rows("select public.cdf_request_access_set((select id from public.cdf_order_requests where ref=$1), $2, $3) r", [sent.ref, sha(other), sha("x")]))[0].r, false, "another session cannot get a link to it");
+  // The same request again (the answer got lost): the same reference, nothing new, a new private link
+  const resent = await send(full, { session: s });
+  assert.equal(resent.ref, sent.ref); assert.notEqual(resent.status_token, sent.status_token);
+  assert.equal(await status(sent.status_token), null, "the earlier link stops working"); assert.equal((await status(resent.status_token)).ref, sent.ref);
   assert.equal((await send({ ...full, description: "Something else entirely" }, { session: s })).status, 409);
   assert.equal((await rows("select count(*)::int n from public.cdf_order_requests"))[0].n, 1);
   assert.equal((await rows("select count(*)::int n from public.cdf_request_files where request_id is not null"))[0].n, refs.length + 1);
   assert.equal((await rows("select count(*)::int n from public.cdf_orders"))[0].n, 0, "a request is not an order");
   assert.equal((await rows("select count(*)::int n from net.calls where body->>'kind' = 'request'"))[0].n, 1, "only the valid request sends a notice");
-  ok("A complete request is stored once with its photos and announced once; sent again it gets the same reference; it creates no order");
+  ok("A complete request is stored once with its photos and announced once; sent again it gets the same reference; it creates no order; the visitor gets a private link to it (only its hash kept)");
 
   // ---------- limits and expiry ----------
   await db.exec("update public.cdf_upload_sessions set expires_at = now() - interval '1 minute'");

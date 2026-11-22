@@ -31,7 +31,7 @@
     address: "", description: "", special_requests: "", card_message: "", payment_method: "", pickup_branch: "" };
   const files = { reference: [], payment_proof: [] }; // { id, name, url, state: "sending" | "ready" | "failed", blob, file, error }
   let view = CFG.features?.publicOrder === true ? "form" : "off", place = null, picker = null, session = null, sessionWait = null;
-  let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "";
+  let requestKey = crypto.randomUUID(), sending = false, touched = false, topError = "", doneRef = "", doneLink = "";
 
   // ---------- server ----------
   const headers = (extra = {}) => ({ ...(CFG.anonKey ? { apikey: CFG.anonKey, Authorization: "Bearer " + CFG.anonKey } : {}), ...(session ? { "x-cdf-session": session } : {}), ...extra });
@@ -419,6 +419,8 @@
       try {
         const answer = await withSession(() => post({ action: "submit", ...p }));
         doneRef = answer?.ref ? (answer.shared_number ? "#" + String(answer.ref).padStart(4, "0") : "R" + answer.ref) : "";
+        // With PayMongo on: their own page to come back to (the total and the button to pay appear there)
+        doneLink = CFG.features?.paymongo === true && /^[A-Za-z0-9_-]{30,80}$/.test(answer?.status_token || "") ? location.origin + "/solicitud.html#" + answer.status_token : "";
         view = "done"; touched = false;
         // Nothing of the request stays in the page once it is sent
         for (const k of Object.keys(v)) v[k] = typeof v[k] === "boolean" ? false : k === "mode" ? "delivery" : "";
@@ -466,7 +468,11 @@
     else if (view === "done") {
       root.replaceChildren(h("div", { class: "card po-done", role: "status" }, h("h2", { tabIndex: -1 }, t("poDoneTitle")),
         doneRef ? h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, doneRef)) : null,
-        h("p", {}, t("poDone")), h("p", { class: "note" }, t("poDoneNote"))));
+        h("p", {}, t("poDone")), h("p", { class: "note" }, t("poDoneNote")),
+        doneLink ? [h("a", { class: "btn primary block", href: doneLink }, t("rsOpen")), h("p", { class: "note" }, t("rsSave")),
+          h("button", { class: "btn block", type: "button", onclick: async (e) => {
+            try { await navigator.clipboard.writeText(doneLink); e.target.textContent = t("rsCopied"); setTimeout(() => { e.target.textContent = t("rsCopy"); }, 2000); } catch { /* the button above still opens it */ }
+          } }, t("rsCopy"))] : null));
       root.querySelector("h2").focus();
     } else if (view === "review") renderReview();
     else renderForm();

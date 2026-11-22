@@ -113,7 +113,15 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       if (res.data?.previous_checkout) await expire(d, key, live, res.data.previous_checkout);
       return json(200, { cancelled: !!res.data?.cancelled }, cors);
     }
-    // ---------- customer (private link) ----------
+    // ---------- customer: their request's own link (solicitud.html) ----------
+    if (action === "status") {
+      if (!/^[A-Za-z0-9_-]{30,80}$/.test(String(body.token || ""))) throw new Fail(404, "cdf_request_link_gone");
+      const s = await d.service("cdf_request_status_view", { p_token_hash: await d.sha256(body.token) });
+      if (s.error) throw new Fail(503, "server");
+      if (!s.data) throw new Fail(404, "cdf_request_link_gone");
+      return json(200, statusView(s.data), cors);
+    }
+    // ---------- customer (private payment link) ----------
     if (!["view", "pay", "check"].includes(action)) throw new Fail(400, "action");
     if (!/^[A-Za-z0-9_-]{30,80}$/.test(String(body.token || ""))) throw new Fail(404, "cdf_paylink_gone");
     const v = await d.service("cdf_paylink_view", { p_token_hash: await d.sha256(body.token) });
@@ -161,6 +169,11 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
 const publicView = (v: any) => ({ status: v.status, amount: v.amount, paidAt: v.paid_at, method: v.method, ref: v.shared_number ? "#" + String(v.ref).padStart(4, "0") : "R" + v.ref,
   requestStatus: v.request_status, lang: v.lang, date: v.date, slot: v.slot, mode: v.mode, receiver: v.receiver, pickupBranch: v.pickup_branch,
   replaced: !!v.replaced, checkoutOpenUntil: v.checkout_url ? v.checkout_expires_at : null });
+
+// What the request page may see: where it stands and, if a price is ready, the payment link's secret (same customer)
+const statusView = (v: any) => ({ ref: v.shared_number ? "#" + String(v.ref).padStart(4, "0") : "R" + v.ref, status: v.status, lang: v.lang,
+  date: v.date, slot: v.slot, mode: v.mode, receiver: v.receiver, pickupBranch: v.pickup_branch,
+  pay: v.pay ? { status: v.pay.status, amount: v.pay.amount, paidAt: v.pay.paid_at, ...(v.pay.token ? { token: v.pay.token } : {}) } : null });
 
 async function settle(d: Deps, view: any, session: any, live: boolean) {
   const p = paidPayment(session, view.id, view.amount, live);

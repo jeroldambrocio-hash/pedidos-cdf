@@ -249,8 +249,16 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       }
       // Notices that did not get through earlier go again now; never holds up the answer
       await d.rpc("cdf_outbox_retry", {}).catch(() => null);
-      const { ref, shared_number } = saved.data as { ref: number; shared_number?: boolean };
-      return json({ received: true, ref, ...(shared_number ? { shared_number } : {}) });
+      const { id, ref, shared_number } = saved.data as { id?: string; ref: number; shared_number?: boolean };
+      // The customer's private link to come back to this request (solicitud.html#…). Optional: if it cannot be made
+      // (e.g. the database does not have it yet) the request is still received as before.
+      let statusToken: string | undefined;
+      if (id) {
+        const token = d.randomToken();
+        const made = await d.rpc("cdf_request_access_set", { p_request: id, p_session_hash: hash, p_token_hash: await d.sha256(token) }).catch(() => null);
+        if (made && !made.error && made.data === true) statusToken = token;
+      }
+      return json({ received: true, ref, ...(shared_number ? { shared_number } : {}), ...(statusToken ? { status_token: statusToken } : {}) });
     }
     return no("invalid");
   } catch (e) {

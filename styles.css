@@ -2535,4 +2535,5 @@ input[type="date"]::-webkit-date-and-time-value, input[type="time"]::-webkit-dat
 @keyframes pay-pop { from { transform: scale(.85); opacity: 0; } }
 [data-motion="reduced"] .pay-wait, [data-motion="reduced"] .pay-check { animation: none; }
 
+a.btn { text-decoration: none; } /* links shown as buttons (request page, form receipt) */
 .req-tag.paying { background: var(--primary-tint); color: var(--primary-soft-text); }
