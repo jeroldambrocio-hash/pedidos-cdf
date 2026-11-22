@@ -150,7 +150,8 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
       const token = d.randomToken();
       const made = await d.rpc("cdf_upload_session_open", { p_token_hash: await d.sha256(token), p_ip_hash: ipHash });
       if (made.error) return failure("session_open", made.error);
-      return json({ session: token, expires_in: 2 * HOUR });
+      // pay_later: the form asks for no payment proof or method (PayMongo flow). The page follows this, not its config.
+      return json({ session: token, expires_in: 2 * HOUR, pay_later: d.env("PUBLIC_ORDER_PAY_LATER") === "on" });
     }
 
     // ---- shops: public information (the shops themselves), so no session is needed; only a rate limit

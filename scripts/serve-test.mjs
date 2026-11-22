@@ -4,13 +4,17 @@
 //   CDF_TEST_API=https://xxxx.trycloudflare.com node scripts/serve-test.mjs   (when shared through a tunnel)
 import { createServer } from "node:http";
 import { readFileSync, existsSync, statSync } from "node:fs";
-import { join, extname, resolve } from "node:path";
+import { join, extname, resolve, relative, isAbsolute } from "node:path";
 
 const root = resolve(new URL("..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"));
 const port = Number(process.env.PORT || 4334);
-const env = Object.fromEntries(readFileSync(join(root, ".secrets/local-supabase.env"), "utf8").split(/\r?\n/).filter(Boolean)
-  .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).replace(/^"|"$/g, "")]));
-const api = process.env.CDF_TEST_API || env.API_URL;
+const env = (() => {
+  try {
+    return Object.fromEntries(readFileSync(join(root, ".secrets/local-supabase.env"), "utf8").split(/\r?\n/).filter(Boolean)
+      .map((l) => [l.slice(0, l.indexOf("=")), l.slice(l.indexOf("=") + 1).replace(/^"|"$/g, "")]));
+  } catch { return {}; }   // only the server needs it (checked below); the tests import servable() alone
+})();
+const api = process.env.CDF_TEST_API || env.API_URL || "";
 if (/nskbtxagdkvkxqneoucv/.test(api)) throw new Error("Refusing to point the test copy at production");
 
 // The demo's own Google Maps browser key (Google Cloud → "CDF demo navegador": only localhost:4334/4335 and
@@ -32,14 +36,31 @@ function testConfig() {
 }
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".json": "application/json",
   ".webmanifest": "application/manifest+json", ".png": "image/png", ".jpg": "image/jpeg", ".webp": "image/webp", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".woff2": "font/woff2" };
+// Never served, whatever the letters' case (Windows ignores it) or the way the path is written: anything under a
+// folder or file starting with "." (.secrets, .git, .env…), Windows short names (SECRET~1), the server-side and
+// test folders, and any file type the site does not use. This server may be shared through a public tunnel.
+const HIDDEN = new Set(["supabase", "scripts", "tests", "node_modules", ".test-tools"]);
+export function servable(rootDir, path) {
+  const file = resolve(join(rootDir, path));
+  const rel = relative(rootDir, file);
+  if (!rel || rel.startsWith("..") || isAbsolute(rel)) return null;
+  const parts = rel.split(/[\\/]/);
+  if (parts.some((p) => p.startsWith(".") || p.includes("~") || p.includes(":")) || HIDDEN.has(parts[0].toLowerCase())) return null;
+  if (!types[extname(file).toLowerCase()]) return null;
+  return file;
+}
 
-createServer((req, res) => {
-  let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
-  if (path === "/config.js") { res.writeHead(200, { "Content-Type": types[".js"], "Cache-Control": "no-store" }); return res.end(testConfig()); }
-  if (path === "/") path = "/index.html";
-  else if (/^\/p\/[^/]+$/.test(path)) path = "/seguimiento.html";
-  const file = resolve(join(root, path));
-  if (!file.startsWith(root) || /[\\/]\.(secrets|git)/.test(file) || !existsSync(file) || !statSync(file).isFile()) { res.writeHead(404); return res.end("Not found"); }
-  res.writeHead(200, { "Content-Type": types[extname(file)] || "application/octet-stream", "Cache-Control": "no-cache" });
-  res.end(readFileSync(file));
-}).listen(port, () => console.log(`Test copy on http://localhost:${port} → Supabase ${api}`));
+if (process.argv[1] && resolve(process.argv[1]) === resolve(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"))) {
+  if (!api || !env.ANON_KEY) throw new Error("Start the local Supabase first: bash scripts/supabase-local.sh (.secrets/local-supabase.env is missing)");
+  createServer((req, res) => {
+    let path;
+    try { path = decodeURIComponent(new URL(req.url, "http://x").pathname); } catch { res.writeHead(400); return res.end("Bad request"); }
+    if (path === "/config.js") { res.writeHead(200, { "Content-Type": types[".js"], "Cache-Control": "no-store" }); return res.end(testConfig()); }
+    if (path === "/") path = "/index.html";
+    else if (/^\/p\/[^/]+$/.test(path)) path = "/seguimiento.html";
+    const file = servable(root, path);
+    if (!file || !existsSync(file) || !statSync(file).isFile()) { res.writeHead(404); return res.end("Not found"); }
+    res.writeHead(200, { "Content-Type": types[extname(file).toLowerCase()], "Cache-Control": "no-cache" });
+    res.end(readFileSync(file));
+  }).listen(port, () => console.log(`Test copy on http://localhost:${port} → Supabase ${api}`));
+}

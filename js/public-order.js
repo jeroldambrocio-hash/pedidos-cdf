@@ -8,8 +8,9 @@
   const API = PO.endpoint || `${CFG.url}/functions/v1/cdf-public-order`;
   const SLOTS = PO.slots || ["09:00 - 11:00", "11:00 - 13:00", "13:00 - 15:00", "15:00 - 17:00", "17:00 - 19:00", "19:00 - 21:00"];
   const METHODS = ["gcash", "maya", "bank", "cash", "other"];
-  // PayMongo flow: the customer pays later with the team's link, so no proof and no method here (the server agrees)
-  const PAY_LATER = (window.CDF_CONFIG || {}).features?.paymongo === true;
+  // PayMongo flow: the customer pays later with the team's link, so no proof and no method here. The server has the
+  // last word (PUBLIC_ORDER_PAY_LATER, told with the session): if the two disagree the form follows the server.
+  let PAY_LATER = (window.CDF_CONFIG || {}).features?.paymongo === true;
   const MAX = { reference: 6, payment_proof: 1 }, DAYS_AHEAD = 90, SLOT_LEAD = PO.slotLeadMinutes ?? 60, SEND_BYTES = 3 * 1024 * 1024, PICK_BYTES = 25 * 1024 * 1024;
   const root = document.getElementById("orderRoot");
   // The shop's day (Manila, UTC+8 all year), wherever the buyer is
@@ -86,6 +87,7 @@
   const openSession = () => (sessionWait ||= (async () => {
     const data = await post({ action: "session", captcha: await captcha() });
     session = data.session;
+    if (typeof data.pay_later === "boolean" && data.pay_later !== PAY_LATER) { PAY_LATER = data.pay_later; if (view === "form") render(); }
   })().finally(() => { sessionWait = null; }));
   // Runs fn with a session; if the server no longer knows it (expired), starts a new one once.
   const withSession = async (fn) => {

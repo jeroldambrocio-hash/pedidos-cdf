@@ -28,7 +28,7 @@
         h("p", {}, t("plPaid", { ref: v.ref })),
         h("p", { class: "note" }, t("plPaidOn", { date: new Intl.DateTimeFormat(locale(), { day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }).format(new Date(v.paidAt)), amount: money(v.amount) })));
     } else {
-      const open = v.status === "open" && ["received", "in_review"].includes(v.requestStatus);
+      const open = v.status === "open" && !v.review && ["received", "in_review"].includes(v.requestStatus);
       card.append(h("p", { class: "po-ref" }, t("poRef"), " ", h("b", {}, v.ref)),
         h("dl", { class: "pay-dl" },
           h("div", {}, h("dt", {}, t("plFor", { name: v.receiver })), h("dd", {}, day(v.date) + " · " + formatSlot12(v.slot))),
@@ -42,7 +42,8 @@
         if (back === "paid") card.append(h("p", { class: "pay-wait", role: "status" }, checks < 15 ? t("plChecking") : t("plStillChecking")),
           checks >= 15 ? h("button", { class: "btn block", type: "button", onclick: () => { checks = 0; poll(); } }, t("plCheck")) : null);
         if (back === "cancelled") card.append(h("p", { class: "note" }, t("plCancelledBack")));
-      } else card.append(h("p", { class: "err" }, v.replaced ? t("plReplaced") : v.status === "cancelled" ? t("plCancelled") : t("plClosed")));
+      } else if (v.review) card.append(h("p", { class: "pay-wait", role: "status" }, t("plReview")));
+      else card.append(h("p", { class: "err" }, v.replaced ? t("plReplaced") : v.status === "cancelled" ? t("plCancelled") : t("plClosed")));
       if (msg) card.append(h("p", { class: "err", role: "alert" }, msg));
     }
     if (CFG.testCopy || /test/i.test(CFG.payMode || "")) card.append(h("p", { class: "note pay-test" }, t("plTest")));
@@ -68,7 +69,7 @@
   // Back from PayMongo: ask the server to check (the webhook usually got there first)
   async function poll() {
     await load(checks === 0 ? "check" : "view");
-    if (view?.status === "paid" || back !== "paid") return;
+    if (view?.status === "paid" || view?.review || back !== "paid") return;
     checks++; render();
     if (checks < 15) setTimeout(poll, checks < 5 ? 2000 : 4000);
     else if (checks === 15) load("check");

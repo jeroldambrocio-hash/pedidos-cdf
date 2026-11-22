@@ -21,7 +21,7 @@ export type Deps = {
 
 const json = (status: number, body: unknown, headers: Record<string, string> = {}) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json", ...headers } });
-class Fail extends Error { constructor(public status: number, message: string) { super(message); } }
+class Fail extends Error { status: number; constructor(status: number, message: string) { super(message); this.status = status; } }
 const METHOD_NAME: Record<string, string> = { gcash: "gcash", paymaya: "maya", card: "card", qrph: "other", dob: "bank", billease: "other" };
 
 export function verifySignature(raw: string, header: string | null, secret: string, nowMs: number, live: boolean, hmac: Deps["hmac"]) {
@@ -104,14 +104,17 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
         const token = d.randomToken();
         res = await rpc("cdf_request_paylink", { p_id: body.request_id, p_token: token, p_key: body.key, p_order: body.order, p_price: price });
         if (res.error) throw new Fail(res.error.code === "42501" ? 403 : 409, res.error.message);
-        if (res.data?.previous_checkout) await expire(d, key, live, res.data.previous_checkout);
+        // The old PayMongo page is closed there too; if PayMongo does not answer, the admin is told (a payment on it
+        // would still be caught as "paid after cancel" and every admin would hear it)
+        const closed = !res.data?.previous_checkout || await expire(d, key, live, res.data.previous_checkout);
         const app = (d.env("CDF_APP_URL") || "").replace(/\/$/, "");
-        return json(200, { link: app + "/pagar.html#" + token, amount: res.data.amount, payment: res.data.payment }, cors);
+        return json(200, { link: app + "/pagar.html#" + token, amount: res.data.amount, payment: res.data.payment, ...(closed ? {} : { warning: "expire_failed" }) }, cors);
       }
+      if (!/^[0-9a-f-]{36}$/.test(String(body.request_id))) throw new Fail(400, "cdf_invalid_payment");
       res = await rpc("cdf_request_paylink_cancel", { p_id: body.request_id });
       if (res.error) throw new Fail(res.error.code === "42501" ? 403 : 409, res.error.message);
-      if (res.data?.previous_checkout) await expire(d, key, live, res.data.previous_checkout);
-      return json(200, { cancelled: !!res.data?.cancelled }, cors);
+      const closed = !res.data?.previous_checkout || await expire(d, key, live, res.data.previous_checkout);
+      return json(200, { cancelled: !!res.data?.cancelled, ...(closed ? {} : { warning: "expire_failed" }) }, cors);
     }
     // ---------- customer: their request's own link (solicitud.html) ----------
     if (action === "status") {
@@ -135,13 +138,19 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
     }
     if (action === "pay") {
       if (view.status !== "open") throw new Fail(409, view.status === "paid" ? "cdf_paylink_paid" : "cdf_paylink_cancelled");
+      if (view.review) throw new Fail(409, "cdf_paylink_review");                       // a payment is being checked by the team
       if (view.request_status !== "received" && view.request_status !== "in_review") throw new Fail(409, "cdf_paylink_cancelled");
       if (!view.checkout_url) {
-        // The previous page ran out: make sure it was not paid in the meantime, then close it at PayMongo
+        // The previous page ran out: make sure it was not paid in the meantime, then close it at PayMongo. A new page
+        // is opened only once the old one is surely closed (otherwise both could be paid).
         if (view.checkout_id) {
           const s = await getSession(d, key, live, view.checkout_id);
-          if (s) { const r = await settle(d, view, s, live); if (r.result === "paid" || r.result === "already") return json(200, { paid: true }, cors); }
-          await expire(d, key, live, view.checkout_id);
+          if (s) {
+            const r = await settle(d, view, s, live);
+            if (r.result === "paid" || r.result === "already") return json(200, { paid: true }, cors);
+            if (r.result === "issue") throw new Fail(409, "cdf_paylink_review");
+            if (s.attributes?.status !== "expired" && !(await expire(d, key, live, view.checkout_id))) throw new Fail(502, "cdf_paymongo_unreachable");
+          }
         }
         const app = (d.env("CDF_APP_URL") || "").replace(/\/$/, ""), back = app + "/pagar.html#" + body.token;
         const methods = (d.env("PAYMONGO_METHODS") || "gcash,paymaya,card,qrph").split(",").map((s) => s.trim()).filter(Boolean);
@@ -151,8 +160,15 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
           success_url: back.replace("#", "?back=paid#"), cancel_url: back.replace("#", "?back=cancelled#"),
         });
         const ttl = Math.max(10, Number(d.env("CHECKOUT_TTL_MINUTES") || 60));
-        const ok = await d.service("cdf_paylink_checkout", { p_payment: view.id, p_checkout_id: session.id, p_url: session.attributes.checkout_url, p_expires: new Date(d.now() + ttl * 60e3).toISOString() });
-        if (ok.error || !ok.data) { await expire(d, key, live, session.id); throw new Fail(409, "cdf_paylink_cancelled"); }
+        const ok = await d.service("cdf_paylink_checkout", { p_payment: view.id, p_prev: view.checkout_id ?? null, p_checkout_id: session.id, p_url: session.attributes.checkout_url, p_expires: new Date(d.now() + ttl * 60e3).toISOString() });
+        if (ok.error || !ok.data) {
+          // Another tap opened a page at the same moment (or the link closed): this one is closed, the other one is used
+          await expire(d, key, live, session.id);
+          if (ok.error) throw new Fail(503, "server");
+          const now = (await d.service("cdf_paylink_view", { p_token_hash: await d.sha256(body.token) })).data;
+          if (now?.status === "open" && !now.review && now.checkout_url) return json(200, { url: now.checkout_url }, cors);
+          throw new Fail(409, now?.review ? "cdf_paylink_review" : "cdf_paylink_cancelled");
+        }
         return json(200, { url: session.attributes.checkout_url }, cors);
       }
       return json(200, { url: view.checkout_url }, cors);
@@ -168,7 +184,7 @@ export async function handle(req: Request, d: Deps): Promise<Response> {
 // What the customer's page may see
 const publicView = (v: any) => ({ status: v.status, amount: v.amount, paidAt: v.paid_at, method: v.method, ref: v.shared_number ? "#" + String(v.ref).padStart(4, "0") : "R" + v.ref,
   requestStatus: v.request_status, lang: v.lang, date: v.date, slot: v.slot, mode: v.mode, receiver: v.receiver, pickupBranch: v.pickup_branch,
-  replaced: !!v.replaced, checkoutOpenUntil: v.checkout_url ? v.checkout_expires_at : null });
+  replaced: !!v.replaced, review: !!v.review, checkoutOpenUntil: v.checkout_url ? v.checkout_expires_at : null });
 
 // What the request page may see: where it stands and, if a price is ready, the payment link's secret (same customer)
 const statusView = (v: any) => ({ ref: v.shared_number ? "#" + String(v.ref).padStart(4, "0") : "R" + v.ref, status: v.status, lang: v.lang,
@@ -178,7 +194,13 @@ const statusView = (v: any) => ({ ref: v.shared_number ? "#" + String(v.ref).pad
 async function settle(d: Deps, view: any, session: any, live: boolean) {
   const p = paidPayment(session, view.id, view.amount, live);
   if ("none" in p) return { result: "unpaid" };
-  if ("error" in p) throw new Error("payment check: " + p.error);
+  // PayMongo's answer will not change on a retry: recorded for the team (and every admin hears it), never a 503
+  // that PayMongo would retry until it turns the webhook off
+  if ("error" in p) {
+    const r = await d.service("cdf_paylink_issue", { p_payment: view.id, p_issue: "payment_check_" + p.error, p_key: String(session?.id || "") || null });
+    if (r.error) throw new Error("issue: " + r.error.message);
+    return r.data;
+  }
   const r = await d.service("cdf_paylink_settle", { p_payment: view.id, p_payment_id: p.id, p_amount: p.amount, p_method: p.method, p_paid_at: p.paidAt });
   if (r.error) throw new Error("settle: " + r.error.message);
   return r.data;
@@ -186,8 +208,17 @@ async function settle(d: Deps, view: any, session: any, live: boolean) {
 async function getSession(d: Deps, key: string, live: boolean, id: string) {
   try { return await paymongo(d, key, live, "/v1/checkout_sessions/" + id, "GET"); } catch (e) { if ((e as any).status === 404) return null; throw e; }
 }
+// true when the page is closed at PayMongo (or no longer exists there)
 async function expire(d: Deps, key: string, live: boolean, id: string) {
-  try { await paymongo(d, key, live, "/v1/checkout_sessions/" + id + "/expire", "POST"); } catch (e) { console.warn("expire", id, (e as Error).message); }
+  try { await paymongo(d, key, live, "/v1/checkout_sessions/" + id + "/expire", "POST"); return true; }
+  catch (e) {
+    if ((e as any).status === 404) return true;
+    // Already closed (it ran out, or was paid)? Then nothing is left to close
+    const s = await getSession(d, key, live, id).catch(() => undefined);
+    if (s === null || s?.attributes?.status === "expired") return true;
+    console.warn("expire", id, (e as Error).message);
+    return false;
+  }
 }
 async function paymongo(d: Deps, key: string, live: boolean, path: string, method: string, body?: unknown) {
   if (!(live ? /^sk_live_[A-Za-z0-9]+$/ : /^sk_test_[A-Za-z0-9]+$/).test(key)) throw Object.assign(new Error("PayMongo key missing for this mode"), { provider: true });

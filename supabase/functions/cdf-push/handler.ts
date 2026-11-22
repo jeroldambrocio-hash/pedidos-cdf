@@ -146,6 +146,16 @@ export async function handlePush(req: Request, d: PushDeps): Promise<Response> {
     payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Solicitud caducada sin revisar · " : "Request expired unreviewed · ") + requestReference(r),
       body: lang === "es" ? "Pasó su día sin aceptarla ni rechazarla" : "Its day passed before anyone accepted or rejected it",
       url: APP_URL_ + "/?request=" + r.id, tag: "request-" + r.id });
+  } else if (body.kind === "pay_issue") {
+    // PayMongo took a payment that could not be applied (a second payment, after the link was cancelled, another
+    // amount…; migration 20261122140000): every admin hears it, whatever the request's state now
+    const { data: r, error: rErr } = await service.from("cdf_order_requests").select("id,ref,status,shared_number").eq("id", body.id).maybeSingle();
+    if (rErr) return json({ sent: 0, pending: true }, 503); // looked up again on the next retry
+    if (!r) return obsolete();
+    to = team.filter((p) => p.role === "admin").map((p) => p.email);
+    payloadFor = (lang) => ({ kind: "order", title: (lang === "es" ? "Pago de PayMongo para revisar · " : "PayMongo payment to check · ") + requestReference(r),
+      body: lang === "es" ? "Llegó un pago que no se pudo aplicar. Ábrela en el panel" : "A payment arrived that could not be applied. Open it in the panel",
+      url: APP_URL_ + "/?request=" + r.id, tag: "pay-issue-" + r.id });
   } else return json({ error: "kind" }, 400);
 
   // A notice from the outbox is confirmed only when every device got it or no longer exists (send.ts)

@@ -438,19 +438,35 @@ async function priceRequest(r) {
     if (res.error) return res.error;
     await closeSheet(true);
     showPayLink(r, res.link, res.amount);
+    if (res.warning) toast(t("plExpireWarn"), { type: "error" });
     loadRequests();
   }, { dirty: () => !!iFlowers.value || !!iManual.value });
 }
 
 function moreRequestOptions(r) {
-  miniSheet(t("prMore"), [el("p", { class: "note", style: "margin:0" }, t("prMoreHint"))], t("prAcceptNoPay"), async () => { await closeSheet(true); acceptRequest(r); });
+  miniSheet(t("prMore"), [el("p", { class: "note", style: "margin:0" }, t("prMoreHint"))], t("prAcceptNoPay"), async () => {
+    // Accepting without online payment: the open payment link (and its PayMongo page) is closed first
+    const dropped = await dropPayLink(r); if (dropped) return dropped;
+    await closeSheet(true); acceptRequest(r);
+  });
+}
+
+// Before a request is closed another way (rejected, accepted without online payment): its open link is cancelled
+// and its PayMongo page closed, so the customer can no longer pay for it. The database cancels the link too, but
+// only this call can close the page at PayMongo. Returns an error text, or nothing when done.
+async function dropPayLink(r) {
+  if (!pmOn() || !RQ.paying?.has(r.id)) return;
+  const res = await payLinkCall({ action: "cancel", request_id: r.id });
+  if (res.error) return t("plDropFail");
+  RQ.paying.delete(r.id);
+  if (res.warning) toast(t("plExpireWarn"), { type: "error" });
 }
 
 async function cancelPayLink(r) {
   if (!(await askConfirm(t("plCancelAsk"), t("plCancel")))) return;
   const res = await payLinkCall({ action: "cancel", request_id: r.id });
   if (res.error) { toast(res.error, { type: "error" }); return; }
-  toast(t("plCancelled"));
+  toast(res.warning ? t("plExpireWarn") : t("plCancelledToast"), res.warning ? { type: "error" } : undefined);
   if (await closeSheet()) openRequest(r);
 }
 
@@ -458,6 +474,8 @@ function rejectRequest(r) {
   const gen = sessionNow();
   const why = el("textarea", { id: "req-reason", rows: 3, maxlength: 500, placeholder: t("reqReasonPh") });
   miniSheet(t("reqRejectTitle", { ref: reqRef(r) }), [el("p", { class: "note", style: "margin:0" }, t("reqRejectHint")), field(t("reqReason"), why)], t("reqReject"), async () => {
+    const dropped = await dropPayLink(r); if (dropped) return dropped;
+    if (stale(gen)) return;
     const { data, error } = await sb.rpc("cdf_request_reject", { p_id: r.id, p_reason: why.value.trim() });
     if (stale(gen)) return;
     if (error) return reqError(error);
