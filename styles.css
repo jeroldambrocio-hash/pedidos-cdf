@@ -2556,3 +2556,7 @@ a.btn { text-decoration: none; } /* links shown as buttons (request page, form r
 .pr-total b { font-size: 1.5rem; font-variant-numeric: tabular-nums; }
 .pr-total small { flex-basis: 100%; }
 .pr-link-amount { margin: 0; font-size: 1.25rem; font-weight: 600; }
+.pr-desc { margin: 6px 0 0; white-space: pre-wrap; }
+.pr-photos .photo-grid { grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); }
+.pr-photos .photo-grid .pic { width: 100%; height: auto; aspect-ratio: 1; }
+.pr-photos .photo-grid .pic img { width: 100%; height: 100%; object-fit: cover; }

@@ -395,9 +395,13 @@ async function priceRequest(r) {
   }
   iFlowers.addEventListener("input", paint); iManual.addEventListener("input", paint);
   const intro = el("div", { class: "pr-req" }, el("b", {}, r.buyer_name + (r.receiver_name && r.receiver_name !== r.buyer_name ? " → " + r.receiver_name : "")),
-    el("span", { class: "note" }, reqWhen(r)), el("span", { class: "note" }, pickup ? t("reqPickup") + " · " + (r.pickup_branch || "") : r.address || ""));
+    el("span", { class: "note" }, reqWhen(r)), el("span", { class: "note" }, pickup ? t("reqPickup") + " · " + (r.pickup_branch || "") : r.address || ""),
+    // What to price: the customer's words and reference photos (tap a photo to see it big)
+    r.description ? el("p", { class: "msg pr-desc" }, r.description) : null,
+    r.special_requests ? el("p", { class: "note pr-desc" }, t("reqSpecial") + ": " + r.special_requests) : null);
   paint();
-  miniSheet(t("prTitle", { ref: reqRef(r) }), [intro, field(t("chargeFlowers"), peso(iFlowers)),
+  const photos = requestPhotos(r); photos.classList.add("pr-photos");
+  miniSheet(t("prTitle", { ref: reqRef(r) }), [intro, photos, field(t("chargeFlowers"), peso(iFlowers)),
     el("div", { class: "field" }, el("span", { class: "label pr-ship-head" }, el("span", {}, t(pickup ? "prPickupFrom" : "prShip")), vehSeg), list,
       !pickup && !point ? el("small", { class: "note" }, t("prNoPoint")) : null),
     manualBox, totalOut, el("p", { class: "note", style: "margin:0" }, t("prHint"))], t("prCreate"), async () => {
