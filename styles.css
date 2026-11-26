@@ -2679,10 +2679,10 @@ a.btn { text-decoration: none; } /* links shown as buttons (request page, form r
 .po-date-controls:focus-within { border-color: var(--primary-text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
 .po-field.invalid .po-date-controls { border-color: var(--fail); }
 .po-date-controls > input, .po-date-controls > input:focus { min-width: 0; border: 0; box-shadow: none; background: transparent; padding-inline-end: 6px; }
-.po-date-controls .po-today { min-height: 36px; padding-inline: 8px; border: 0; background: transparent; white-space: nowrap; }
+.po-date-controls .po-today { min-height: 44px; padding-inline: 8px; border: 0; background: transparent; white-space: nowrap; }
 .po-date-controls .po-today:hover:not(:disabled) { background: var(--surface-hover); }
 .po-summary dt:has(.po-edit-row) { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-.po-summary .po-edit-row { min-height: 36px; }
+.po-summary .po-edit-row { min-height: 44px; }
 .track-current { display: grid; gap: 4px; padding: 14px; border: 1px solid var(--line); border-inline-start: 3px solid var(--prep); border-radius: var(--r-card, 14px); background: var(--surface); }
 .track-current[data-s="ready"] { border-inline-start-color: var(--ready); }
 .track-current[data-s="transit"] { border-inline-start-color: var(--transit); }
