@@ -14,7 +14,7 @@ const h = { apikey: key, Authorization: "Bearer " + key, "Content-Type": "applic
 
 // role: admin = sees Requests (moderator); is_owner = the owner/developer on top of that; vendor = florist; carrier = driver
 const people = [
-  { username: "dueno", name: "Dueño (prueba)", role: "admin", is_owner: true, sees_stats: true },
+  { username: "admin", name: "Admin", role: "admin", is_owner: true, sees_stats: true },
   { username: "moderador", name: "Moderador (prueba)", role: "admin", is_owner: false, sees_stats: false },
   { username: "florista", name: "Florista (prueba)", role: "vendor", branch: "Pasig", pickup_lat: 14.5523, pickup_lng: 121.07725, pickup_address: "Pasig (prueba)" },
   { username: "repartidor", name: "Repartidor (prueba)", role: "carrier" },

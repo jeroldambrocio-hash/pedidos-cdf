@@ -82,6 +82,7 @@ function stop() {
   $("q").value = ""; delete document.body.dataset.role;
   if (S.channel) { sb.removeChannel(S.channel); S.channel = null; }
   if (RQ.channel) { sb.removeChannel(RQ.channel); RQ.channel = null; }
+  $("reqSearch").value = ""; $("reqSearchClear").hidden = true;
   RQ.list = []; RQ.keys = {}; RQ.counts = null; RQ.orders = new Map(); $("tabRequests").hidden = true;
   S.members = []; S.ll = new Map(); S.cap = {}; awayConflicts = [];
   if (typeof llAllChan !== "undefined" && llAllChan) { sb.removeChannel(llAllChan); llAllChan = null; }
@@ -187,6 +188,16 @@ $("tabTeam").onclick = () => setTab("team");
 $("tabStats").onclick = () => setTab("stats");
 $("tabChat").onclick = () => setTab("chat");
 $("tabRequests").onclick = () => { if (reqOn()) setTab("requests"); };
+$("reqSearch").addEventListener("input", () => {
+  $("reqSearchClear").hidden = !$("reqSearch").value;
+  renderRequests();
+});
+$("reqSearchClear").addEventListener("click", () => {
+  const search = $("reqSearch");
+  search.value = "";
+  search.dispatchEvent(new Event("input"));
+  search.focus();
+});
 $("reqFilter").addEventListener("click", (e) => { const b = e.target.closest("button[data-f]"); if (b) setRequestFilter(b.dataset.f); });
 $("reqKind").addEventListener("click", (e) => { const b = e.target.closest("button[data-k]"); if (b) setRequestKind(b.dataset.k); });
 $("statsPeriod").addEventListener("click", (e) => { const b = e.target.closest("button[data-days]"); if (b) { setStatsPeriod(b.dataset.days); } });

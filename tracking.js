@@ -64,21 +64,32 @@ function render() {
     return;
   }
   const isFailed = o.delivery === "Failed";
-  const cur = isFailed ? 3 : o.delivery === "Delivered" ? 3 : o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
+  const pickup = o.pickup === true;
+  const cur = isFailed || o.delivery === "Delivered" ? 3 : !pickup && o.delivery === "In transit" ? 2 : o.status === "Ready" ? 1 : 0;
   const [y, m, d] = o.date.split("-").map(Number);
   const head = h("div", "track-head");
   head.append(h("h2", null, t("order", { num: o.num })), h("div", "meta", cap(new Date(y, m - 1, d).toLocaleDateString(locale(), { weekday: "long", day: "numeric", month: "long" })) + " · " + formatSlot12(o.slot)));
   if (o.for_name) head.append(h("div", "meta", t("forName", { name: o.for_name })));
-  const top = [head];
+  const label = (i) => pickup && i === 1 ? t("trackPickupReady") : pickup && i === 3 ? t("trackCollected") : t("st_" + STEPS[i]);
+  const pickupTitle = isFailed ? t("trackNotCollected") : label(cur);
+  const next = pickup
+    ? t(isFailed ? "trackPickupFailedHint" : cur === 3 ? "trackCollectedHint" : cur >= 1 ? "trackPickupReadyHint" : "trackPickupPrepHint")
+    : t(isFailed ? "failedTxt" : cur === 2 ? "trackDeliveryWindow" : "trackNextDelivery" + cur, { when: formatSlot12(o.slot) });
+  const current = h("div", "track-current");
+  current.dataset.s = isFailed ? "fail" : STEPS[cur];
+  current.append(h("b", null, pickup ? pickupTitle : isFailed ? t("failedTitle") : label(cur)), h("div", "meta", next));
+  if (pickup && o.pickup_branch) current.append(h("div", "meta", t("pickupAt", { shop: o.pickup_branch })));
+  const top = [head, current];
   if (o.bouquet_url) top.push(photo(o.bouquet_url, t("bouquetPhoto"), t("bouquetCaption")));
   if (o.card_message) top.push(h("div", "note", o.card_message));
   const tl = h("ol", "tl");
-  STEPS.forEach((label, i) => {
+  STEPS.forEach((step, i) => {
+    if (pickup && i === 2) return;
     // A failed attempt replaces the last step: in transit is done, delivery didn't happen.
     const isFail = isFailed && i === 3;
     const li = h("li", isFail ? "fail" : i < cur ? "past" : i === cur ? "cur" : "");
-    li.dataset.s = isFail ? "fail" : label;
-    const body = h("div"); body.append(h("b", null, isFail ? t("failedTitle") : t("st_" + label)), h("small", null, isFail ? t("failedTxt") : t("stepTxt")[i]));
+    li.dataset.s = isFail ? "fail" : step;
+    const body = h("div"); body.append(h("b", null, isFail ? (pickup ? t("trackNotCollected") : t("failedTitle")) : label(i)), !pickup ? h("small", null, isFail ? t("failedTxt") : t("stepTxt")[i]) : h("span"));
     if (i === cur) li.setAttribute("aria-current", "step");
     li.append(glyph(i, isFail), body); tl.append(li);
   });

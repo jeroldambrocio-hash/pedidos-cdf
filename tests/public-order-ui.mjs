@@ -97,7 +97,7 @@ const FAKE_GOOGLE = `(() => {
 const storedRequest = async (key) => { const r = (await db.query("select mode, address, lat from public.cdf_order_requests where request_key = $1", [key])).rows[0]; return r && { ...r, lat: r.lat == null ? null : Number(r.lat) }; };
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 // Everything the page asks for is answered here or refused: a request to any other host fails the test.
-async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "", turnstile = null, clock = false } = {}) {
+async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "", turnstile = null, clock = false, paymongo = false } = {}) {
   const ctx = await browser.newContext({ viewport, locale: "en-PH", timezoneId: "Europe/Madrid", ...(geo ? { geolocation: geo, permissions: ["geolocation"] } : {}) });
   const page = await ctx.newPage();
   const state = { calls: [], strangers: [], failUploads: 0, accept, errors: [], googleScripts: [] };
@@ -106,7 +106,7 @@ async function open({ feature = true, viewport = { width: 390, height: 844 }, ge
   await page.route("**/*", async (route) => {
     const req = route.request(), url = req.url();
     if (url.startsWith(ORIGIN + "/config.js")) return route.fulfill({ contentType: "text/javascript", body:
-      `window.CDF_CONFIG = { url: "https://demo.invalid", anonKey: "", features: { publicOrder: ${feature} }, publicOrder: { turnstileSiteKey: "${turnstile ? "0xTEST" : ""}", googleMapsKey: "${google ? "browser-key" : ""}", googleMapId: "${mapId}" } };` });
+      `window.CDF_CONFIG = { url: "https://demo.invalid", anonKey: "", features: { publicOrder: ${feature}, paymongo: ${paymongo} }, publicOrder: { turnstileSiteKey: "${turnstile ? "0xTEST" : ""}", googleMapsKey: "${google ? "browser-key" : ""}", googleMapId: "${mapId}" } };` });
     if (url.startsWith("https://maps.googleapis.com/maps/api/js")) {
       state.googleScripts.push(url);
       if (google === "blocked") return route.abort();
@@ -149,7 +149,15 @@ async function fill(page, { pickup = false, location = true } = {}) {
     if (location) { await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click(); }
   }
   await page.locator("#po-description").fill("A dozen red roses, wrapped in kraft paper");
-  await page.locator("#po-payment_method").selectOption("gcash");
+  if (await page.locator("#po-payment_method").count()) await page.locator("#po-payment_method").selectOption("gcash");
+  await proof(page);
+}
+// The proof of payment (required unless the PayMongo flow is on), once
+async function proof(page) {
+  if (!(await page.locator("#po-payment_proof").count())) return;
+  await page.locator("#po-payment_proof").setInputFiles({ name: "receipt.png", mimeType: "image/png", buffer: fixture("text.png") });
+  await page.locator("#po-payment_proof").waitFor({ state: "detached" });
+  await page.locator(".po-files").nth(1).locator(".po-photo.is-ready").waitFor();
 }
 const search = async (page, text) => { await page.locator(".loc-picker input[type=search]").fill(text); await page.locator(".loc-picker .ll-search .btn").click(); await page.locator(".loc-status:not(:has-text('Searching'))").waitFor(); };
 const review = (page) => page.locator(".po-form button[type=submit]").click();
@@ -160,9 +168,8 @@ await step("Switched off in the config: the page says so and never calls the ser
   const { page, state, ctx } = await open({ feature: false });
   await page.locator(".po-done h2", { hasText: "Not open yet" }).waitFor();
   assert.equal(await page.locator("form").count(), 0); assert.equal(state.calls.length, 0);
-  // Published since 12/11/2026 (publicOrder: true, deployed with PUBLIC_FORM=1); still not linked from the panel
-  const files = /^FILES="([^"]*)"/m.exec(readFileSync(path.join(root, "scripts/deploy-netlify.sh"), "utf8"))[1];
-  assert(!/pedido\.html/.test(readFileSync(path.join(root, "index.html"), "utf8") + files), "not linked from the panel and only deployed with PUBLIC_FORM=1");
+  // Published since 12/11/2026 (publicOrder: true); still not linked from the team's panel
+  assert(!/pedido\.html/.test(readFileSync(path.join(root, "index.html"), "utf8")), "not linked from the panel");
   await ctx.close();
 });
 
@@ -172,7 +179,7 @@ await step("Phone: one column, visible labels, touch-sized controls, nothing ask
   await page.locator(".loc-map.leaflet-container").waitFor();
   assert.equal(state.calls.length, 0, "opening the form creates no session");
   await noOverflow(page);
-  assert.deepEqual(await page.locator(".po-section > legend").allInnerTexts().then((l) => l.map((s) => s.replace(/^\d+\s*/, ""))), ["Buyer information", "Receiver information", "Delivery information", "Order information"]);
+  assert.deepEqual(await page.locator(".po-section > legend").allInnerTexts().then((l) => l.map((s) => s.replace(/^\d+\s*/, ""))), ["Delivery information", "Buyer information", "Receiver information", "Order information"]);
   const small = await page.evaluate(() => [...document.querySelectorAll(".po-form :is(input:not([type=checkbox]):not([type=file]), select, textarea, button, .po-add)")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.id || e.className || e.textContent));
   assert.deepEqual(small, [], "controls under 44px tall");
   const unlabelled = await page.evaluate(() => [...document.querySelectorAll(".po-form :is(input:not([type=file]), select, textarea)")].filter((e) => !(e.labels?.length || e.getAttribute("aria-label"))).map((e) => e.id));
@@ -191,11 +198,12 @@ await step("Empty form: errors appear next to each field, the first one is focus
   const { page, state, ctx } = await open();
   await review(page);
   assert.match(await page.locator(".po-top").innerText(), /fields need checking/);
-  for (const [id, text] of [["buyer_name", "Enter the name."], ["buyer_phone", "Enter a valid phone number"], ["date", "Choose a date"], ["slot", "Choose a time slot."], ["address", "Enter the full address."],
-    ["location", "Mark the delivery point on the map."], ["description", "Describe what you would like or add a reference photo."], ["payment_method", "Choose how you'd prefer to pay."]])
+  for (const [id, text] of [["buyer_name", "Enter the name."], ["buyer_phone", "Enter a valid phone number"], ["date", "Choose a date"], ["slot", "Choose a time slot."],
+    ["location", "Mark the delivery point on the map."], ["reference_files", "Describe what you would like or add a reference photo."], ["payment_method", "Choose how you'd prefer to pay."]])
     assert((await page.locator(`#po-${id}-err`).innerText()).includes(text), id);
-  assert.equal(await page.evaluate(() => document.activeElement.id), "po-buyer_name");
+  assert.equal(await page.evaluate(() => document.activeElement.id), "po-date", "the first field on the page (delivery comes first)");
   assert.equal(await page.locator("#po-buyer_name").getAttribute("aria-invalid"), "true");
+  assert.equal(await page.locator("#po-address-err").innerText(), "", "the written address is optional");
   await page.locator("#po-buyer_name").fill("Jose");
   assert.equal(await page.locator("#po-buyer_name-err").innerText(), "", "the error clears as soon as the field is corrected");
   assert.equal(state.calls.length, 0);
@@ -234,12 +242,9 @@ await step("Search, choose a result, drag the pin, confirm; any later change ask
   assert.equal(await page.locator(".loc-done").isVisible(), false);
   assert.equal(await page.locator(".loc-status").innerText(), "The location changed: confirm it again.");
   await page.locator(".loc-confirm").click();
-  // Changing the written address withdraws it too
+  // Editing the written address (notes for the rider) keeps the confirmed pin
   await page.locator("#po-address").fill("99 Another Street, Quezon City"); await page.locator("#po-address").blur();
-  assert.equal(await page.locator(".loc-done").isVisible(), false);
-  await review(page);
-  assert.equal(await page.locator("#po-location-err").innerText(), "Confirm the delivery point on the map.");
-  await page.locator(".loc-confirm").click();
+  assert.equal(await page.locator(".loc-done").isVisible(), true);
   // "Change" reopens it
   await page.locator(".loc-edit").click();
   assert.equal(await page.locator(".loc-confirm").isVisible(), true);
@@ -286,7 +291,7 @@ await step("Google Maps: suggestions while typing (one session per search), pin 
   assert.deepEqual(g.fetched, [{ fields: ["location", "formattedAddress"], token: 1 }], "the choice closes the same session");
   assert.equal(g.tokens, 2, "and the next search starts a new one");
   assert.deepEqual([g.centre, g.zoom, g.pin], [{ lat: 14.5623, lng: 121.0267 }, 17, { lat: 14.5623, lng: 121.0267 }]);
-  assert.equal(await page.locator("#po-address").inputValue(), "Makati Avenue, Makati, Metro Manila, Philippines", "an empty address takes the chosen place's");
+  assert.equal(await page.locator("#po-address").inputValue(), "", "the notes box is left to the visitor; the chosen place is kept as its name");
   // Adjust: drag the pin to the delivery entrance, then tap the map; each change asks to confirm again
   await page.locator(".loc-confirm").click();
   await page.evaluate(() => window.__gm.drag(14.56301, 121.02712));
@@ -309,14 +314,14 @@ await step("Google Maps: suggestions while typing (one session per search), pin 
   await page.locator(".loc-confirm").click();
   await fill(page, { location: false });
   await page.locator("#po-address").fill("Unit 4B, Tower 2, Katipunan Avenue, Quezon City"); await page.locator("#po-address").blur();
-  await page.locator(".loc-confirm").click();
   await review(page);
   await page.locator(".po-review").waitFor();
   await page.getByRole("button", { name: "Send request" }).click();
   await page.locator(".po-done h2").waitFor();
-  assert.deepEqual(state.calls.map((c) => c.action), ["session", "submit"], "address search never touches the server");
+  assert.deepEqual(state.calls.map((c) => c.action).filter((a) => a !== "upload"), ["session", "submit"], "address search never touches the server");
   const sent = state.calls.at(-1).body;
   assert.deepEqual([sent.lat, sent.lng, sent.location_source], [14.6397, 121.0775, "search"]);
+  assert.match(sent.address, /^Katipunan Avenue[^·]*Philippines · Unit 4B, Tower 2, Katipunan Avenue, Quezon City$/, "the chosen place + the notes: " + sent.address);
   assert.deepEqual(state.errors, []); assert.deepEqual(state.strangers, []);
   await page.screenshot({ path: path.join(shots, "public-order-google-mobile.png") });
   await ctx.close();
@@ -325,11 +330,11 @@ await step("Google Maps: suggestions while typing (one session per search), pin 
 await step("What Google bills is kept to a minimum: the map loads only when reached, once per page; repeated text is not asked again", async () => {
   const { page, state, ctx } = await open({ google: true });
   await page.locator(".po-form").waitFor();
+  // The map is the first thing on the page (22/11/2026), so it loads with it: once
+  await page.locator(".loc-map[data-google]").waitFor();
   await page.locator("#po-buyer_name").fill("Jose Santos"); await page.waitForTimeout(400);
-  assert.equal(state.googleScripts.length, 0, "opening the page and filling the first fields loads nothing from Google");
-  // Someone who picks up at the shop never loads the map
+  assert.equal(state.googleScripts.length, 1);
   await page.locator("[data-mode=pickup]").click(); await page.locator(".po-pickup").scrollIntoViewIfNeeded(); await page.waitForTimeout(400);
-  assert.equal(state.googleScripts.length, 0);
   await page.locator("[data-mode=delivery]").click();
   await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
   assert.equal(state.googleScripts.length, 1);
@@ -347,8 +352,8 @@ await step("What Google bills is kept to a minimum: the map loads only when reac
   await page.locator("[data-settings]").click(); await page.locator(".menu [data-lang=es]").click(); await page.locator(".menu [data-lang=en]").click(); await page.keyboard.press("Escape");
   await page.locator("[data-mode=pickup]").click(); await page.locator("[data-mode=delivery]").click();
   await page.locator(".loc-done", { hasText: "Location confirmed" }).waitFor();
-  await fill(page, { location: false }); // the written address changed, so the point is confirmed again
-  await page.locator(".loc-confirm").click();
+  await fill(page, { location: false }); // writing the notes for the rider keeps the confirmed point
+  await page.locator(".loc-done", { hasText: "Location confirmed" }).waitFor();
   await review(page); await page.locator(".po-review").waitFor();
   await page.getByRole("button", { name: "Back to edit" }).click();
   await page.locator(".loc-picker").scrollIntoViewIfNeeded(); await page.locator(".loc-map[data-google]").waitFor();
@@ -506,6 +511,7 @@ await step("Pickup: a shop is required; Use my location sorts the shops and pick
   await page.locator("[data-mode=pickup]").click();
   await page.locator("#po-date").fill(tomorrow()); await page.locator("#po-slot").selectOption("11:00 - 13:00");
   await page.locator("#po-description").fill("A dozen red roses"); await page.locator("#po-payment_method").selectOption("cash");
+  await proof(page);
   await review(page);
   await page.locator(".po-pickup .err", { hasText: "Choose a shop" }).waitFor();
   assert.equal(await page.locator(".po-review").count(), 0);
@@ -526,13 +532,14 @@ await step("Pickup: a shop is required; Use my location sorts the shops and pick
 
 await step("Anti-bot check: a passing error is retried and the request goes through; one that keeps failing says so", async () => {
   for (const mode of ["flaky", "broken"]) {
-    const { page, state, ctx } = await open({ turnstile: mode });
+    env.PUBLIC_ORDER_PAY_LATER = "on"; // no proof to upload: the check runs only when sending
+    const { page, state, ctx } = await open({ turnstile: mode, paymongo: true });
     await fill(page, { pickup: true });
     await review(page);
     await page.locator(".po-review").waitFor();
     await page.getByRole("button", { name: "Send request" }).click();
     if (mode === "flaky") {
-      await page.locator(".po-done h2").waitFor();
+      await page.waitForURL(/\/solicitud\.html#/); // sent: the PayMongo flow takes the visitor to their request's page
       assert.equal(state.calls.find((c) => c.action === "session").body.captcha, "token-ok");
       assert.equal(await page.evaluate(() => document.querySelectorAll(".po-captcha").length), 0, "the check is cleaned away");
     } else {
@@ -542,11 +549,13 @@ await step("Anti-bot check: a passing error is retried and the request goes thro
     }
     assert.deepEqual(state.errors, []);
     await ctx.close();
+    delete env.PUBLIC_ORDER_PAY_LATER;
   }
 });
 
 await step("Anti-bot script that never finishes downloading: after 45 s the form says so, the button works again, and a retry starts afresh", async () => {
-  const { page, state, ctx } = await open({ turnstile: "hang", clock: true });
+  env.PUBLIC_ORDER_PAY_LATER = "on"; // no proof to upload: the check runs only when sending
+  const { page, state, ctx } = await open({ turnstile: "hang", clock: true, paymongo: true });
   await fill(page, { pickup: true });
   await review(page);
   await page.locator(".po-review").waitFor();
@@ -563,6 +572,7 @@ await step("Anti-bot script that never finishes downloading: after 45 s the form
   await page.waitForFunction(() => document.querySelectorAll('script[src*="challenges.cloudflare.com"]').length === 1);
   assert.deepEqual(state.errors, []);
   await ctx.close();
+  delete env.PUBLIC_ORDER_PAY_LATER;
 });
 
 await step("Several photos: sent as they are added, cleaned on the server, private; limits and removal", async () => {
@@ -638,8 +648,8 @@ await step("Upload interrupted: the photo is marked, can be retried, and is stor
   await review(page);
   assert.match(await page.locator("#po-reference_files-err").innerText(), /couldn't be sent/);
   await page.getByRole("button", { name: "Try again" }).click();
-  await page.locator(".po-photo.is-ready").waitFor();
-  assert.equal(stored.size, before + 1);
+  await page.locator(".po-files").first().locator(".po-photo.is-ready").waitFor();
+  assert.equal(stored.size, before + 2, "the photo once, plus the proof of payment fill() adds");
   // Reviewing while a photo is still on its way waits for it
   await page.unroute("**/*");
   await ctx.close();
@@ -678,7 +688,7 @@ await step("Sending: the request is reviewed first, and the last screen says “
   await page.locator("#po-address").fill("12 Katipunan Ave, Loyola Heights, Quezon City");
   if (!(await page.locator(".loc-done").isVisible())) { await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click(); }
   await page.locator("#po-description").fill("A dozen red roses"); await page.locator("#po-card_message").fill("Happy birthday, Ma!");
-  await page.locator("#po-payment_method").selectOption("bank");
+  await page.locator("#po-payment_method").selectOption("bank"); await proof(page);
   await review(page);
   await page.locator(".po-review").waitFor();
   assert.equal(await page.evaluate(() => document.activeElement.id), "po-review-h");
@@ -735,6 +745,26 @@ await step("Spanish, large text, light mode and reduced motion work; switching l
   await noOverflow(page);
   await page.screenshot({ path: path.join(shots, "public-order-mobile-light-large.png"), fullPage: true });
   await ctx.close();
+});
+
+await step("PayMongo flow: no payment method or proof, a description is enough, and the visitor lands on their request's page", async () => {
+  env.PUBLIC_ORDER_PAY_LATER = "on";
+  try {
+    const { page, state, ctx } = await open({ paymongo: true });
+    await page.locator(".po-form").waitFor();
+    assert.equal(await page.locator("#po-payment_method").count(), 0); assert.equal(await page.locator("#po-payment_proof").count(), 0);
+    assert.match(await page.locator(".po-fee-note").innerText(), /flowers \+ delivery/);
+    await fill(page);
+    await review(page); await page.locator(".po-review").waitFor();
+    assert.match(await page.locator(".po-notice").innerText(), /pay on your request's page/);
+    await page.getByRole("button", { name: "Send request" }).click();
+    await page.waitForURL(/\/solicitud\.html#[A-Za-z0-9_-]{30,80}$/);
+    const sent = state.calls.find((c) => c.action === "submit").body;
+    assert.equal(sent.payment_proof, null); assert.deepEqual(sent.reference_files, []);
+    assert.equal(sent.address, "12 Katipunan Ave, Loyola Heights, Quezon City");
+    assert.deepEqual(state.errors, []);
+    await ctx.close();
+  } finally { delete env.PUBLIC_ORDER_PAY_LATER; }
 });
 
 await browser.close(); site.close(); await db.close();

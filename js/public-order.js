@@ -300,7 +300,7 @@
   // ---------- form ----------
   const errs = {};
   // Top to bottom, as the form reads: the first of these with an error is the one focused
-  const ORDER = ["buyer_name", "buyer_phone", "receiver_name", "receiver_phone", "date", "slot", "pickup_branch", "location", "address",
+  const ORDER = ["date", "slot", "pickup_branch", "location", "address", "buyer_name", "buyer_phone", "receiver_name", "receiver_phone",
     "description", "special_requests", "card_message", "reference_files", "payment_method", "payment_proof"];
   let fields = {};
   function field(name, label, control, { hint, optional } = {}) {
@@ -382,6 +382,20 @@
 
     const mode = (m) => h("button", { type: "button", "aria-pressed": String(v.mode === m), "data-mode": m, onclick: () => { if (v.mode !== m) { place = picker?.state() || place; v.mode = m; touched = true; render(); document.querySelector(`[data-mode=${m}]`)?.focus(); } } }, t(m === "delivery" ? "poDelivery" : "poPickup"));
     const date = input({ type: "date", min: firstDate(), max: manilaDate(DAYS_AHEAD), required: true });
+    const today = h("button", { class: "btn po-today", type: "button", "aria-describedby": "po-date-hint", onclick: () => {
+      refreshDateLimits();
+      if (today.disabled) return;
+      date.value = manilaDate();
+      date.dispatchEvent(new Event("input", { bubbles: true }));
+      date.dispatchEvent(new Event("change", { bubbles: true }));
+    } }, t("today"));
+    function refreshDateLimits() {
+      date.min = firstDate();
+      date.max = manilaDate(DAYS_AHEAD);
+      today.disabled = date.min !== manilaDate();
+      const hint = root.querySelector("#po-date-hint");
+      if (hint) hint.textContent = t(today.disabled ? "poErrToday" : "poDateHint");
+    }
     const slot = h("select", {}, h("option", { value: "" }, t("poChoose")), SLOTS.map((s) => h("option", { value: s }, formatSlot12(s))));
     // Today's slots that have passed (or are about to) cannot be chosen; a choice made before the day changed is dropped
     const paintSlots = () => {
@@ -391,6 +405,11 @@
     };
     date.addEventListener("input", paintSlots);
     slot.addEventListener("focus", paintSlots);
+    date.addEventListener("focus", refreshDateLimits);
+    today.addEventListener("focus", refreshDateLimits);
+    const dateField = field("date", t("poDate"), date, { hint: t("poDateHint") });
+    date.replaceWith(h("div", { class: "po-date-controls" }));
+    dateField.querySelector(".po-date-controls").append(date, today);
 
     let where = null;
     if (v.mode === "delivery") {
@@ -435,7 +454,7 @@
 
     const top = h("p", { class: "err po-top", role: "alert", tabIndex: -1 }, topError);
     const draftNote = restored ? h("div", { class: "po-draft", role: "status" }, h("p", { class: "note" }, t("poDraftRestored")),
-      h("button", { type: "button", class: "btn", onclick: () => { resetForm(); render(); root.querySelector("#po-buyer_name")?.focus(); } }, t("poDraftClear"))) : null;
+      h("button", { type: "button", class: "btn", onclick: () => { resetForm(); render(); root.querySelector(".po-mode [aria-pressed=true]")?.focus(); } }, t("poDraftClear"))) : null;
     const form = h("form", { class: "po-form", noValidate: true, onsubmit: (e) => {
       e.preventDefault();
       const bad = validate();
@@ -450,13 +469,13 @@
       topError = ""; view = "review"; saveDraft(); render();
     } },
       draftNote, top,
-      section(1, t("poBuyer"), h("div", { class: "row2" },
+      section(1, t("poDeliveryInfo"),
+        h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
+        h("div", { class: "row2" }, dateField, field("slot", t("poSlot"), slot)), where),
+      section(2, t("poBuyer"), h("div", { class: "row2" },
         field("buyer_name", t("poBuyerName"), input({ autocomplete: "name", maxLength: 80 })),
         field("buyer_phone", t("poBuyerPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "tel", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint") }))),
-      section(2, t("poReceiver"), h("label", { class: "po-check", for: "po-same" }, same, h("span", {}, t("poSame"))), receiver),
-      section(3, t("poDeliveryInfo"),
-        h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
-        h("div", { class: "row2" }, field("date", t("poDate"), date, { hint: t("poDateHint") }), field("slot", t("poSlot"), slot)), where),
+      section(3, t("poReceiver"), h("label", { class: "po-check", for: "po-same" }, same, h("span", {}, t("poSame"))), receiver),
       section(4, t("poOrderInfo"),
         field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint") }),
         field("special_requests", t("poSpecial"), area({ rows: 2, maxLength: 500 }), { optional: true }),
@@ -467,6 +486,7 @@
       h("button", { class: "btn primary block", type: "submit" }, t("poReview")));
     paintSlots();
     root.replaceChildren(form);
+    refreshDateLimits();
     paintFiles("reference"); paintFiles("payment_proof");
     Object.keys(fields).forEach(paintError);
     if (v.mode === "pickup") { paintShops(); loadShops(); }
@@ -475,7 +495,17 @@
   }
 
   function renderReview() {
-    const p = payload(), row = (k, val) => (val ? [h("dt", {}, k), h("dd", {}, val)] : []);
+    const p = payload();
+    const edit = (selector) => {
+      if (sending) return;
+      view = "form"; topError = ""; render();
+      root.querySelector(selector)?.focus();
+    };
+    const row = (k, val, target) => !val ? [] : [
+      h("dt", {}, k, target ? h("button", { class: "linkish po-edit-row", type: "button",
+        "aria-label": t("poEditBlock", { section: k }), onclick: () => edit(target) }, t("edit")) : null),
+      h("dd", {}, val),
+    ];
     const day = new Intl.DateTimeFormat(locale(), { dateStyle: "full", timeZone: "UTC" }).format(new Date(p.date + "T00:00:00Z"));
     const pics = (list) => (list.length ? h("ul", { class: "po-photos po-photos-review" }, list.map((f) => h("li", { class: "po-photo" }, h("img", { src: f.url, alt: t("poPhotoAlt", { name: f.name }) })))) : null);
     const msg = h("p", { class: "err", role: "alert" }, topError);
@@ -511,17 +541,17 @@
       h("h2", { id: "po-review-h", tabIndex: -1 }, t("poReviewTitle")),
       h("p", { class: "note" }, t("poReviewHint")),
       h("dl", { class: "po-summary" },
-        row(t("poBuyer"), `${p.buyer_name} · ${phoneE164(p.buyer_phone)}`),
-        row(t("poReceiver"), v.same ? t("poSameShort") : `${p.receiver_name} · ${phoneE164(p.receiver_phone)}`),
-        row(t("poWhen"), `${day} · ${formatSlot12(p.slot)}`),
+        row(t("poBuyer"), `${p.buyer_name} · ${phoneE164(p.buyer_phone)}`, "#po-buyer_name"),
+        row(t("poReceiver"), v.same ? t("poSameShort") : `${p.receiver_name} · ${phoneE164(p.receiver_phone)}`, v.same ? "#po-same" : "#po-receiver_name"),
+        row(t("poWhen"), `${day} · ${formatSlot12(p.slot)}`, "#po-date"),
         row(t(p.mode === "delivery" ? "poDelivery" : "poPickup"), p.mode === "delivery" ? p.address : (() => {
           const x = (shops.list || []).find((y) => y.branch === p.pickup_branch);
           return [h("b", {}, p.pickup_branch), x?.address ? h("span", { class: "po-review-addr" }, " · " + x.address) : null];
-        })()),
+        })(), ".po-mode [aria-pressed=true]"),
         p.mode === "delivery" ? row(t("poLocation"), t("locConfirmed")) : [],
-        row(t("poDescription"), p.description), row(t("poSpecial"), p.special_requests), row(t("poCard"), p.card_message),
+        row(t("poDescription"), p.description, "#po-description"), row(t("poSpecial"), p.special_requests), row(t("poCard"), p.card_message),
         PAY_LATER ? [] : row(t("poMethod"), t("pm_" + p.payment_method)),
-        row(t("poPhotos"), pics(files.reference)), row(t("poProof"), files.payment_proof.length ? [pics(files.payment_proof), h("p", { class: "note" }, t("poProofPending"))] : null)),
+        row(t("poPhotos"), pics(files.reference), "[aria-labelledby=po-ref-label]"), row(t("poProof"), files.payment_proof.length ? [pics(files.payment_proof), h("p", { class: "note" }, t("poProofPending"))] : null)),
       h("p", { class: "note po-notice" }, t(PAY_LATER ? "poNoticePayLater" : "poNotice")), msg, sendBtn, back));
     root.querySelector("h2").focus();
   }

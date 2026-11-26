@@ -11,7 +11,7 @@
   const h = (tag, attrs = {}, ...kids) => { const n = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) if (v != null) k === "class" ? (n.className = v) : k.startsWith("on") ? (n[k] = v) : n.setAttribute(k, v); n.append(...kids.flat().filter((x) => x != null && x !== false)); return n; };
   const money = (n) => new Intl.NumberFormat("en-PH", { style: "currency", currency: "PHP" }).format(Number(n));
   const day = (d) => new Intl.DateTimeFormat(locale(), { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Manila" }).format(new Date(d + "T12:00:00+08:00"));
-  let view = null, msg = "", payErr = "", busy = false, checks = 0; // payErr stays until the customer taps Pay again
+  let view = null, msg = "", payErr = false, busy = false, checks = 0; // payErr stays until the customer taps Pay again
 
   async function call(action) {
     const r = await fetch(API, { method: "POST", headers: { "Content-Type": "application/json", apikey: CFG.anonKey }, body: JSON.stringify({ action, token }) });
@@ -36,12 +36,14 @@
           h("div", {}, h("dt", {}, v.mode === "pickup" ? t("plPickup", { shop: v.pickupBranch || "Casa de Flores" }) : t("plDelivery")), h("dd", {})),
           h("div", { class: "pay-total" }, h("dt", {}, t("plAmount")), h("dd", {}, money(v.amount)))));
       if (open) {
-        const pay = h("button", { class: "btn primary block", type: "button", onclick: () => go() }, busy ? t("plOpening") : t("plButton", { amount: money(v.amount) }));
+        const pay = h("button", { class: "btn primary block", type: "button", onclick: () => go() }, busy ? t("plOpening") : payErr ? t("plRetry") : t("plButton", { amount: money(v.amount) }));
         if (busy) pay.disabled = true;
-        card.append(pay, payErr ? h("p", { class: "err", role: "alert" }, payErr) : null, h("p", { class: "note" }, t("plMethods")));
+        // Element.append() writes null as the text "null": only real nodes go in
+        if (payErr) card.append(h("p", { class: "err", role: "alert" }, t("plPayFailed")));
+        card.append(pay, h("p", { class: "note" }, t("plMethods")));
         if (v.checkoutOpenUntil) card.append(h("p", { class: "note" }, t("plPageOpenUntil", { time: formatClock12(v.checkoutOpenUntil) })));
         if (back === "paid") card.append(h("p", { class: "pay-wait", role: "status" }, checks < 15 ? t("plChecking") : t("plStillChecking")),
-          checks >= 15 ? h("button", { class: "btn block", type: "button", onclick: () => { checks = 0; poll(); } }, t("plCheck")) : null);
+          ...(checks >= 15 ? [h("button", { class: "btn block", type: "button", onclick: () => { checks = 0; poll(); } }, t("plCheck"))] : []));
         if (back === "cancelled") card.append(h("p", { class: "note" }, t("plCancelledBack")));
       } else if (v.review) card.append(h("p", { class: "pay-wait", role: "status" }, t("plReview")));
       else card.append(h("p", { class: "err" }, v.replaced ? t("plReplaced") : v.status === "cancelled" ? t("plCancelled") : t("plClosed")));
@@ -56,7 +58,7 @@
   function trackBlock(v) {
     const when = day(v.date) + " · " + formatSlot12(v.slot);
     return [h("p", {}, v.mode === "pickup" ? t("plTrackPickup", { shop: v.pickupBranch || "Casa de Flores", when }) : t("plTrackDelivery", { when })),
-      tracks(v) ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t("plTrack")) : null,
+      tracks(v) ? h("a", { class: "btn primary block", href: "/p/" + encodeURIComponent(v.trackCode) }, t(v.mode === "pickup" ? "plPickupStatus" : "plTrack")) : null,
       tracks(v) ? h("p", { class: "note" }, t("plTrackNote")) : null].filter(Boolean);
   }
   const fail = (e) => (e.status === 404 ? t("plGone") : e.status === 409 ? "" : t("plError"));
@@ -72,12 +74,12 @@
     render();
   }
   async function go() {
-    if (busy) return; busy = true; msg = ""; payErr = ""; render();
+    if (busy) return; busy = true; msg = ""; payErr = false; render();
     try { const r = await call("pay"); if (r.paid) { busy = false; return load("check"); } location.assign(r.url); return; }
     catch (e) {
       busy = false;
       // Keep saying what happened: the refresh below must not wipe it (409/404 = the page itself shows the new state)
-      payErr = e.status === 409 || e.status === 404 ? "" : t("plPayFailed");
+      payErr = e.status !== 409 && e.status !== 404;
       await load();
     }
   }

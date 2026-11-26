@@ -3,7 +3,7 @@
 // it creates the order and closes the request in one step on the server (cdf_request_accept).
 // A request is not an order: it is not in the calendar, the florists' work or the statistics until accepted.
 
-const RQ = { list: [], filter: "open", kind: "all", channel: null, keys: {}, counts: null, closedLimit: 300, closedMore: false, orders: new Map() };
+const RQ = { list: [], filter: "open", kind: "all", actionOnly: false, channel: null, keys: {}, counts: null, closedLimit: 300, closedMore: false, orders: new Map() };
 const CLOSED = ["accepted", "rejected", "expired"];
 const reqBucket = (r) => (reqIsOpen(r) ? "open" : r.status === "accepted" ? "accepted" : "rejected");
 const reqKindOk = (r, kind = RQ.kind) => kind === "all" || r.mode === kind;
@@ -12,11 +12,18 @@ const reqRef = (r) => r.shared_number ? "#" + String(r.ref).padStart(4, "0") : "
 const reqPast = (r) => reqIsOpen(r) && r.date < manilaToday();
 const reqOn = () => isAdmin() && !!S.cap.requests;
 
+function reqAttention(r) {
+  if (!pmOn()) return 0;
+  if (RQ.payIssues?.has(r.id)) return 2;
+  return reqIsOpen(r) && !RQ.paying?.has(r.id) ? 1 : 0;
+}
+
 function reqStatusTag(r) {
   // A payment arrived that could not be applied: it wins over every other label (also on closed requests)
   if (RQ.payIssues?.has(r.id)) return el("span", { class: "tag req-tag pay-issue" }, t("plTagIssue"));
   if (reqIsOpen(r) && RQ.paying?.has(r.id)) return el("span", { class: "tag req-tag paying" }, t("plTag"));
   if (reqPast(r)) return el("span", { class: "tag req-tag past" }, t("reqDatePassed"));
+  if (reqAttention(r) === 1) return el("span", { class: "tag req-tag in_review" }, t("reqNeedsQuote"));
   return el("span", { class: "tag req-tag " + r.status }, t("reqSt_" + r.status));
 }
 const reqWhen = (r) => longDate(r.date) + " · " + formatSlot12(r.slot);
@@ -155,6 +162,16 @@ function paintRequestLink() {
   }
 }
 
+function requestNumberMatches(r, query) {
+  const clean = (value) => String(value ?? "").trim().replace(/^0+(?=\d)/, "");
+  const number = clean(query.replace(/^[#r]\s*/i, ""));
+  if (!/^\d+$/.test(number)) return false;
+  const orderNumber = reqOrderState(r)?.num;
+  if (/^r/i.test(query)) return !r.shared_number && clean(r.ref) === number;
+  if (/^#/.test(query)) return (r.shared_number && clean(r.ref) === number) || clean(orderNumber) === number;
+  return clean(r.ref) === number || clean(orderNumber) === number;
+}
+
 function renderRequests() {
   paintRequestLink();
   const body = $("requestsBody");
@@ -169,22 +186,35 @@ function renderRequests() {
     b.querySelector(".count").textContent = String(reqCount(RQ.filter, b.dataset.k));
   }
   if (typeof placePill === "function") { placePill($("reqFilter")); if ($("reqKind")) placePill($("reqKind")); }
-  const shown = RQ.list.filter((r) => reqBucket(r) === RQ.filter && reqKindOk(r))
-    // Open ones by delivery date (the nearest first, past dates on top so they are not missed); the rest newest first
-    .sort((a, b) => (RQ.filter === "open" ? a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot) : b.created_at.localeCompare(a.created_at)));
-  const more = RQ.filter !== "open" && RQ.closedMore ? el("button", { class: "btn ghost req-more", type: "button", onclick: async (e) => {
+  const query = $("reqSearch")?.value.trim() || "";
+  const inBucket = RQ.list.filter((r) => query ? requestNumberMatches(r, query) : reqBucket(r) === RQ.filter && reqKindOk(r));
+  const pending = inBucket.filter(reqAttention);
+  const actionOnly = !query && pmOn() && RQ.actionOnly;
+  const filter = !query && pmOn() ? el("button", { class: "btn req-attention-filter", type: "button", "aria-pressed": String(actionOnly),
+    onclick: () => { RQ.actionOnly = !RQ.actionOnly; renderRequests(); body.querySelector(".req-attention-filter")?.focus(); }
+  }, t("reqActionFilter", { n: pending.length })) : null;
+  const shown = (actionOnly ? pending : inBucket)
+    .sort((a, b) => reqAttention(b) - reqAttention(a) || (RQ.filter === "open" ? a.date.localeCompare(b.date) || a.slot.localeCompare(b.slot) : b.created_at.localeCompare(a.created_at)));
+  const more = (query || RQ.filter !== "open") && RQ.closedMore ? el("button", { class: "btn ghost req-more", type: "button", onclick: async (e) => {
     e.currentTarget.disabled = true; RQ.closedLimit += 300; await loadRequests(); } }, t("reqLoadMore")) : null;
-  if (!shown.length) return fill(body, el("div", { class: "empty req-empty" }, icon("inbox"), el("p", {}, t(RQ.filter === "open" ? "reqNoneOpen" : "reqNone"))), more);
-  fill(body, el("ul", { class: "req-list" }, shown.map((r) => el("li", {}, reqCard(r)))), more);
+  if (!shown.length) return fill(body, filter, el("div", { class: "empty req-empty" }, icon("inbox"), el("p", {}, t(query ? "reqSearchNone" : actionOnly ? "reqNoAction" : RQ.filter === "open" ? "reqNoneOpen" : "reqNone"))), more);
+  fill(body, filter, el("ul", { class: "req-list" }, shown.map((r) => {
+    const attention = reqAttention(r);
+    return el("li", { class: attention ? "req-with-action" : "" }, reqCard(r, { showAge: !attention }),
+      attention ? el("div", { class: "req-action-cell" }, el("button", { class: "btn primary req-row-action", type: "button",
+        "aria-label": t(attention === 2 ? "reqReviewPayment" : "prBtn") + " " + reqRef(r),
+        onclick: () => openRequest(r, { quote: attention === 1 })
+      }, t(attention === 2 ? "reqReviewPayment" : "prBtn")), el("small", { class: "note req-age" }, reqAgo(r.created_at))) : null);
+  })), more);
 }
 
 // One request in the list. The type is written out, and each type shows what matters for it:
 // Pickup: the shop, when, and who comes for it. Delivery: where, when, and buyer → recipient.
-function reqCard(r) {
+function reqCard(r, { showAge = true } = {}) {
   const pickup = r.mode === "pickup", same = r.receiver_name === r.buyer_name;
   const os = reqOrderState(r);
   return el("button", { class: "req-card " + (pickup ? "is-pickup" : "is-delivery") + (r.status === "received" ? " is-new" : ""), type: "button", "data-id": r.id, onclick: () => openRequest(r) },
-    el("span", { class: "req-top" }, el("b", { class: "req-ref" }, reqRef(r)), reqKindTag(r), reqStatusTag(r), el("span", { class: "spacer" }), el("small", { class: "note" }, reqAgo(r.created_at))),
+    el("span", { class: "req-top" }, el("b", { class: "req-ref" }, reqRef(r)), reqKindTag(r), reqStatusTag(r), el("span", { class: "spacer" }), showAge ? el("small", { class: "note" }, reqAgo(r.created_at)) : null),
     el("span", { class: "req-when" }, icon("clock"), " ", reqWhen(r)),
     pickup
       ? el("span", { class: "req-where" }, icon("flower"), " ", r.pickup_branch ? t("pickupAt", { shop: r.pickup_branch }) : t("reqShopNotChosen"))
@@ -211,7 +241,7 @@ async function requestResult(query) {
 function requestLoadError(retry) {
   toast(t("reqLoadFail"), { type: "error", action: t("retry"), onAction: retry });
 }
-async function openRequest(r) {
+async function openRequest(r, { quote = false } = {}) {
   if (!reqOn()) return;
   // Signed out (or another account) while it loaded: never open the customer's details afterwards (13/11/2026)
   const gen = sessionNow();
@@ -219,10 +249,12 @@ async function openRequest(r) {
   if (r.status === "received") {
     const result = await Promise.resolve(sb.rpc("cdf_request_open", { p_id: r.id })).catch(() => ({ error: true }));
     if (stale(gen)) return;
-    if (result.error) { requestLoadError(() => openRequest(r)); return; }
+    if (result.error) { requestLoadError(() => openRequest(r, { quote })); return; }
     const { data } = result;
     if (data) { Object.assign(r, data); const i = RQ.list.findIndex((x) => x.id === r.id); if (i >= 0) RQ.list[i] = r; paintRequestCount(); refreshRequestCounts(); if (S.tab === "requests") renderRequests(); }
   }
+  if (!reqOn() || stale(gen)) return;
+  if (quote && reqAttention(r) === 1) return priceRequest(r);
   const loaded = await Promise.all([
     requestResult(sb.from("cdf_request_files").select("id,kind,path,width,height").eq("request_id", r.id).order("created_at")).then(x => x || []),
     requestResult(sb.rpc("cdf_request_similar", { p_id: r.id })).then(x => x || { requests: [], orders: [] }),

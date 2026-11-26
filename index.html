@@ -209,6 +209,11 @@
         <button type="button" data-k="pickup" aria-pressed="false"><span data-i18n="modePickup">Pickup</span> <span class="count"></span></button>
         <button type="button" data-k="delivery" aria-pressed="false"><span data-i18n="modeDelivery">Delivery</span> <span class="count"></span></button>
       </div></div>
+    <div class="req-search">
+      <label class="sr-only" for="reqSearch" data-i18n="reqSearchLabel">Find order or request number</label>
+      <input class="input" type="search" id="reqSearch" maxlength="24" autocomplete="off" placeholder="Find order or request number" data-i18n-ph="reqSearchLabel" aria-controls="requestsBody">
+      <button class="btn" type="button" id="reqSearchClear" data-i18n="clearSearch" hidden>Clear search</button>
+    </div>
     <div class="req-link" id="reqLink" hidden>
       <span class="req-link-label"><span data-i18n="reqLinkLabel">Link for customers</span> <a id="reqLinkUrl" class="link-out" target="_blank" rel="noopener"></a></span>
       <span class="req-link-acts">
