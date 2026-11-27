@@ -191,6 +191,7 @@ await step("Phone: one column, visible labels, touch-sized controls, nothing ask
   // "Today" is a small pill drawn inside the date box; its touch area reaches 44px and more
   assert(await page.evaluate(() => { const b = document.querySelector(".po-today"), r = b.getBoundingClientRect(), a = getComputedStyle(b, "::after"); return r.height - parseFloat(a.top) - parseFloat(a.bottom) >= 44; }), "Today is easy to tap");
   assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".po-slots")).gridTemplateColumns.split(" ").length), 2, "time slots two by two");
+  assert(await page.evaluate(() => [...document.querySelectorAll(".po-tiled")].filter((f) => f.offsetParent).every((f) => { const t = f.querySelector(".po-tile").getBoundingClientRect(), m = f.querySelector(".po-tiled-main").getBoundingClientRect(); return m.left >= t.right && Math.abs(m.top - t.top) < 12; })), "each icon square sits beside its field, not above it");
   await page.screenshot({ path: path.join(shots, "public-order-mobile-top.png"), fullPage: true });
   await page.setViewportSize({ width: 1100, height: 900 });
   await noOverflow(page);

@@ -2711,6 +2711,7 @@ a.btn { text-decoration: none; } /* links shown as buttons (request page, form r
 /* Delivery / Pickup with their icons */
 .po-form .po-section { grid-template-columns: minmax(0, 1fr); }
 .po-form .po-field, .po-form .po-receiver, .po-form .loc-picker { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.po-form .po-tiled { grid-template-columns: 48px minmax(0, 1fr); }
 .po-form .po-mode button { gap: 8px; min-width: 0; min-height: 52px; padding-inline: 8px; font-size: 1rem; }
 .po-form .po-mode button .po-ico { width: 22px; height: 22px; }
 /* Date: one box with the day spelled out, Today as a pill */
