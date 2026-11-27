@@ -3,6 +3,9 @@
 // Historical dates follow the Git history; they do not assert production deployment dates.
 const CHANGELOG = [
   { date: "2026-11-27",
+    es: ["Formulario de clientes con diseño nuevo: cada paso en su tarjeta con iconos, la fecha se lee como día («vie, 27 nov 2026») con el botón Hoy al lado, la franja horaria con botones y una marca en la elegida, el lugar de entrega en su propia tarjeta (buscador, mapa, «Usar mi ubicación», «Poner pin» y notas para el rider), «Peticiones especiales» y «Mensaje para la tarjeta» plegados en una línea, y el pago en su propio apartado. También en el flujo con PayMongo."],
+    en: ["Customer form redesigned: each step in its own card with icons, the date reads as a day (“Fri, Nov 27, 2026”) with Today beside it, time slots as buttons with a tick on the chosen one, the delivery location in its own card (search, map, “Use my location”, “Set pin” and notes for the rider), “Special requests” and “Message for the card” folded into one line each, and payment in its own section. Also in the PayMongo flow."] },
+  { date: "2026-11-27",
     es: ["Formulario de clientes: la franja horaria se elige con botones en vez de una lista desplegable. Se ven las seis de golpe; las que ya han pasado hoy aparecen tachadas con «No disponible hoy» y la elegida queda resaltada. Si la hora elegida deja de valer al poner la fecha de hoy, se avisa en vez de borrarla sin decir nada."],
     en: ["Customer form: the time slot is chosen with buttons instead of a dropdown list. All six are seen at once; those already gone today are crossed out with “Not available today” and the chosen one is highlighted. If the chosen time stops being valid when today's date is picked, a message explains it instead of clearing it silently."] },
   { date: "2026-11-26",

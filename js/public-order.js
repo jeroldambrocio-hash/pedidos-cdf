@@ -292,9 +292,9 @@
         h("span", { class: "po-photo-actions" },
           f.state === "failed" && f.retry ? h("button", { type: "button", class: "btn", onclick: () => send(kind, f) }, t("poRetry")) : null,
           h("button", { type: "button", class: "btn", "aria-label": t("poRemovePhoto", { name: f.name }), onclick: () => dropFile(kind, f) }, t("poRemove")))))),
-      full ? null : h("label", { class: "btn po-add", for: "po-" + kind }, t(kind === "reference" ? (files[kind].length ? "poAddMore" : "poAddPhotos") : "poAddProof")),
+      full ? null : h("label", { class: "btn po-add po-add-" + kind, for: "po-" + kind }, ico(kind === "reference" ? "imagePlus" : "upload"), h("span", {}, t(kind === "reference" ? (files[kind].length ? "poAddMore" : "poAddPhotos") : "poAddProof"))),
       full ? null : input,
-      h("p", { class: "note", role: "status" }, fileNote[kind] || t(kind === "reference" ? "poPhotosHint" : "poProofHint", { n: MAX[kind] })));
+      h("p", { class: "note po-files-note", role: "status" }, fileNote[kind] || (kind === "reference" ? "" : t("poProofHint", { n: MAX[kind] }))));
   }
 
   // ---------- form ----------
@@ -303,7 +303,34 @@
   const ORDER = ["date", "slot", "pickup_branch", "location", "address", "buyer_name", "buyer_phone", "receiver_name", "receiver_phone",
     "description", "special_requests", "card_message", "reference_files", "payment_method", "payment_proof"];
   let fields = {};
-  function field(name, label, control, { hint, optional } = {}) {
+  // Line icons for the form (27/11/2026 redesign); decorative only, the labels carry the meaning
+  const ICONS = {
+    truck: '<path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2"/><path d="M15 18H9"/><path d="M19 18h2a1 1 0 0 0 1-1v-3.65a1 1 0 0 0-.22-.62l-3.48-4.35A1 1 0 0 0 17.52 8H14"/><circle cx="17" cy="18" r="2"/><circle cx="7" cy="18" r="2"/>',
+    store: '<path d="M3 9l1.5-5h15L21 9"/><path d="M3 9h18v1a3 3 0 0 1-6 0a3 3 0 0 1-6 0a3 3 0 0 1-6 0z"/><path d="M5 12.5V20h14v-7.5"/><path d="M10 20v-4h4v4"/>',
+    calendar: '<rect x="3" y="4.5" width="18" height="17" rx="2"/><path d="M16 2.5v4M8 2.5v4M3 10h18"/>',
+    chevDown: '<path d="m6 9 6 6 6-6"/>', chevRight: '<path d="m9 6 6 6-6 6"/>', check: '<path d="M20 6 9 17l-5-5"/>',
+    info: '<circle cx="12" cy="12" r="9.5"/><path d="M12 16v-4.5M12 8h.01"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    phone: '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1 1 .4 1.9.7 2.8a2 2 0 0 1-.4 2.1L8.1 9.9a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.8.7a2 2 0 0 1 1.7 2z"/>',
+    pin: '<path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0z"/><circle cx="12" cy="10" r="3"/>',
+    search: '<circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/>',
+    nav: '<path d="M3 11 22 2l-9 19-2-8-8-2z"/>',
+    file: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/>',
+    gift: '<rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C10 3 12 8 12 8s2-5 4.5-5a2.5 2.5 0 0 1 0 5"/>',
+    sparkles: '<path d="M11 3l1.9 5.1L18 10l-5.1 1.9L11 17l-1.9-5.1L4 10l5.1-1.9z"/><path d="M19 15v4M21 17h-4"/>',
+    note: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M7 10h10M7 14h6"/>',
+    image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+    imagePlus: '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><path d="M16 5h6M19 2v6"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.1-3.1a2 2 0 0 0-2.8 0L6 21"/>',
+    card: '<rect x="2" y="5" width="20" height="14" rx="2"/><path d="M2 10h20"/>',
+    upload: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5M12 3v12"/>',
+    arrow: '<path d="M5 12h14M13 5l7 7-7 7"/>' };
+  const ico = (name) => {
+    const s = h("span", { class: "po-ico", "aria-hidden": "true" });
+    s.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${ICONS[name]}</svg>`;
+    return s;
+  };
+  const req = () => h("span", { class: "po-req", "aria-hidden": "true" }, " *");
+  function field(name, label, control, { hint, optional, required, icon, tile, quiet } = {}) {
     const id = "po-" + name;
     control.id = id; control.name = name;
     if (name in v) {
@@ -316,7 +343,12 @@
     const err = h("p", { class: "err", id: id + "-err", role: "alert" });
     const note = hint ? h("p", { class: "note", id: id + "-hint" }, hint) : null;
     control.setAttribute("aria-describedby", [note && id + "-hint", id + "-err"].filter(Boolean).join(" "));
-    const wrap = h("div", { class: "field po-field" }, h("label", { for: id }, label, optional ? h("span", { class: "po-optional" }, " " + t("poOptional")) : null), control, note, err);
+    if (required) control.setAttribute("aria-required", "true");
+    const lab = h("label", { for: id, class: quiet ? "sr-only" : null }, icon ? ico(icon) : null, label, optional ? h("span", { class: "po-optional" }, " " + t("poOptional")) : null, required ? req() : null);
+    // tile: the icon sits in its own square to the left of the label and the box (buyer, receiver, payment)
+    const wrap = tile
+      ? h("div", { class: "field po-field po-tiled" }, h("span", { class: "po-tile", "aria-hidden": "true" }, ico(tile)), h("div", { class: "po-tiled-main" }, lab, control, note, err))
+      : h("div", { class: "field po-field" + (icon ? " po-iconed" : "") }, lab, control, note, err);
     fields[name] = { wrap, control, err };
     paintError(name);
     return wrap;
@@ -375,15 +407,23 @@
 
   function renderForm() {
     fields = {};
-    const receiver = h("div", { class: "po-receiver row2" },
-      field("receiver_name", t("poReceiverName"), input({ autocomplete: "off", maxLength: 80 })),
-      field("receiver_phone", t("poReceiverPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "off", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint") }));
+    const receiver = h("div", { class: "po-receiver" },
+      field("receiver_name", t("poReceiverName"), input({ autocomplete: "off", maxLength: 80 }), { required: true, tile: "user" }),
+      field("receiver_phone", t("poReceiverPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "off", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint"), required: true, tile: "phone" }));
+    // Optional extras fold into one line each; they open on a tap, and stay open once something is written
+    const fold = (name, label, icon, control) => {
+      const f = field(name, label, control, { optional: true, quiet: true });
+      const d = h("details", { class: "po-fold", open: !!v[name].trim() },
+        h("summary", {}, ico(icon), h("span", { class: "po-fold-title" }, label, h("span", { class: "po-optional" }, " " + t("poOptional"))), ico("chevRight")), f);
+      d.addEventListener("toggle", () => { if (d.open && !control.value) control.focus({ preventScroll: true }); });
+      return d;
+    };
     receiver.hidden = v.same;
     const same = h("input", { type: "checkbox", id: "po-same", checked: v.same, onchange: (e) => { v.same = e.target.checked; receiver.hidden = v.same; touched = true; } });
 
-    const mode = (m) => h("button", { type: "button", "aria-pressed": String(v.mode === m), "data-mode": m, onclick: () => { if (v.mode !== m) { place = picker?.state() || place; v.mode = m; touched = true; render(); document.querySelector(`[data-mode=${m}]`)?.focus(); } } }, t(m === "delivery" ? "poDelivery" : "poPickup"));
+    const mode = (m) => h("button", { type: "button", "aria-pressed": String(v.mode === m), "data-mode": m, onclick: () => { if (v.mode !== m) { place = picker?.state() || place; v.mode = m; touched = true; render(); document.querySelector(`[data-mode=${m}]`)?.focus(); } } }, ico(m === "delivery" ? "truck" : "store"), h("span", {}, t(m === "delivery" ? "poDelivery" : "poPickup")));
     const date = input({ type: "date", min: firstDate(), max: manilaDate(DAYS_AHEAD), required: true });
-    const today = h("button", { class: "btn po-today", type: "button", "aria-describedby": "po-date-hint", onclick: () => {
+    const today = h("button", { class: "po-today", type: "button", "aria-describedby": "po-date-hint", onclick: () => {
       refreshDateLimits();
       if (today.disabled) return;
       date.value = manilaDate();
@@ -396,22 +436,26 @@
       today.disabled = date.min !== manilaDate();
       const hint = root.querySelector("#po-date-hint");
       if (hint) hint.textContent = t(today.disabled ? "poErrToday" : "poDateHint");
+      if (hint) hint.hidden = !today.disabled;
     }
     // The time slot is a set of buttons (radio inputs under their labels), not a dropdown: all six are seen at once,
     // the ones not available today say so, and no phone or in-app browser draws its own list over the page.
     // Android's dropdown had small rows and covered the date, and some customers could not pick a time (27/11/2026).
     const slotErr = h("p", { class: "err", id: "po-slot-err", role: "alert" });
+    const slotsNote = h("p", { class: "note po-slots-note", hidden: true }, ico("info"), h("span", {}, t("poSlotGone")));
     const slotItems = SLOTS.map((s, i) => {
       const id = "po-slot-" + i;
       const radio = h("input", { type: "radio", name: "po-slot", value: s, id, class: "po-slot-input", checked: v.slot === s,
         "aria-describedby": "po-slot-err",
         onchange: () => { if (!radio.checked) return; v.slot = s; touched = true; if (errs.slot) { delete errs.slot; paintError("slot"); } } });
-      const note = h("span", { class: "po-slot-note" });
-      const label = h("label", { for: id, class: "po-slot" }, h("span", { class: "po-slot-time" }, ...formatSlot12(s).split(" - ").flatMap((x, k) => [k ? " – " : null, h("span", { class: "po-slot-part" }, x)]).filter(Boolean)), note);
-      return { s, radio, note, node: h("div", { class: "po-slot-item" }, radio, label) };
+      // "9:00 – 11:00 AM", "11:00 AM – 1:00 PM": the half of the day is said once when both ends share it
+      let [a, b] = formatSlot12(s).split(" - ");
+      if (a.slice(-2) === b.slice(-2)) a = a.slice(0, -3);
+      const label = h("label", { for: id, class: "po-slot" }, h("span", { class: "po-slot-time" }, h("span", { class: "po-slot-part" }, a), " – ", h("span", { class: "po-slot-part" }, b)), ico("check"));
+      return { s, radio, node: h("div", { class: "po-slot-item" }, radio, label) };
     });
     const slotWrap = h("div", { class: "field po-field po-slots-field", role: "radiogroup", id: "po-slot", "aria-labelledby": "po-slot-label", "aria-required": "true" },
-      h("span", { id: "po-slot-label", class: "po-label" }, t("poSlot")), h("div", { class: "po-slots" }, slotItems.map((x) => x.node)), slotErr);
+      h("span", { id: "po-slot-label", class: "po-label" }, t("poSlot")), h("div", { class: "po-slots" }, slotItems.map((x) => x.node)), slotsNote, slotErr);
     fields.slot = { wrap: slotWrap, control: { focus: (o) => (slotItems.find((x) => x.radio.checked) || slotItems.find((x) => !x.radio.disabled))?.radio.focus(o) }, err: slotErr };
     // Today's slots that have passed (or are about to) cannot be chosen and say so; a choice dropped because of the
     // date is explained, not cleared silently
@@ -420,9 +464,8 @@
       for (const x of slotItems) {
         const gone = !!day && !slotOpen(day, x.s);
         if (x.radio.disabled !== gone) x.radio.disabled = gone;
-        const text = gone ? t("poSlotGone") : "";
-        if (x.note.textContent !== text) x.note.textContent = text;
       }
+      slotsNote.hidden = !slotItems.some((x) => x.radio.disabled);
       if (v.slot && day && !slotOpen(day, v.slot)) {
         v.slot = "";
         errs.slot = t("poErrSlotPast"); paintError("slot");
@@ -433,9 +476,22 @@
     date.addEventListener("change", paintSlots);
     date.addEventListener("focus", refreshDateLimits);
     today.addEventListener("focus", refreshDateLimits);
-    const dateField = field("date", t("poDate"), date, { hint: t("poDateHint") });
-    date.replaceWith(h("div", { class: "po-date-controls" }));
-    dateField.querySelector(".po-date-controls").append(date, today);
+    // The date reads as a day ("Thu, Nov 27, 2026"); the real date box lies on top, invisible, so a tap opens the
+    // phone's own calendar
+    const dateText = h("span", { class: "po-date-text", "aria-hidden": "true" });
+    const paintDate = () => {
+      dateText.textContent = date.value
+        ? new Intl.DateTimeFormat(LANG === "es" ? "es-ES" : "en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric", timeZone: "UTC" }).format(new Date(date.value + "T00:00:00Z"))
+        : t("poPickDate");
+      dateText.classList.toggle("is-empty", !date.value);
+    };
+    date.classList.add("po-date-input");
+    date.addEventListener("input", paintDate); date.addEventListener("change", paintDate);
+    date.addEventListener("click", () => { try { date.showPicker?.(); } catch {} });
+    const dateField = field("date", t("poDate"), date, { hint: t("poDateHint"), quiet: true });
+    date.replaceWith(h("div", { class: "po-datebox" }));
+    dateField.querySelector(".po-datebox").append(ico("calendar"), dateText, date, today, ico("chevDown"));
+    paintDate();
 
     let where = null;
     if (v.mode === "delivery") {
@@ -445,23 +501,32 @@
         onAddress: (text) => { v.place_label = String(text || "").slice(0, 200); },
         onChange: () => { touched = touched || !!picker?.state(); if (errs.location) { delete errs.location; paintError("location"); } },
         search: async (q) => { try { return await withSession(() => post({ action: "search", query: q })); } catch (e) { throw new Error(errorText(e)); } } });
-      const address = area({ rows: 3, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
+      const address = area({ rows: 2, maxLength: 300, autocomplete: "off", placeholder: t("poAddressPh") });
+      // The picker's own controls, dressed for this form: a search icon inside the box, "Set pin" next to "Use my location"
+      const findBtn = picker.node.querySelector(".ll-search .btn");
+      if (findBtn) { findBtn.replaceChildren(ico("search")); findBtn.setAttribute("aria-label", t("locSearch")); findBtn.classList.add("po-find"); }
+      picker.node.querySelector(".loc-here")?.prepend(ico("nav"));
+      const centreBtn = picker.node.querySelector(".loc-centre");
+      if (centreBtn) { centreBtn.replaceChildren(ico("pin"), h("span", {}, t("poSetPin"))); centreBtn.setAttribute("aria-label", t("locPinCentre")); }
       // The confirmed pin is the delivery point; the written address only helps the rider, so editing it later
       // does not ask to confirm the pin again (22/11/2026)
       const locErr = h("p", { class: "err", id: "po-location-err", role: "alert" });
       const locWrap = h("div", { class: "field po-field po-location", role: "group", "aria-labelledby": "po-location-label", "aria-describedby": "po-location-err" },
-        h("span", { id: "po-location-label", class: "po-label" }, t("poLocation")), h("p", { class: "note" }, t("poLocationHint")), picker.node, locErr);
+        h("span", { id: "po-location-label", class: "po-card-head" }, ico("pin"), t("poDeliveryLocation")), picker.node, locErr,
+        field("address", t("poAddress"), address, { optional: true, icon: "file" }));
       fields.location = { wrap: locWrap, control: { focus: () => picker.focus() }, err: locErr };
       paintError("location");
       // PayMongo flow: how the total is made up (no amounts here; the team works it out and sends the total)
       const feeNote = CFG.features?.paymongo === true ? h("p", { class: "note po-fee-note" }, t("feeCustomer")) : null;
-      where = [locWrap, field("address", t("poAddress"), address, { hint: t("poAddressHint"), optional: true }), feeNote];
+      locWrap.classList.add("po-card");
+      where = [locWrap, feeNote];
     } else {
       picker = null;
       shopBox = h("div", { class: "po-shop-box" });
       const shopErr = h("p", { class: "err", id: "po-pickup_branch-err", role: "alert" });
       const shopWrap = h("div", { class: "field po-field po-pickup", role: "group", "aria-labelledby": "po-pickup_branch-label" },
-        h("span", { id: "po-pickup_branch-label", class: "po-label" }, t("poShop")), h("p", { class: "note" }, t("poShopHint")), shopBox);
+        h("span", { id: "po-pickup_branch-label", class: "po-card-head" }, ico("store"), t("poShop")), h("p", { class: "note" }, t("poShopHint")), shopBox);
+      shopWrap.classList.add("po-card");
       fields.pickup_branch = { wrap: shopWrap, control: { focus: () => (shopBox.querySelector("input:checked, input:not(:disabled), button") || shopWrap).focus() }, err: shopErr };
       where = [shopWrap];
     }
@@ -470,12 +535,14 @@
     fileBox.reference = h("div", { class: "po-files" }); fileBox.payment_proof = h("div", { class: "po-files" });
     const filesErr = h("p", { class: "err", id: "po-reference_files-err", role: "alert" });
     const refWrap = h("div", { class: "field po-field", role: "group", tabIndex: -1, "aria-labelledby": "po-ref-label", "aria-describedby": "po-reference_files-err" },
-      h("span", { id: "po-ref-label", class: "po-label" }, t("poPhotos"), h("span", { class: "po-optional" }, " " + t("poPhotoOrText"))), fileBox.reference, filesErr);
+      h("div", { class: "po-files-head" }, ico("image"), h("div", {}, h("span", { id: "po-ref-label", class: "po-label" }, t("poPhotos"), req()), h("p", { class: "note" }, t("poPhotosHint", { n: MAX.reference })))),
+      fileBox.reference, filesErr);
     fields.reference_files = { wrap: refWrap, control: refWrap, err: filesErr };
 
     const proofErr = h("p", { class: "err", id: "po-payment_proof-err", role: "alert" });
-    const proofWrap = h("div", { class: "field po-field", role: "group", tabIndex: -1, "aria-labelledby": "po-proof-label", "aria-describedby": "po-payment_proof-err" },
-      h("span", { id: "po-proof-label", class: "po-label" }, t("poProof"), " · " + t("poRequired")), fileBox.payment_proof, proofErr);
+    const proofWrap = h("div", { class: "field po-field po-tiled", role: "group", tabIndex: -1, "aria-labelledby": "po-proof-label", "aria-describedby": "po-payment_proof-err" },
+      h("span", { class: "po-tile", "aria-hidden": "true" }, ico("upload")),
+      h("div", { class: "po-tiled-main" }, h("span", { id: "po-proof-label", class: "po-label" }, t("poProof"), req(), h("span", { class: "sr-only" }, " · " + t("poRequired"))), fileBox.payment_proof, proofErr));
     fields.payment_proof = { wrap: proofWrap, control: proofWrap, err: proofErr };
 
     const top = h("p", { class: "err po-top", role: "alert", tabIndex: -1 }, topError);
@@ -498,18 +565,19 @@
       section(1, t("poDeliveryInfo"),
         h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
         dateField, slotWrap, where),
-      section(2, t("poBuyer"), h("div", { class: "row2" },
-        field("buyer_name", t("poBuyerName"), input({ autocomplete: "name", maxLength: 80 })),
-        field("buyer_phone", t("poBuyerPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "tel", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint") }))),
+      section(2, t("poBuyer"),
+        field("buyer_name", t("poBuyerName"), input({ autocomplete: "name", maxLength: 80 }), { required: true, tile: "user" }),
+        field("buyer_phone", t("poBuyerPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "tel", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint"), required: true, tile: "phone" })),
       section(3, t("poReceiver"), h("label", { class: "po-check", for: "po-same" }, same, h("span", {}, t("poSame"))), receiver),
       section(4, t("poOrderInfo"),
-        field("description", t("poDescription"), area({ rows: 4, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint") }),
-        field("special_requests", t("poSpecial"), area({ rows: 2, maxLength: 500 }), { optional: true }),
-        field("card_message", t("poCard"), area({ rows: 2, maxLength: 300 }), { optional: true }),
-        refWrap,
-        PAY_LATER ? null : field("payment_method", t("poMethod"), method, { hint: t("poMethodHint") }),
-        PAY_LATER ? null : proofWrap),
-      h("button", { class: "btn primary block", type: "submit" }, t("poReview")));
+        field("description", t("poDescription"), area({ rows: 3, maxLength: 1000, placeholder: t("poDescriptionPh") }), { hint: t("poDescriptionHint"), required: true, icon: "gift" }),
+        fold("special_requests", t("poSpecial"), "sparkles", area({ rows: 2, maxLength: 500 })),
+        fold("card_message", t("poCard"), "note", area({ rows: 2, maxLength: 300 })),
+        refWrap),
+      PAY_LATER ? null : h("fieldset", { class: "po-section po-pay" }, h("legend", {}, h("span", { class: "po-step po-step-ico", "aria-hidden": "true" }, ico("card")), t("poPayment")),
+        field("payment_method", t("poMethod"), method, { hint: t("poMethodHint"), tile: "card" }),
+        proofWrap),
+      h("button", { class: "btn primary block po-submit", type: "submit" }, h("span", {}, t("poReview")), ico("arrow")));
     paintSlots();
     root.replaceChildren(form);
     refreshDateLimits();

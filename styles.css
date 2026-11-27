@@ -2696,23 +2696,120 @@ a.btn { text-decoration: none; } /* links shown as buttons (request page, form r
   .req-action-cell { padding-block-start: 0; }
 }
 
-/* Customer form: time slots as buttons (27/11/2026). Available, not available today, and chosen are each clear at a
-   glance; the radio under each button keeps the keyboard (arrows) and screen readers working. */
-.po-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-@media (min-width: 720px) { .po-slots { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+/* ---------- Customer form, 27/11/2026 redesign ----------
+   Cards per step, a line icon beside each field, the date read as a day, time slots as buttons (the Android dropdown
+   let some customers down), the location in its own card, optional extras folded into one line, payment apart. */
+.po-form .po-ico { display: inline-grid; place-items: center; flex: none; width: 20px; height: 20px; }
+.po-form .po-ico svg { width: 100%; height: 100%; }
+.po-form .po-req { color: var(--fg); font-weight: 600; }
+.po-form .po-section { gap: 16px; padding: 20px 18px; border-radius: 18px; }
+.po-form .po-section > legend { font-size: 1.0625rem; }
+.po-form .po-step { width: 30px; height: 30px; font-size: .875rem; color: var(--fg); }
+.po-form .po-step-ico .po-ico { width: 16px; height: 16px; }
+.po-form .po-field > label, .po-form .po-label { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 0 4px; font-size: .9375rem; font-weight: 500; color: var(--fg); }
+.po-form .po-field > label .po-ico { margin-right: 6px; color: var(--muted); }
+/* Delivery / Pickup with their icons */
+.po-form .po-section { grid-template-columns: minmax(0, 1fr); }
+.po-form .po-field, .po-form .po-receiver, .po-form .loc-picker { min-width: 0; grid-template-columns: minmax(0, 1fr); }
+.po-form .po-mode button { gap: 8px; min-width: 0; min-height: 52px; padding-inline: 8px; font-size: 1rem; }
+.po-form .po-mode button .po-ico { width: 22px; height: 22px; }
+/* Date: one box with the day spelled out, Today as a pill */
+.po-datebox { position: relative; display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 0 12px 0 16px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--input); color: var(--fg); }
+.po-datebox:focus-within { border-color: var(--primary-text); box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 18%, transparent); }
+.po-field.invalid .po-datebox { border-color: var(--fail); }
+.po-datebox > .po-ico { color: var(--muted); }
+.po-date-text { flex: 1; min-width: 0; font-size: 1rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.po-date-text.is-empty { color: var(--faint); font-weight: 400; }
+.po-datebox > input.po-date-input { position: absolute; inset: 0; width: 100%; height: 100%; min-height: 0; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; color-scheme: dark light; }
+.po-datebox > input.po-date-input::-webkit-calendar-picker-indicator { position: absolute; inset: 0; width: auto; height: auto; opacity: 0; cursor: pointer; }
+.po-datebox .po-today { position: relative; z-index: 1; min-height: 32px; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--surface-hover, var(--sunk)); color: var(--fg); font: inherit; font-size: .8125rem; font-weight: 500; cursor: pointer; touch-action: manipulation; }
+.po-datebox .po-today::after { content: ""; position: absolute; inset: -8px -4px; }
+.po-datebox .po-today:disabled { opacity: .45; cursor: not-allowed; }
+.po-datebox > .po-ico:last-child { position: relative; z-index: 1; pointer-events: none; color: var(--muted); }
+#po-date-hint[hidden] { display: none; }
+/* Time slots */
+.po-slots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
 .po-slot-item { position: relative; min-width: 0; }
 .po-slot-input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; pointer-events: none; }
-.po-slot { display: grid; place-content: center; gap: 2px; min-height: 52px; padding: 8px 10px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: var(--input, var(--surface)); color: var(--fg); text-align: center; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color 180ms var(--ease-out), border-color 180ms var(--ease-out), color 180ms var(--ease-out), transform var(--dur-press, 90ms) var(--ease-std); }
-.po-slot-time { font-size: .9375rem; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.25; }
+.po-slot { position: relative; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 8px 6px; border: 1px solid var(--line); border-radius: var(--r-ctl); background: transparent; color: var(--fg); text-align: center; cursor: pointer; user-select: none; -webkit-user-select: none; -webkit-tap-highlight-color: transparent; touch-action: manipulation; transition: background-color 180ms var(--ease-out), border-color 180ms var(--ease-out), color 180ms var(--ease-out), transform var(--dur-press, 90ms) var(--ease-std); }
+.po-slot-time { font-size: .875rem; font-weight: 500; font-variant-numeric: tabular-nums; line-height: 1.25; }
 .po-slot-part { white-space: nowrap; }
-.po-slot-note { font-size: .75rem; line-height: 1.2; color: var(--muted); }
-.po-slot-note:empty { display: none; }
-.po-slot:hover { border-color: color-mix(in srgb, var(--line) 55%, var(--faint)); }
+.po-slot .po-ico { display: none; width: 18px; height: 18px; }
+.po-slot:hover { border-color: color-mix(in srgb, var(--line) 50%, var(--faint)); }
 .po-slot:active { transform: scale(.98); }
 .po-slot-input:focus-visible + .po-slot { outline: 2px solid var(--primary-text); outline-offset: 2px; }
 .po-slot-input:checked + .po-slot { border-color: var(--primary); background: var(--primary); color: var(--on-primary); }
 .po-slot-input:checked + .po-slot .po-slot-time { font-weight: 600; }
-.po-slot-input:disabled + .po-slot { cursor: not-allowed; border-style: dashed; background: transparent; color: var(--faint); transform: none; }
-.po-slot-input:disabled + .po-slot .po-slot-time { text-decoration: line-through; text-decoration-thickness: 1px; }
+.po-slot-input:checked + .po-slot .po-ico { display: inline-grid; }
+.po-slot-input:disabled + .po-slot { cursor: not-allowed; color: var(--faint); border-color: color-mix(in srgb, var(--line) 70%, transparent); transform: none; }
+.po-slot-input:disabled + .po-slot .po-slot-time { text-decoration: line-through; text-decoration-thickness: 1px; font-weight: 400; }
 .po-slots-field.invalid .po-slot-input:not(:disabled) + .po-slot { border-color: var(--fail); }
-:root[data-motion="reduced"] .po-slot { transition: none; }
+.po-slots-note { display: flex; align-items: center; gap: 8px; margin: 0; color: var(--muted); }
+.po-slots-note[hidden] { display: none; }
+.po-slots-note .po-ico { width: 18px; height: 18px; }
+/* Cards inside a step: the delivery location and the pickup shop */
+.po-card { gap: 12px; padding: 16px; border: 1px solid var(--line); border-radius: 16px; background: color-mix(in srgb, var(--input) 45%, transparent); }
+.po-card-head { display: flex; align-items: center; gap: 10px; font-size: 1rem; font-weight: 600; color: var(--fg); }
+.po-card-head .po-ico { width: 22px; height: 22px; }
+.po-card .ll-search { position: relative; display: block; }
+.po-card .ll-search .input { width: 100%; min-height: 48px; padding-left: 46px; }
+.po-card .ll-search .po-find { position: absolute; left: 4px; top: 50%; transform: translateY(-50%); width: 44px; min-width: 0; height: 44px; min-height: 0; padding: 0; border: 0; background: transparent; color: var(--muted); }
+.po-card .ll-search .po-find:hover { color: var(--fg); background: transparent; }
+.po-card .loc-map { border-radius: 14px; }
+.po-card .loc-tools { flex-wrap: nowrap; gap: 10px; }
+.po-card .loc-tools .btn { flex: 1 1 0; min-width: 0; gap: 8px; min-height: 48px; padding-inline: 10px; }
+.po-card .loc-tools .btn .po-ico { width: 18px; height: 18px; }
+.po-card .po-field:has(> label[for="po-address"]) { gap: 10px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; }
+.po-card .po-field > label[for="po-address"] { font-size: .9375rem; }
+.po-card .po-field > label[for="po-address"] .po-optional { font-size: .8125rem; }
+/* Fields with their icon in a square on the left: buyer, receiver, payment */
+.po-tiled { display: grid; grid-template-columns: 48px minmax(0, 1fr); gap: 12px; align-items: start; }
+.po-tile { display: grid; place-items: center; width: 48px; height: 48px; margin-top: 4px; border: 1px solid var(--line); border-radius: 12px; background: var(--input); color: var(--fg); }
+.po-tile .po-ico { width: 22px; height: 22px; }
+.po-tiled-main { display: grid; gap: 8px; min-width: 0; }
+.po-tiled-main > .note, .po-tiled-main > .err { margin: 0; }
+.po-tiled-main > .err:empty { display: none; }
+.po-receiver { display: grid; gap: 16px; }
+.po-form .po-check { min-height: 48px; font-size: 1rem; }
+.po-form .po-check input { width: 24px; height: 24px; border-radius: 6px; }
+/* Optional extras: one line each, open on a tap */
+.po-fold { border: 1px solid var(--line); border-radius: var(--r-ctl); background: transparent; }
+.po-fold > summary { display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 0 14px; list-style: none; cursor: pointer; font-weight: 500; -webkit-tap-highlight-color: transparent; }
+.po-fold > summary::-webkit-details-marker { display: none; }
+.po-fold > summary > .po-ico:first-child { color: var(--fg); }
+.po-fold > summary > .po-ico:last-child { margin-left: auto; color: var(--muted); transition: transform 180ms var(--ease-out); }
+.po-fold[open] > summary > .po-ico:last-child { transform: rotate(90deg); }
+.po-fold > summary { padding-right: 14px; }
+.po-fold > summary::after { content: none; }
+.po-fold-title { min-width: 0; }
+.po-form .po-field > .po-card-head { font-size: 1rem; font-weight: 600; color: var(--fg); }
+.po-fold-title .po-optional { font-size: .8125rem; }
+.po-fold > summary:focus-visible { outline: 2px solid var(--primary-text); outline-offset: 2px; border-radius: var(--r-ctl); }
+.po-fold > .po-field { padding: 0 14px 14px; }
+/* Photos and proof: a dashed box to add them */
+.po-files-head { display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 2px 12px; align-items: start; }
+.po-files-head .po-ico { width: 22px; height: 22px; margin-top: 1px; }
+.po-files-head .note { margin: 2px 0 0; }
+.po-form .po-add { justify-self: stretch; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; border: 1px dashed color-mix(in srgb, var(--line) 40%, var(--faint)); border-radius: 14px; background: transparent; color: var(--fg); font-weight: 500; }
+.po-form .po-add:hover { background: var(--surface-hover); }
+.po-form .po-add-reference { flex-direction: column; gap: 6px; min-height: 92px; }
+.po-form .po-add-reference .po-ico { width: 24px; height: 24px; }
+.po-files-note:empty { display: none; }
+/* Payment step: an icon instead of a number */
+.po-pay .po-step-ico { color: var(--fg); }
+/* Review button with its arrow */
+.po-form .po-submit { gap: 10px; min-height: 56px; border-radius: 16px; font-size: 1.0625rem; font-weight: 600; }
+.po-form .po-submit .po-ico { width: 20px; height: 20px; }
+:root[data-motion="reduced"] .po-slot, :root[data-motion="reduced"] .po-fold > summary > .po-ico { transition: none; }
+/* Very narrow phones (320–359 px): a little less padding so the date and the slots keep one line */
+@media (max-width: 359px) {
+  .po-form .po-section { padding: 18px 12px; }
+  .po-datebox { gap: 8px; padding: 0 8px 0 12px; }
+  .po-datebox .po-today { padding: 0 10px; }
+  .po-datebox > .po-ico:last-child { display: none; }
+  .po-slots { gap: 8px; }
+  .po-slot { padding-inline: 4px; gap: 4px; }
+  .po-slot-time { font-size: .8125rem; }
+  .po-slot .po-ico { width: 14px; height: 14px; }
+  .po-card { padding: 14px 12px; }
+}

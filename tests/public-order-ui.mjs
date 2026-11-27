@@ -183,16 +183,17 @@ await step("Phone: one column, visible labels, touch-sized controls, nothing ask
   await page.locator(".loc-map.leaflet-container").waitFor();
   assert.equal(state.calls.length, 0, "opening the form creates no session");
   await noOverflow(page);
-  assert.deepEqual(await page.locator(".po-section > legend").allInnerTexts().then((l) => l.map((s) => s.replace(/^\d+\s*/, ""))), ["Delivery information", "Buyer information", "Receiver information", "Order information"]);
-  const small = await page.evaluate(() => [...document.querySelectorAll(".po-form :is(input:not([type=checkbox]):not([type=file]), select, textarea, button, .po-add)")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.id || e.className || e.textContent));
+  assert.deepEqual(await page.locator(".po-section > legend").allInnerTexts().then((l) => l.map((s) => s.replace(/^\d+\s*/, ""))), ["Delivery information", "Buyer information", "Receiver information", "Order information", "Payment"]);
+  const small = await page.evaluate(() => [...document.querySelectorAll(".po-form :is(input:not([type=checkbox]):not([type=file]), select, textarea, button:not(.po-today), .po-add, .po-fold > summary)")].filter((e) => e.offsetParent && e.getBoundingClientRect().height < 44).map((e) => e.id || e.className || e.textContent));
   assert.deepEqual(small, [], "controls under 44px tall");
   const unlabelled = await page.evaluate(() => [...document.querySelectorAll(".po-form :is(input:not([type=file]), select, textarea)")].filter((e) => !(e.labels?.length || e.getAttribute("aria-label"))).map((e) => e.id));
   assert.deepEqual(unlabelled, []);
-  const cols = await page.evaluate(() => getComputedStyle(document.querySelector(".po-section .row2")).gridTemplateColumns.split(" ").length);
-  assert.equal(cols, 1);
+  // "Today" is a small pill drawn inside the date box; its touch area reaches 44px and more
+  assert(await page.evaluate(() => { const b = document.querySelector(".po-today"), r = b.getBoundingClientRect(), a = getComputedStyle(b, "::after"); return r.height - parseFloat(a.top) - parseFloat(a.bottom) >= 44; }), "Today is easy to tap");
+  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".po-slots")).gridTemplateColumns.split(" ").length), 2, "time slots two by two");
   await page.screenshot({ path: path.join(shots, "public-order-mobile-top.png"), fullPage: true });
   await page.setViewportSize({ width: 1100, height: 900 });
-  assert.equal(await page.evaluate(() => getComputedStyle(document.querySelector(".po-section .row2")).gridTemplateColumns.split(" ").length), 2, "related fields pair up on a wide screen");
+  await noOverflow(page);
   await page.screenshot({ path: path.join(shots, "public-order-desktop.png"), fullPage: true });
   assert.deepEqual(state.errors, []); assert.deepEqual(state.strangers, []);
   await ctx.close();
@@ -670,7 +671,8 @@ await step("Today's slots: those that have passed or end within the hour cannot 
   assert.deepEqual(await off(), ["09:00 - 11:00", "11:00 - 13:00"]);
   assert.equal(await chosenSlot(page), "", "a slot chosen for another day is dropped when it has passed today");
   assert.match(await page.locator("#po-slot-err").innerText(), /no longer available today/, "and the customer is told why");
-  assert.equal(await page.locator("#po-slot label", { hasText: "9:00 AM" }).innerText().then((x) => /Not available today/.test(x)), true, "a slot gone today says so on the button");
+  assert.equal(await page.locator("#po-slot label", { hasText: "9:00 – 11:00 AM" }).evaluate((l) => getComputedStyle(l.querySelector(".po-slot-time")).textDecorationLine), "line-through", "a slot gone today is crossed out");
+  assert.equal(await page.locator(".po-slots-note").isVisible(), true, "and the form says why: not available today");
   await pickSlot(page, "13:00 - 15:00");
   // The form stays open past the hour: the choice is refused on review, next to the field
   await page.clock.setFixedTime(new Date("2026-11-16T14:10:00+08:00"));
@@ -720,7 +722,7 @@ await step("Sending: the request is reviewed first, and the last screen says “
   await page.locator("#po-date").fill(tomorrow()); await pickSlot(page, "11:00 - 13:00");
   await page.locator("#po-address").fill("12 Katipunan Ave, Loyola Heights, Quezon City");
   if (!(await page.locator(".loc-done").isVisible())) { await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click(); }
-  await page.locator("#po-description").fill("A dozen red roses"); await page.locator("#po-card_message").fill("Happy birthday, Ma!");
+  await page.locator("#po-description").fill("A dozen red roses"); await page.locator(".po-fold:has(#po-card_message) > summary").click(); await page.locator("#po-card_message").fill("Happy birthday, Ma!");
   await page.locator("#po-payment_method").selectOption("bank"); await proof(page);
   await review(page);
   await page.locator(".po-review").waitFor();
