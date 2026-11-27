@@ -327,6 +327,7 @@
     f.err.textContent = errs[name] || "";
     f.wrap.classList.toggle("invalid", !!errs[name]);
     if (f.control.setAttribute) f.control.setAttribute("aria-invalid", String(!!errs[name]));
+    if (name === "slot") f.wrap.setAttribute("aria-invalid", String(!!errs.slot));
   }
   function validate() {
     for (const k of Object.keys(errs)) delete errs[k];
@@ -396,24 +397,40 @@
       const hint = root.querySelector("#po-date-hint");
       if (hint) hint.textContent = t(today.disabled ? "poErrToday" : "poDateHint");
     }
-    const slot = h("select", {}, h("option", { value: "" }, t("poChoose")), SLOTS.map((s) => h("option", { value: s }, formatSlot12(s))));
-    // Today's slots that have passed (or are about to) cannot be chosen and say so in their label (a greyed option
-    // alone was missed on Android, 27/11/2026); a choice dropped because of the date is explained, not cleared silently
+    // The time slot is a set of buttons (radio inputs under their labels), not a dropdown: all six are seen at once,
+    // the ones not available today say so, and no phone or in-app browser draws its own list over the page.
+    // Android's dropdown had small rows and covered the date, and some customers could not pick a time (27/11/2026).
+    const slotErr = h("p", { class: "err", id: "po-slot-err", role: "alert" });
+    const slotItems = SLOTS.map((s, i) => {
+      const id = "po-slot-" + i;
+      const radio = h("input", { type: "radio", name: "po-slot", value: s, id, class: "po-slot-input", checked: v.slot === s,
+        "aria-describedby": "po-slot-err",
+        onchange: () => { if (!radio.checked) return; v.slot = s; touched = true; if (errs.slot) { delete errs.slot; paintError("slot"); } } });
+      const note = h("span", { class: "po-slot-note" });
+      const label = h("label", { for: id, class: "po-slot" }, h("span", { class: "po-slot-time" }, ...formatSlot12(s).split(" - ").flatMap((x, k) => [k ? " – " : null, h("span", { class: "po-slot-part" }, x)]).filter(Boolean)), note);
+      return { s, radio, note, node: h("div", { class: "po-slot-item" }, radio, label) };
+    });
+    const slotWrap = h("div", { class: "field po-field po-slots-field", role: "radiogroup", id: "po-slot", "aria-labelledby": "po-slot-label", "aria-required": "true" },
+      h("span", { id: "po-slot-label", class: "po-label" }, t("poSlot")), h("div", { class: "po-slots" }, slotItems.map((x) => x.node)), slotErr);
+    fields.slot = { wrap: slotWrap, control: { focus: (o) => (slotItems.find((x) => x.radio.checked) || slotItems.find((x) => !x.radio.disabled))?.radio.focus(o) }, err: slotErr };
+    // Today's slots that have passed (or are about to) cannot be chosen and say so; a choice dropped because of the
+    // date is explained, not cleared silently
     const paintSlots = () => {
       const day = date.value || v.date;
-      for (const o of slot.options) {
-        if (!o.value) continue;
-        const gone = !!day && !slotOpen(day, o.value), label = formatSlot12(o.value) + (gone ? " · " + t("poSlotGone") : "");
-        if (o.disabled !== gone) o.disabled = gone;
-        if (o.textContent !== label) o.textContent = label;
+      for (const x of slotItems) {
+        const gone = !!day && !slotOpen(day, x.s);
+        if (x.radio.disabled !== gone) x.radio.disabled = gone;
+        const text = gone ? t("poSlotGone") : "";
+        if (x.note.textContent !== text) x.note.textContent = text;
       }
       if (v.slot && day && !slotOpen(day, v.slot)) {
-        v.slot = ""; slot.value = "";
+        v.slot = "";
         errs.slot = t("poErrSlotPast"); paintError("slot");
       }
+      for (const x of slotItems) { const on = v.slot === x.s; if (x.radio.checked !== on) x.radio.checked = on; }
     };
     date.addEventListener("input", paintSlots);
-    slot.addEventListener("focus", paintSlots);
+    date.addEventListener("change", paintSlots);
     date.addEventListener("focus", refreshDateLimits);
     today.addEventListener("focus", refreshDateLimits);
     const dateField = field("date", t("poDate"), date, { hint: t("poDateHint") });
@@ -480,7 +497,7 @@
       draftNote, top,
       section(1, t("poDeliveryInfo"),
         h("div", { class: "seg po-mode", role: "group", "aria-label": t("poMode") }, mode("delivery"), mode("pickup")),
-        h("div", { class: "row2" }, dateField, field("slot", t("poSlot"), slot)), where),
+        dateField, slotWrap, where),
       section(2, t("poBuyer"), h("div", { class: "row2" },
         field("buyer_name", t("poBuyerName"), input({ autocomplete: "name", maxLength: 80 })),
         field("buyer_phone", t("poBuyerPhone"), input({ type: "tel", inputMode: "tel", autocomplete: "tel", maxLength: 24, placeholder: "0917 123 4567" }), { hint: t("poPhoneHint") }))),

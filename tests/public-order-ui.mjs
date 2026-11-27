@@ -23,6 +23,10 @@ const only = process.env.ONLY;
 let failed = 0;
 const step = async (name, fn) => { if (only && !name.includes(only)) return; try { await fn(); console.log("ok " + name); } catch (e) { failed++; console.log("FAIL " + name + "\n  " + String(e.stack || e).split("\n").slice(0, 6).join("\n  ")); } };
 
+// The time slot is a set of buttons: a customer taps the label, as on a phone
+const pickSlot = (page, value) => page.locator(`#po-slot input[value="${value}"] + label`).click();
+const chosenSlot = (page) => page.locator("#po-slot input:checked").evaluateAll((os) => os[0]?.value || "");
+
 // ---------- the server side, for real ----------
 const db = new PGlite();
 await build((sql) => db.exec(sql));
@@ -97,8 +101,8 @@ const FAKE_GOOGLE = `(() => {
 const storedRequest = async (key) => { const r = (await db.query("select mode, address, lat from public.cdf_order_requests where request_key = $1", [key])).rows[0]; return r && { ...r, lat: r.lat == null ? null : Number(r.lat) }; };
 const browser = await chromium.launch({ headless: true, channel: "chrome" });
 // Everything the page asks for is answered here or refused: a request to any other host fails the test.
-async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "", turnstile = null, clock = false, paymongo = false } = {}) {
-  const ctx = await browser.newContext({ viewport, locale: "en-PH", timezoneId: "Europe/Madrid", ...(geo ? { geolocation: geo, permissions: ["geolocation"] } : {}) });
+async function open({ feature = true, viewport = { width: 390, height: 844 }, geo, accept = false, lang = "en", google = false, mapId = "", turnstile = null, clock = false, paymongo = false, touch = false } = {}) {
+  const ctx = await browser.newContext({ viewport, locale: "en-PH", ...(touch ? { hasTouch: true, isMobile: true, deviceScaleFactor: 2.625 } : {}), timezoneId: "Europe/Madrid", ...(geo ? { geolocation: geo, permissions: ["geolocation"] } : {}) });
   const page = await ctx.newPage();
   const state = { calls: [], strangers: [], failUploads: 0, accept, errors: [], googleScripts: [] };
   page.on("pageerror", (e) => state.errors.push(e.message));
@@ -142,7 +146,7 @@ async function fill(page, { pickup = false, location = true } = {}) {
   await page.locator("#po-receiver_phone").fill("0917 123 4567");
   if (pickup) await page.locator("[data-mode=pickup]").click();
   await page.locator("#po-date").fill(tomorrow());
-  await page.locator("#po-slot").selectOption("11:00 - 13:00");
+  await pickSlot(page, "11:00 - 13:00");
   if (pickup) await page.locator(".po-shop", { hasText: "Quezon City" }).click();
   if (!pickup) {
     await page.locator("#po-address").fill("12 Katipunan Ave, Loyola Heights, Quezon City");
@@ -509,7 +513,7 @@ await step("Pickup: a shop is required; Use my location sorts the shops and pick
   await page.locator("#po-buyer_name").fill("Jose Santos"); await page.locator("#po-buyer_phone").fill("+34 612 345 678");
   await page.locator("#po-same").check();
   await page.locator("[data-mode=pickup]").click();
-  await page.locator("#po-date").fill(tomorrow()); await page.locator("#po-slot").selectOption("11:00 - 13:00");
+  await page.locator("#po-date").fill(tomorrow()); await pickSlot(page, "11:00 - 13:00");
   await page.locator("#po-description").fill("A dozen red roses"); await page.locator("#po-payment_method").selectOption("cash");
   await proof(page);
   await review(page);
@@ -658,14 +662,16 @@ await step("Upload interrupted: the photo is marked, can be retried, and is stor
 await step("Today's slots: those that have passed or end within the hour cannot be chosen; once none is left, the first day is tomorrow", async () => {
   // 12:30 in Manila: 09–11 has passed, 11–13 ends in half an hour, 13–15 onwards are open
   let { page, ctx } = await open({ clock: "2026-11-16T12:30:00+08:00" });
-  const off = () => page.locator("#po-slot option").evaluateAll((os) => os.filter((o) => o.disabled).map((o) => o.value));
+  const off = () => page.locator("#po-slot input[type=radio]").evaluateAll((os) => os.filter((o) => o.disabled).map((o) => o.value));
   assert.deepEqual(await off(), [], "nothing is closed before a date is chosen");
-  await page.locator("#po-date").fill("2026-11-17"); await page.locator("#po-slot").selectOption("09:00 - 11:00");
+  await page.locator("#po-date").fill("2026-11-17"); await pickSlot(page, "09:00 - 11:00");
   assert.deepEqual(await off(), [], "any slot of a later day can be chosen");
   await page.locator("#po-date").fill("2026-11-16");
   assert.deepEqual(await off(), ["09:00 - 11:00", "11:00 - 13:00"]);
-  assert.equal(await page.locator("#po-slot").inputValue(), "", "a slot chosen for another day is dropped when it has passed today");
-  await page.locator("#po-slot").selectOption("13:00 - 15:00");
+  assert.equal(await chosenSlot(page), "", "a slot chosen for another day is dropped when it has passed today");
+  assert.match(await page.locator("#po-slot-err").innerText(), /no longer available today/, "and the customer is told why");
+  assert.equal(await page.locator("#po-slot label", { hasText: "9:00 AM" }).innerText().then((x) => /Not available today/.test(x)), true, "a slot gone today says so on the button");
+  await pickSlot(page, "13:00 - 15:00");
   // The form stays open past the hour: the choice is refused on review, next to the field
   await page.clock.setFixedTime(new Date("2026-11-16T14:10:00+08:00"));
   await review(page);
@@ -679,12 +685,39 @@ await step("Today's slots: those that have passed or end within the hour cannot 
   await ctx.close();
 });
 
+await step("Time slot on a phone: a real tap on a button chooses it, the choice survives a mode change and reaches the review", async () => {
+  // Regression (27/11/2026): on Android the old dropdown drew its own list over the page and some customers could not pick a time
+  const { page, ctx, state } = await open({ touch: true, viewport: { width: 360, height: 740 }, clock: "2026-11-16T16:59:00+08:00" });
+  await page.locator("#po-date").fill("2026-11-17");
+  const slot = page.locator(`#po-slot input[value="13:00 - 15:00"] + label`);
+  const box = await slot.boundingBox();
+  assert(box.height >= 48 && box.width >= 120, "the button is a comfortable target: " + JSON.stringify(box));
+  await slot.tap();
+  assert.equal(await chosenSlot(page), "13:00 - 15:00", "the tap chose it");
+  await page.locator("[data-mode=pickup]").tap(); await page.locator("[data-mode=delivery]").tap();
+  assert.equal(await chosenSlot(page), "13:00 - 15:00", "kept when switching delivery / pickup");
+  // Today at 16:59: four slots are gone, tapping one changes nothing
+  await page.locator("button.po-today").tap();
+  assert.equal(await chosenSlot(page), "", "13–15 is gone today, so it is dropped");
+  assert.match(await page.locator("#po-slot-err").innerText(), /no longer available today/);
+  await page.locator(`#po-slot input[value="11:00 - 13:00"] + label`).tap({ force: true });
+  assert.equal(await chosenSlot(page), "", "a slot gone today cannot be chosen");
+  await page.locator(`#po-slot input[value="17:00 - 19:00"] + label`).tap();
+  assert.equal(await chosenSlot(page), "17:00 - 19:00");
+  assert.equal(await page.locator("#po-slot-err").innerText(), "", "the message goes once a valid slot is chosen");
+  // Nothing covers the buttons: the element at the centre of each one is the button itself
+  const covered = await page.locator("#po-slot label").evaluateAll((ls) => ls.filter((l) => { const r = l.getBoundingClientRect(); l.scrollIntoView({ block: "center" }); const q = l.getBoundingClientRect(); const e = document.elementFromPoint(q.x + q.width / 2, q.y + q.height / 2); return !l.contains(e); }).length);
+  assert.equal(covered, 0, "no overlay over the time slots");
+  assert.deepEqual(state.errors, []);
+  await ctx.close();
+});
+
 await step("Sending: the request is reviewed first, and the last screen says “received, pending review”, nothing more", async () => {
   const { page, state, ctx } = await open();
   await page.locator("#po-same").check();
   assert.equal(await page.locator("#po-receiver_name").isVisible(), false);
   await fill(page, {}).catch(() => {}); // receiver fields are hidden: fill the rest by hand
-  await page.locator("#po-date").fill(tomorrow()); await page.locator("#po-slot").selectOption("11:00 - 13:00");
+  await page.locator("#po-date").fill(tomorrow()); await pickSlot(page, "11:00 - 13:00");
   await page.locator("#po-address").fill("12 Katipunan Ave, Loyola Heights, Quezon City");
   if (!(await page.locator(".loc-done").isVisible())) { await search(page, "Katipunan"); await page.locator(".loc-result").first().click(); await page.locator(".loc-confirm").click(); }
   await page.locator("#po-description").fill("A dozen red roses"); await page.locator("#po-card_message").fill("Happy birthday, Ma!");
