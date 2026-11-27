@@ -397,11 +397,20 @@
       if (hint) hint.textContent = t(today.disabled ? "poErrToday" : "poDateHint");
     }
     const slot = h("select", {}, h("option", { value: "" }, t("poChoose")), SLOTS.map((s) => h("option", { value: s }, formatSlot12(s))));
-    // Today's slots that have passed (or are about to) cannot be chosen; a choice made before the day changed is dropped
+    // Today's slots that have passed (or are about to) cannot be chosen and say so in their label (a greyed option
+    // alone was missed on Android, 27/11/2026); a choice dropped because of the date is explained, not cleared silently
     const paintSlots = () => {
       const day = date.value || v.date;
-      for (const o of slot.options) if (o.value) o.disabled = !!day && !slotOpen(day, o.value);
-      if (v.slot && day && !slotOpen(day, v.slot)) { v.slot = ""; slot.value = ""; }
+      for (const o of slot.options) {
+        if (!o.value) continue;
+        const gone = !!day && !slotOpen(day, o.value), label = formatSlot12(o.value) + (gone ? " · " + t("poSlotGone") : "");
+        if (o.disabled !== gone) o.disabled = gone;
+        if (o.textContent !== label) o.textContent = label;
+      }
+      if (v.slot && day && !slotOpen(day, v.slot)) {
+        v.slot = ""; slot.value = "";
+        errs.slot = t("poErrSlotPast"); paintError("slot");
+      }
     };
     date.addEventListener("input", paintSlots);
     slot.addEventListener("focus", paintSlots);

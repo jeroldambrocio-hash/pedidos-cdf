@@ -1707,6 +1707,9 @@ select option { background: var(--surface); color: var(--fg); }
   select option::checkmark { color: var(--primary-text); font-size: .8em; }
   select option:disabled { color: var(--faint); }
   :root[data-motion="reduced"] ::picker(select) { transition: none; transform: none; }
+  /* Customer form on touch screens: the phone's own list (large rows, full screen, clear "not available"), not the
+     in-page dropdown, which on Android had small rows and covered the date (27/11/2026) */
+  @media (pointer: coarse) { .po-form select { appearance: auto; } }
 }
 
 /* ---------- Team chat (Conversations, order conversation, chat chips) ---------- */
